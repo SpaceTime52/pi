@@ -80,6 +80,41 @@ func TestExtensionsHaveReadme(t *testing.T) {
 	}
 }
 
+func TestExtensionsSubdirRequiresCore(t *testing.T) {
+	dir := filepath.Join(projectRoot(), "extensions")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Skip("extensions/ 없음")
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+
+		path := filepath.Join(dir, e.Name())
+		subs, err := os.ReadDir(path)
+		if err != nil {
+			continue
+		}
+
+		hasSubdir := false
+		hasCore := false
+		for _, s := range subs {
+			if s.IsDir() {
+				hasSubdir = true
+				if s.Name() == "core" {
+					hasCore = true
+				}
+			}
+		}
+
+		if hasSubdir && !hasCore {
+			t.Errorf("extensions/%s/: 하위 폴더가 있으면 core/ 필수", e.Name())
+		}
+	}
+}
+
 func TestExtensionsHaveIndexTs(t *testing.T) {
 	dir := filepath.Join(projectRoot(), "extensions")
 	entries, err := os.ReadDir(dir)
