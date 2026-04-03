@@ -11,7 +11,7 @@
     pi update
 
   EXTENSIONS
-    hello ···· 이름을 받아 인사하는 도구
+    notify ···· 작업 완료 시 터미널 알림
 
   SKILLS
     (none)
