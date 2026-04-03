@@ -1,7 +1,8 @@
 pre-commit:
   commands:
     format:
-      run: mise exec -- npm run format && git add -u
+      glob: "*.ts"
+      run: mise exec -- biome format --write {staged_files} && git add {staged_files}
     lint:
       run: mise exec -- npm run lint
     typecheck:
