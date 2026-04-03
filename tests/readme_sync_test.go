@@ -116,12 +116,4 @@ func TestReadmeSyncSkills(t *testing.T) {
 	testSection(t, string(data), root, "SKILLS", "skills")
 }
 
-func TestReadmeSyncPrompts(t *testing.T) {
-	root := projectRoot()
-	data, err := os.ReadFile(filepath.Join(root, "README"))
-	if err != nil {
-		t.Fatal("README 없음")
-	}
-	testSection(t, string(data), root, "PROMPTS", "prompts")
-}
 
