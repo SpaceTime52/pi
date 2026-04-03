@@ -1,8 +1,8 @@
 
-         ╔══════════════════════════════════════╗
-         ║            jeonghyeon/pi             ║
-         ║      personal pi-coding-agent config         ║
-         ╚══════════════════════════════════════╝
+         ╔════════════════════════════════════════╗
+         ║             jeonghyeon/pi              ║
+         ║    personal pi-coding-agent config     ║
+         ╚════════════════════════════════════════╝
 
   INSTALL
     pi install https://github.com/jeonghyeon-net/pi
