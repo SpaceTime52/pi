@@ -1,6 +1,9 @@
 {
   "name": "@jeonghyeon-net/pi",
   "private": true,
+  "scripts": {
+    "test": "go run tests/extensions_directory_structure.go ."
+  },
   "devDependencies": {
     "@mariozechner/pi-ai": "^0.64.0",
     "@mariozechner/pi-coding-agent": "^0.64.0",
