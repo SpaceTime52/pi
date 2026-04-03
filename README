@@ -20,6 +20,7 @@
     node 22
     go 1.26
     biome 2.4
+    lefthook 2.1
 
   LINKS
     pi-coding-agent  https://github.com/badlogic/pi-mono

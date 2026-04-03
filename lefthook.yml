@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    format:
+      run: mise exec -- biome format --write && git add -u
+    lint:
+      run: mise exec -- biome check
+    typecheck:
+      run: mise exec -- npx tsc --noEmit
+    test:
+      run: mise exec -- go test ./...
