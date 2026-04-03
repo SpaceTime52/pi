@@ -72,7 +72,14 @@
         "useNodejsImportProtocol": "error",
         "useExponentiationOperator": "error",
         "useDefaultParameterLast": "error",
-        "useForOf": "error"
+        "useForOf": "error",
+        "useConsistentArrayType": "error",
+        "noInferrableTypes": "error",
+        "noNonNullAssertion": "error",
+        "noEnum": "error",
+        "useAsConstAssertion": "error",
+        "noNamespace": "error",
+        "noParameterAssign": "error"
       },
       "suspicious": {
         "recommended": true,
@@ -88,7 +95,9 @@
         "noAssignInExpressions": "error",
         "noAsyncPromiseExecutor": "error",
         "noFallthroughSwitchClause": "error",
-        "noImplicitAnyLet": "error"
+        "noImplicitAnyLet": "error",
+        "noUnsafeDeclarationMerging": "error",
+        "noEvolvingTypes": "error"
       }
     }
   }

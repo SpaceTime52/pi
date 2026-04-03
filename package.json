@@ -4,12 +4,14 @@
   "scripts": {
     "test": "go test ./...",
     "lint": "biome check",
+    "typecheck": "tsc --noEmit",
     "format": "biome format --write"
   },
   "devDependencies": {
     "@mariozechner/pi-ai": "^0.64.0",
     "@mariozechner/pi-coding-agent": "^0.64.0",
     "@mariozechner/pi-tui": "^0.64.0",
-    "@sinclair/typebox": "^0.34.49"
+    "@sinclair/typebox": "^0.34.49",
+    "typescript": "^6.0.2"
   }
 }
