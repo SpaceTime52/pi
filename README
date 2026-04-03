@@ -1,4 +1,20 @@
-pi-coding-agent 개인 extension 패키지
 
-설치: pi install https://github.com/jeonghyeon-net/pi
-업데이트: pi update
+         ╔══════════════════════════════════════╗
+         ║            jeonghyeon/pi             ║
+         ║   personal pi-coding-agent package   ║
+         ╚══════════════════════════════════════╝
+
+  INSTALL
+    pi install https://github.com/jeonghyeon-net/pi
+
+  UPDATE
+    pi update
+
+  EXTENSIONS
+    hello ···· greeting tool, /hello command
+
+  REQUIRES
+    node >= 20.6.0
+
+  LINKS
+    pi-coding-agent  https://github.com/badlogic/pi-mono
