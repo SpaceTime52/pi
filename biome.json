@@ -1,12 +1,41 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
-	"files": {
-		"includes": ["extensions/**/*.ts", "skills/**/*.ts"]
-	},
-	"formatter": {
-		"indentStyle": "tab"
-	},
-	"linter": {
-		"enabled": true
-	}
+  "$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
+  "files": {
+    "includes": ["extensions/**/*.ts", "skills/**/*.ts"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "recommended": true
+      },
+      "correctness": {
+        "recommended": true,
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error"
+      },
+      "performance": {
+        "recommended": true
+      },
+      "security": {
+        "recommended": true
+      },
+      "style": {
+        "recommended": true,
+        "useConst": "error",
+        "useExportType": "error",
+        "useImportType": "error"
+      },
+      "suspicious": {
+        "recommended": true,
+        "noExplicitAny": "error"
+      }
+    }
+  }
 }
