@@ -11,7 +11,16 @@
     pi update
 
   EXTENSIONS
-    hello ···· greeting tool, /hello command
+    (none)
+
+  SKILLS
+    (none)
+
+  PROMPTS
+    (none)
+
+  THEMES
+    (none)
 
   REQUIRES
     node >= 20.6.0
