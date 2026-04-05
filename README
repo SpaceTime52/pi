@@ -21,7 +21,12 @@
     until ···· 조건 충족까지 주기적 반복 실행
 
   SKILLS
-    (none)
+    design-first ···· 코드 작성 전 설계 확정 프로세스
+    security-review ···· security-auditor로 보안 취약점 리포트
+    self-healing ···· stress-interview + worker 2사이클 자가 치유
+    simplify ···· code-cleaner 진단 후 품질 개선
+    stress-interview ···· verifier/reviewer/challenger 병렬 교차 검토
+    systematic-debugging ···· 근본원인 기반 4단계 디버깅
 
   REQUIRES
     node 22
