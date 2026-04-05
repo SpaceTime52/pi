@@ -484,6 +484,38 @@ describe("getLatestActivityPreview", () => {
     assert.equal(getLatestActivityPreview(messages), "→ edit 42");
   });
 
+  it("formats find tool call", () => {
+    const messages = [
+      makeAssistantMessage([
+        { type: "toolCall", id: "t1", name: "find", arguments: { pattern: "*.ts", path: "/tmp" } },
+      ]),
+    ];
+    assert.equal(getLatestActivityPreview(messages), "→ find *.ts in /tmp");
+  });
+
+  it("formats find with default pattern and path", () => {
+    const messages = [
+      makeAssistantMessage([{ type: "toolCall", id: "t1", name: "find", arguments: {} }]),
+    ];
+    assert.equal(getLatestActivityPreview(messages), "→ find * in .");
+  });
+
+  it("formats grep tool call", () => {
+    const messages = [
+      makeAssistantMessage([
+        { type: "toolCall", id: "t1", name: "grep", arguments: { pattern: "TODO", path: "/src" } },
+      ]),
+    ];
+    assert.equal(getLatestActivityPreview(messages), "→ grep /TODO/ in /src");
+  });
+
+  it("formats grep with empty pattern and default path", () => {
+    const messages = [
+      makeAssistantMessage([{ type: "toolCall", id: "t1", name: "grep", arguments: {} }]),
+    ];
+    assert.equal(getLatestActivityPreview(messages), "→ grep // in .");
+  });
+
   it("write falls back to path when file_path missing", () => {
     const messages = [
       makeAssistantMessage([

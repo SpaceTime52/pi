@@ -5,6 +5,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { parse as parseYaml } from "yaml";
 import type { PendingCompletion } from "../core/types.js";
 
 // ━━━ Escalation IPC ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -16,39 +17,6 @@ export interface EscalationRecord {
   message: string;
   context?: string | undefined;
   timestamp: string;
-}
-
-/**
- * Minimal YAML parser for simple key-value escalation records.
- * Handles `key: value` lines and basic multiline continuation (indented lines
- * following a key are appended to that key's value).
- */
-function parseSimpleYaml(content: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  let lastKey = "";
-  for (const line of content.split("\n")) {
-    // Continuation line: starts with whitespace and follows a key
-    if (lastKey && line.length > 0 && (line[0] === " " || line[0] === "\t")) {
-      result[lastKey] += `\n${line.trimEnd()}`;
-      continue;
-    }
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      lastKey = "";
-      continue;
-    }
-    const colonIndex = trimmed.indexOf(":");
-    if (colonIndex <= 0) {
-      lastKey = "";
-      continue;
-    }
-    const key = trimmed.slice(0, colonIndex).trim();
-    const value = trimmed.slice(colonIndex + 1).trim();
-    // Strip surrounding quotes if present
-    result[key] = value.replace(/^["'](.*)["']$/, "$1");
-    lastKey = key;
-  }
-  return result;
 }
 
 /**
@@ -68,14 +36,15 @@ export function readAndConsumeEscalation(sessionFile: string): EscalationRecord 
     const filePath = getEscalationFilePath(sessionFile);
     if (!fs.existsSync(filePath)) return null;
     const content = fs.readFileSync(filePath, "utf-8");
-    const raw = parseSimpleYaml(content);
+    const raw = parseYaml(content) as Record<string, unknown> | null;
+    if (!raw || typeof raw !== "object") return null;
     // Validate required fields before treating as EscalationRecord
     if (typeof raw.sessionFile !== "string" || typeof raw.message !== "string") return null;
     const record: EscalationRecord = {
       sessionFile: raw.sessionFile,
       message: raw.message,
-      context: raw.context,
-      timestamp: raw.timestamp ?? "",
+      context: typeof raw.context === "string" ? raw.context : undefined,
+      timestamp: typeof raw.timestamp === "string" ? raw.timestamp : "",
     };
     try {
       fs.unlinkSync(filePath);

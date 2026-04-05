@@ -181,13 +181,7 @@ export async function runSingleAgent(
           // CRITICAL: Must also add these messages to currentResult.messages,
           // otherwise getFinalOutput() returns "" and the task fails with "Output was empty".
           for (const msg of (event.messages ?? []) as Message[]) {
-            // Reference-equality check first; content-based fallback for deserialized messages
-            const isDuplicate = currentResult.messages.some(
-              (m) =>
-                m === msg ||
-                (m.role === msg.role && JSON.stringify(m.content) === JSON.stringify(msg.content)),
-            );
-            if (!isDuplicate) {
+            if (!currentResult.messages.find((m) => m === msg)) {
               currentResult.messages.push(msg);
             }
             if (msg.role === "assistant") {

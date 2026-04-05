@@ -30,9 +30,6 @@ import {
 let widgetTimer: ReturnType<typeof setInterval> | undefined;
 const hideTimerByKey = new Map<string, ReturnType<typeof setTimeout>>();
 
-/** When true, the above-editor widget is suppressed (todo-sidebar renders instead). */
-const SUPPRESS_TODO_WIDGET = true;
-
 // ── Timer helpers ────────────────────────────────────────────────────────────
 
 export function clearWidgetTimer(): void {
@@ -55,10 +52,6 @@ export async function syncWidget(
   pi: Pick<ExtensionAPI, "appendEntry">,
 ): Promise<void> {
   if (!ctx.hasUI) return;
-  if (SUPPRESS_TODO_WIDGET) {
-    ctx.ui.setWidget(TODO_WIDGET_KEY, undefined);
-    return;
-  }
 
   const key = getStateKey(ctx);
   const state = readState(ctx);

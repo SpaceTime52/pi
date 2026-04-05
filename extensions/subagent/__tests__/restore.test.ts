@@ -1757,6 +1757,46 @@ describe("restoreRunsFromSession", () => {
     assert.equal(run.contextMode, "isolated");
   });
 
+  it("maps legacy contextMode 'sub' to 'isolated' for backward compat", () => {
+    const store = createStore();
+    const entries: SessionEntry[] = [
+      makeCustomMessageEntry("subagent-command", "worker#73 done", {
+        runId: 73,
+        agent: "worker",
+        task: "task",
+        status: "done",
+        startedAt: Date.now() - 1000,
+        elapsedMs: 1000,
+        contextMode: "sub",
+      }),
+    ];
+    const ctx = makeMockCtx(entries);
+    restoreRunsFromSession(store, ctx);
+    const run = store.commandRuns.get(73);
+    assert.ok(run);
+    assert.equal(run.contextMode, "isolated");
+  });
+
+  it("restores main contextMode from details", () => {
+    const store = createStore();
+    const entries: SessionEntry[] = [
+      makeCustomMessageEntry("subagent-command", "worker#74 done", {
+        runId: 74,
+        agent: "worker",
+        task: "task",
+        status: "done",
+        startedAt: Date.now() - 1000,
+        elapsedMs: 1000,
+        contextMode: "main",
+      }),
+    ];
+    const ctx = makeMockCtx(entries);
+    restoreRunsFromSession(store, ctx);
+    const run = store.commandRuns.get(74);
+    assert.ok(run);
+    assert.equal(run.contextMode, "main");
+  });
+
   // ── getSessionFile throwing ────────────────────────────────────────
 
   it("handles getSessionFile throwing gracefully", () => {

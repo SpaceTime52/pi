@@ -130,6 +130,14 @@ function formatToolCallPreview(toolName: string, args: Record<string, unknown>):
       return `edit ${resolvePath(args.file_path, args.path, "...")}`;
     case "ls":
       return `ls ${resolvePath(args.path, undefined, ".")}`;
+    case "find": {
+      const pattern = typeof args.pattern === "string" && args.pattern ? args.pattern : "*";
+      return `find ${pattern} in ${resolvePath(args.path, undefined, ".")}`;
+    }
+    case "grep": {
+      const pattern = typeof args.pattern === "string" ? args.pattern : "";
+      return `grep /${pattern}/ in ${resolvePath(args.path, undefined, ".")}`;
+    }
     default: {
       const s = JSON.stringify(args);
       return `${toolName} ${s.length > 50 ? `${s.slice(0, 50)}...` : s}`;

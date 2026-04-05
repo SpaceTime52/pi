@@ -219,9 +219,11 @@ export function restoreRunsFromSession(
           turnCount: d.turnCount ?? existing?.turnCount ?? DEFAULT_TURN_COUNT,
           sessionFile: d.sessionFile ?? existing?.sessionFile,
           contextMode:
-            (d.contextMode === "main" || d.contextMode === "isolated"
-              ? d.contextMode
-              : undefined) ?? existing?.contextMode,
+            (d.contextMode === "main"
+              ? "main"
+              : d.contextMode === "isolated" || d.contextMode === "sub"
+                ? "isolated"
+                : undefined) ?? existing?.contextMode,
           usage: (d.usage as UsageStats | undefined) ?? existing?.usage,
           model: d.model ?? existing?.model,
           thoughtText: d.thoughtText ?? d.progressText ?? existing?.thoughtText,
@@ -267,9 +269,11 @@ export function restoreRunsFromSession(
           turnCount: d.turnCount ?? existing?.turnCount ?? DEFAULT_TURN_COUNT,
           sessionFile: d.sessionFile ?? existing?.sessionFile,
           contextMode:
-            (d.contextMode === "main" || d.contextMode === "isolated"
-              ? d.contextMode
-              : undefined) ?? existing?.contextMode,
+            (d.contextMode === "main"
+              ? "main"
+              : d.contextMode === "isolated" || d.contextMode === "sub"
+                ? "isolated"
+                : undefined) ?? existing?.contextMode,
           usage: existing?.usage,
           model: existing?.model,
           thoughtText: d.thoughtText ?? d.progressText ?? existing?.thoughtText,

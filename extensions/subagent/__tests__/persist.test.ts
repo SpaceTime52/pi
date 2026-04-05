@@ -376,14 +376,17 @@ describe("persist.ts -- escalation", () => {
     assert.equal(result.message, "quoted message");
   });
 
-  it("readAndConsumeEscalation handles YAML with lines that have no colon", () => {
+  it("readAndConsumeEscalation handles multiline block scalar values", () => {
     const escalationsDir = path.join(tmpDir, ".pi", "agent", "escalations");
     fs.mkdirSync(escalationsDir, { recursive: true });
 
+    // yaml package writes multiline strings as block scalars with |
     const yamlContent = [
       "sessionFile: /tmp/subagent-53.jsonl",
-      "message: test message",
-      "no-colon-at-start",
+      "message: |-",
+      "  line one",
+      "  line two",
+      "  line three",
       "timestamp: now",
     ].join("\n");
 
@@ -393,7 +396,19 @@ describe("persist.ts -- escalation", () => {
     const result = persist.readAndConsumeEscalation("/any/path/subagent-53.jsonl");
     assert.ok(result);
     assert.equal(result.sessionFile, "/tmp/subagent-53.jsonl");
-    assert.equal(result.message, "test message");
+    assert.equal(result.message, "line one\nline two\nline three");
+  });
+
+  it("readAndConsumeEscalation returns null for empty YAML file", () => {
+    const escalationsDir = path.join(tmpDir, ".pi", "agent", "escalations");
+    fs.mkdirSync(escalationsDir, { recursive: true });
+
+    // Empty YAML parses to null
+    const yamlPath = path.join(escalationsDir, "subagent-empty.yaml");
+    fs.writeFileSync(yamlPath, "", "utf-8");
+
+    const result = persist.readAndConsumeEscalation("/any/path/subagent-empty.jsonl");
+    assert.equal(result, null);
   });
 
   it("readAndConsumeEscalation succeeds even when file deletion fails (read-only dir)", () => {
