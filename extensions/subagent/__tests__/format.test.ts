@@ -508,6 +508,26 @@ describe("formatToolCallPlain", () => {
     const result = formatToolCallPlain("read", { file_path: `${home}/projects/test.ts` });
     assert.equal(result, "read ~/projects/test.ts");
   });
+
+  it("formats find tool call", () => {
+    const result = formatToolCallPlain("find", { pattern: "*.ts", path: "/tmp" });
+    assert.equal(result, "find *.ts in /tmp");
+  });
+
+  it("formats find with default pattern and path", () => {
+    const result = formatToolCallPlain("find", {});
+    assert.equal(result, "find * in .");
+  });
+
+  it("formats grep tool call", () => {
+    const result = formatToolCallPlain("grep", { pattern: "TODO", path: "/src" });
+    assert.equal(result, "grep /TODO/ in /src");
+  });
+
+  it("formats grep with empty pattern and default path", () => {
+    const result = formatToolCallPlain("grep", {});
+    assert.equal(result, "grep // in .");
+  });
 });
 
 // ━━━ resolveContextWindow ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -765,6 +785,26 @@ describe("formatToolCall", () => {
   it("formats edit with path arg fallback", () => {
     const result = formatToolCall("edit", { path: "/tmp/test.ts" }, themeFg);
     assert.equal(result, "edit /tmp/test.ts");
+  });
+
+  it("formats find tool call", () => {
+    const result = formatToolCall("find", { pattern: "*.ts", path: "/tmp" }, themeFg);
+    assert.equal(result, "find *.ts in /tmp");
+  });
+
+  it("formats find with default pattern and path", () => {
+    const result = formatToolCall("find", {}, themeFg);
+    assert.equal(result, "find * in .");
+  });
+
+  it("formats grep tool call", () => {
+    const result = formatToolCall("grep", { pattern: "TODO", path: "/src" }, themeFg);
+    assert.equal(result, "grep /TODO/ in /src");
+  });
+
+  it("formats grep with empty pattern and default path", () => {
+    const result = formatToolCall("grep", {}, themeFg);
+    assert.equal(result, "grep // in .");
   });
 });
 

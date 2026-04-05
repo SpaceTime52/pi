@@ -29,11 +29,10 @@ export function parseJsonFromStdout(stdout: string): unknown | null {
   const lines = trimmed
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .reverse();
 
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const line = lines[i];
-    if (line === undefined) continue;
+  for (const line of lines) {
     try {
       return JSON.parse(line);
     } catch {

@@ -1,7 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
-  CustomEntry,
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
@@ -9,9 +8,81 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { PARENT_ENTRY_TYPE } from "../core/constants.js";
 import type { SubagentStore } from "../core/store.js";
-import type { CommandRunState } from "../core/types.js";
+import { type CommandRunState, isCustomEntry } from "../core/types.js";
 import { getLatestRun } from "../execution/run.js";
 import { updateCommandRunsWidget } from "../ui/widget.js";
+
+// ━━━ Local type guards ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Production ctx.sessionManager is `ReadonlySessionManager` (has all methods),
+// but tests pass partial mocks, so we guard each method we call.
+
+function hasGetHeader(sm: unknown): sm is { getHeader: () => unknown } {
+  return (
+    typeof sm === "object" &&
+    sm !== null &&
+    "getHeader" in sm &&
+    typeof (sm as { getHeader: unknown }).getHeader === "function"
+  );
+}
+
+function hasGetSessionId(sm: unknown): sm is { getSessionId: () => string } {
+  return (
+    typeof sm === "object" &&
+    sm !== null &&
+    "getSessionId" in sm &&
+    typeof (sm as { getSessionId: unknown }).getSessionId === "function"
+  );
+}
+
+function hasGetCwd(sm: unknown): sm is { getCwd: () => string } {
+  return (
+    typeof sm === "object" &&
+    sm !== null &&
+    "getCwd" in sm &&
+    typeof (sm as { getCwd: unknown }).getCwd === "function"
+  );
+}
+
+function hasGetEntries(sm: unknown): sm is { getEntries: () => SessionEntry[] } {
+  return (
+    typeof sm === "object" &&
+    sm !== null &&
+    "getEntries" in sm &&
+    typeof (sm as { getEntries: unknown }).getEntries === "function"
+  );
+}
+
+interface SessionHeaderShape {
+  type: "session";
+  version?: number;
+  id?: string;
+  timestamp?: string;
+  cwd?: string;
+}
+
+function isSessionHeader(value: unknown): value is SessionHeaderShape {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    (value as { type: unknown }).type === "session"
+  );
+}
+
+function hasSwitchSession(
+  ctx: unknown,
+): ctx is { switchSession: (sessionPath: string) => Promise<{ cancelled: boolean }> } {
+  return (
+    typeof ctx === "object" &&
+    ctx !== null &&
+    "switchSession" in ctx &&
+    typeof (ctx as { switchSession: unknown }).switchSession === "function"
+  );
+}
+
+function hasParentSessionFile(data: unknown): data is { parentSessionFile: unknown } {
+  return typeof data === "object" && data !== null && "parentSessionFile" in data;
+}
 
 /**
  * Capture switchSession from an ExtensionCommandContext into the shared store.
@@ -23,8 +94,8 @@ export function captureSwitchSession(
   store: SubagentStore,
   ctx: ExtensionContext | ExtensionCommandContext,
 ): void {
-  if ("switchSession" in ctx && typeof ctx.switchSession === "function" && !store.switchSessionFn) {
-    store.switchSessionFn = (ctx as ExtensionCommandContext).switchSession.bind(ctx);
+  if (hasSwitchSession(ctx) && !store.switchSessionFn) {
+    store.switchSessionFn = ctx.switchSession.bind(ctx);
   }
 }
 
@@ -36,8 +107,8 @@ export function resolveSwitchSession(
   ctx: ExtensionContext | ExtensionCommandContext,
   store: SubagentStore,
 ): ((sessionPath: string) => Promise<{ cancelled: boolean }>) | null {
-  if ("switchSession" in ctx && typeof ctx.switchSession === "function") {
-    return (ctx as ExtensionCommandContext).switchSession.bind(ctx);
+  if (hasSwitchSession(ctx)) {
+    return ctx.switchSession.bind(ctx);
   }
   return store.switchSessionFn;
 }
@@ -54,25 +125,18 @@ export function ensureSessionFileMaterialized(
   if (!normalized || fs.existsSync(normalized)) return;
 
   try {
-    const sm = ctx.sessionManager;
-    const rawHeader = "getHeader" in sm ? (sm as { getHeader: () => unknown }).getHeader() : null;
-    const header =
-      rawHeader &&
-      typeof rawHeader === "object" &&
-      (rawHeader as { type?: string }).type === "session"
-        ? rawHeader
-        : {
-            type: "session",
-            version: 3,
-            id:
-              "getSessionId" in sm
-                ? (sm as { getSessionId: () => string }).getSessionId()
-                : `fallback-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            cwd: "getCwd" in sm ? (sm as { getCwd: () => string }).getCwd() : ctx.cwd,
-          };
-    const entries: SessionEntry[] =
-      "getEntries" in sm ? (sm as { getEntries: () => SessionEntry[] }).getEntries() : [];
+    const sm: unknown = ctx.sessionManager;
+    const rawHeader = hasGetHeader(sm) ? sm.getHeader() : null;
+    const header = isSessionHeader(rawHeader)
+      ? rawHeader
+      : {
+          type: "session",
+          version: 3,
+          id: hasGetSessionId(sm) ? sm.getSessionId() : `fallback-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          cwd: hasGetCwd(sm) ? sm.getCwd() : ctx.cwd,
+        };
+    const entries: SessionEntry[] = hasGetEntries(sm) ? sm.getEntries() : [];
     const fileEntries = [header, ...entries];
 
     const parentDir = path.dirname(normalized);
@@ -131,14 +195,15 @@ export function resolveParentSessionFile(
 
   // Fallback: rescan current session entries for the latest valid parent link.
   try {
-    const sm = ctx.sessionManager;
-    const entries: SessionEntry[] =
-      "getEntries" in sm ? (sm as { getEntries: () => SessionEntry[] }).getEntries() : [];
+    const sm: unknown = ctx.sessionManager;
+    const entries: SessionEntry[] = hasGetEntries(sm) ? sm.getEntries() : [];
     let best: string | null = null;
     for (const entry of entries) {
-      if (entry.type === "custom" && (entry as CustomEntry).customType === PARENT_ENTRY_TYPE) {
-        const data = (entry as CustomEntry).data as Record<string, unknown> | undefined;
-        const candidate = resolveValidPath(data?.parentSessionFile);
+      if (isCustomEntry(entry) && entry.customType === PARENT_ENTRY_TYPE) {
+        const parentSessionFile = hasParentSessionFile(entry.data)
+          ? entry.data.parentSessionFile
+          : undefined;
+        const candidate = resolveValidPath(parentSessionFile);
         if (candidate) best = candidate;
       }
     }

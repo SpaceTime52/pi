@@ -310,6 +310,43 @@ describe("resolveParentSessionFile", () => {
     assert.equal(result, null);
   });
 
+  it("returns null when parent entry has no data / data is not an object", () => {
+    const store = createStore();
+    store.currentParentSessionFile = null;
+
+    const entries = [
+      {
+        type: "custom" as const,
+        id: "e1",
+        parentId: null,
+        timestamp: new Date().toISOString(),
+        customType: "subagent-parent",
+        // data missing entirely
+      },
+      {
+        type: "custom" as const,
+        id: "e2",
+        parentId: null,
+        timestamp: new Date().toISOString(),
+        customType: "subagent-parent",
+        data: "not-an-object",
+      },
+      {
+        type: "custom" as const,
+        id: "e3",
+        parentId: null,
+        timestamp: new Date().toISOString(),
+        customType: "subagent-parent",
+        data: null,
+      },
+    ];
+    const ctx = {
+      sessionManager: { getEntries: () => entries },
+    } as never;
+    const result = resolveParentSessionFile(ctx, store);
+    assert.equal(result, null);
+  });
+
   it("handles sessionManager without getEntries method", () => {
     const store = createStore();
     store.currentParentSessionFile = "/tmp/nonexistent-parent.jsonl";

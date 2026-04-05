@@ -76,45 +76,15 @@ async function connectClient(client: Client, server: NormalizedMcpServer): Promi
 // StreamableHTTPClientTransport exposes `sessionId` as a getter returning
 // `string | undefined`, while the Transport interface declares `sessionId?: string`.
 // Under exactOptionalPropertyTypes these aren't directly assignable even though
-// the runtime behavior is identical. We wrap the real transport so the static
-// shape matches.
+// the runtime behavior is identical (reading either yields `string | undefined`).
+// A transparent Proxy delegates every property access/mutation to the underlying
+// transport, so any new fields the SDK adds later flow through automatically.
+// The single `as` cast only narrows the getter-vs-optional-property mismatch;
+// the Proxy itself preserves structural identity with the real transport.
 type ConnectableTransport = Parameters<Client["connect"]>[0];
 
 function wrapForConnect(transport: StreamableHTTPClientTransport): ConnectableTransport {
-  const wrapper: ConnectableTransport = {
-    start: () => transport.start(),
-    send: (message, options) => transport.send(message, options),
-    close: () => transport.close(),
-  };
-  if (transport.setProtocolVersion) {
-    wrapper.setProtocolVersion = (version) => transport.setProtocolVersion?.(version);
-  }
-  Object.defineProperty(wrapper, "sessionId", {
-    get: () => transport.sessionId,
-    enumerable: true,
-  });
-  Object.defineProperty(wrapper, "onclose", {
-    get: () => transport.onclose,
-    set: (value) => {
-      transport.onclose = value;
-    },
-    enumerable: true,
-  });
-  Object.defineProperty(wrapper, "onerror", {
-    get: () => transport.onerror,
-    set: (value) => {
-      transport.onerror = value;
-    },
-    enumerable: true,
-  });
-  Object.defineProperty(wrapper, "onmessage", {
-    get: () => transport.onmessage,
-    set: (value) => {
-      transport.onmessage = value;
-    },
-    enumerable: true,
-  });
-  return wrapper;
+  return new Proxy(transport, {}) as ConnectableTransport;
 }
 
 async function connectHttpTransport(

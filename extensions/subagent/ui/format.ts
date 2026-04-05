@@ -2,12 +2,12 @@
  * Formatting utilities — tokens, usage, tool calls, context bars.
  */
 
-import * as os from "node:os";
 import type { ThemeColor } from "@mariozechner/pi-coding-agent";
 import { visibleWidth } from "@mariozechner/pi-tui";
 import { AGENT_NAME_PALETTE } from "../core/constants.js";
+import { formatPathValueForPreview, formatToolCallPlain } from "../core/tool-preview.js";
 
-export { AGENT_NAME_PALETTE };
+export { AGENT_NAME_PALETTE, formatToolCallPlain };
 
 // ━━━ Text ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -157,12 +157,6 @@ export function agentBgIndex(name: string): number {
 
 type ThemeFg = (color: ThemeColor, text: string) => string;
 
-function formatPathValueForPreview(value: unknown): string {
-  const text = typeof value === "string" ? value : JSON.stringify(value);
-  const home = os.homedir();
-  return text.startsWith(home) ? `~${text.slice(home.length)}` : text;
-}
-
 export function formatToolCall(
   toolName: string,
   args: Record<string, unknown>,
@@ -202,45 +196,28 @@ export function formatToolCall(
       );
     case "ls":
       return themeFg("muted", "ls ") + themeFg("accent", shortenPath(args.path || "."));
+    case "find": {
+      const pattern = typeof args.pattern === "string" && args.pattern ? args.pattern : "*";
+      return (
+        themeFg("muted", "find ") +
+        themeFg("accent", pattern) +
+        themeFg("muted", " in ") +
+        themeFg("accent", shortenPath(args.path || "."))
+      );
+    }
+    case "grep": {
+      const pattern = typeof args.pattern === "string" ? args.pattern : "";
+      return (
+        themeFg("muted", "grep ") +
+        themeFg("accent", `/${pattern}/`) +
+        themeFg("muted", " in ") +
+        themeFg("accent", shortenPath(args.path || "."))
+      );
+    }
     default: {
       const s = JSON.stringify(args);
       const p = s.length > 50 ? `${s.slice(0, 50)}...` : s;
       return themeFg("accent", toolName) + themeFg("dim", ` ${p}`);
-    }
-  }
-}
-
-export function formatToolCallPlain(toolName: string, args: Record<string, unknown>): string {
-  const shortenPath = (v: unknown) => formatPathValueForPreview(v);
-  switch (toolName) {
-    case "bash": {
-      const c = (args.command as string) || "...";
-      return `$ ${c.length > 60 ? `${c.slice(0, 60)}...` : c}`;
-    }
-    case "read": {
-      const fp = shortenPath(args.file_path || args.path || "...");
-      const o = args.offset as number | undefined;
-      const l = args.limit as number | undefined;
-      if (o !== undefined || l !== undefined) {
-        const s = o ?? 1;
-        const e = l !== undefined ? s + l - 1 : "";
-        return `read ${fp}:${s}${e ? `-${e}` : ""}`;
-      }
-      return `read ${fp}`;
-    }
-    case "write": {
-      const fp = shortenPath(args.file_path || args.path || "...");
-      const c = (args.content || "") as string;
-      const lines = c.split("\n").length;
-      return lines > 1 ? `write ${fp} (${lines} lines)` : `write ${fp}`;
-    }
-    case "edit":
-      return `edit ${shortenPath(args.file_path || args.path || "...")}`;
-    case "ls":
-      return `ls ${shortenPath(args.path || ".")}`;
-    default: {
-      const s = JSON.stringify(args);
-      return `${toolName} ${s.length > 50 ? `${s.slice(0, 50)}...` : s}`;
     }
   }
 }

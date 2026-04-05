@@ -2,8 +2,8 @@
  * Shared state store for the Subagent extension.
  */
 
-import * as os from "node:os";
 import type { Message } from "@mariozechner/pi-ai";
+import { formatToolCallPlain } from "./tool-preview.js";
 import type {
   BatchGroupState,
   CommandRunState,
@@ -96,61 +96,12 @@ export function getLastNonEmptyLine(text: string): string {
   );
 }
 
-function resolvePath(primary: unknown, fallback: unknown, defaultVal: string): string {
-  const raw = primary || fallback || defaultVal;
-  const text = typeof raw === "string" ? raw : String(raw);
-  const home = os.homedir();
-  return text.startsWith(home) ? `~${text.slice(home.length)}` : text;
-}
-
-function formatToolCallPreview(toolName: string, args: Record<string, unknown>): string {
-  switch (toolName) {
-    case "bash": {
-      const c = typeof args.command === "string" && args.command ? args.command : "...";
-      return `$ ${c.length > 60 ? `${c.slice(0, 60)}...` : c}`;
-    }
-    case "read": {
-      const fp = resolvePath(args.file_path, args.path, "...");
-      const o = typeof args.offset === "number" ? args.offset : undefined;
-      const l = typeof args.limit === "number" ? args.limit : undefined;
-      if (o !== undefined || l !== undefined) {
-        const s = o ?? 1;
-        const e = l !== undefined ? s + l - 1 : "";
-        return `read ${fp}:${s}${e ? `-${e}` : ""}`;
-      }
-      return `read ${fp}`;
-    }
-    case "write": {
-      const fp = resolvePath(args.file_path, args.path, "...");
-      const c = typeof args.content === "string" ? args.content : "";
-      const lines = c.split("\n").length;
-      return lines > 1 ? `write ${fp} (${lines} lines)` : `write ${fp}`;
-    }
-    case "edit":
-      return `edit ${resolvePath(args.file_path, args.path, "...")}`;
-    case "ls":
-      return `ls ${resolvePath(args.path, undefined, ".")}`;
-    case "find": {
-      const pattern = typeof args.pattern === "string" && args.pattern ? args.pattern : "*";
-      return `find ${pattern} in ${resolvePath(args.path, undefined, ".")}`;
-    }
-    case "grep": {
-      const pattern = typeof args.pattern === "string" ? args.pattern : "";
-      return `grep /${pattern}/ in ${resolvePath(args.path, undefined, ".")}`;
-    }
-    default: {
-      const s = JSON.stringify(args);
-      return `${toolName} ${s.length > 50 ? `${s.slice(0, 50)}...` : s}`;
-    }
-  }
-}
-
 export function getLatestActivityPreview(messages: Message[]): string | undefined {
   const items = getDisplayItems(messages);
   const lastItem = items.at(-1);
   if (!lastItem) return undefined;
   if (lastItem.type === "toolCall") {
-    return `→ ${formatToolCallPreview(lastItem.name, lastItem.args)}`;
+    return `→ ${formatToolCallPlain(lastItem.name, lastItem.args)}`;
   }
   const line = getLastNonEmptyLine(lastItem.text);
   return line || undefined;

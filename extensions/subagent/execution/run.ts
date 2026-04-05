@@ -103,8 +103,10 @@ export function trimCommandRunHistory(
   store: SubagentStore,
   options: number | TrimCommandRunHistoryOptions = 10,
 ): number[] {
-  const maxRuns = typeof options === "number" ? options : (options.maxRuns ?? 10);
-  const shouldUpdateWidget = typeof options === "number" ? false : (options.updateWidget ?? false);
+  const opts: TrimCommandRunHistoryOptions =
+    typeof options === "number" ? { maxRuns: options } : options;
+  const maxRuns = opts.maxRuns ?? 10;
+  const shouldUpdateWidget = opts.updateWidget ?? false;
   const completed = Array.from(store.commandRuns.values())
     .filter((run) => {
       if (run.removed || run.status === "running") return false;
@@ -115,23 +117,22 @@ export function trimCommandRunHistory(
     .sort((a, b) => a.id - b.id);
   let activeCount = Array.from(store.commandRuns.values()).filter((r) => !r.removed).length;
   const removedRunIds: number[] = [];
-  for (let ci = 0; activeCount > maxRuns && ci < completed.length; ci++) {
-    const oldest = completed[ci] as (typeof completed)[number];
+  for (const oldest of completed) {
+    if (activeCount <= maxRuns) break;
     const result = removeRun(store, oldest.id, {
-      ctx: typeof options === "number" ? undefined : options.ctx,
-      pi: typeof options === "number" ? undefined : options.pi,
+      ctx: opts.ctx,
+      pi: opts.pi,
       abortIfRunning: false,
       updateWidget: false,
       persistRemovedEntry: true,
-      removalReason: typeof options === "number" ? undefined : options.removalReason,
+      removalReason: opts.removalReason,
     });
     if (result.removed) {
       removedRunIds.push(oldest.id);
       activeCount--;
     }
   }
-  if (shouldUpdateWidget && removedRunIds.length > 0)
-    updateCommandRunsWidget(store, (options as TrimCommandRunHistoryOptions).ctx);
+  if (shouldUpdateWidget && removedRunIds.length > 0) updateCommandRunsWidget(store, opts.ctx);
   return removedRunIds;
 }
 

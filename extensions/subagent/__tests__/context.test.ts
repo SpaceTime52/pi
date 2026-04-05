@@ -225,6 +225,28 @@ describe("buildMainContextText", () => {
     assert.ok(result.text.includes("Main agent: valid"));
   });
 
+  it("skips malformed toolCall parts (missing name / wrong type)", () => {
+    const assistantEntry = makeBase({ type: "message" }) as SessionMessageEntry;
+    assistantEntry.message = {
+      role: "assistant",
+      content: [
+        // no `type` field at all → isTextContentPart/isToolCallPart both false
+        { something: "else" },
+        // type=toolCall but name missing → isToolCallPart false
+        { type: "toolCall", arguments: { x: 1 } },
+        // type=toolCall but name is not a string → isToolCallPart false
+        { type: "toolCall", name: 123, arguments: {} },
+        // valid toolCall after the malformed ones → still rendered
+        { type: "toolCall", name: "ok", arguments: { y: 2 } },
+      ],
+    } as unknown as SessionMessageEntry["message"];
+    const entries: SessionEntry[] = [assistantEntry];
+    const ctx = { sessionManager: { getEntries: () => entries } };
+    const result = buildMainContextText(ctx);
+    assert.ok(result.text.includes("Main agent ToolCall (ok)"));
+    assert.ok(!result.text.includes("Main agent ToolCall (123)"));
+  });
+
   it("skips subagent entries with empty content", () => {
     const entries: SessionEntry[] = [makeCustomMessageEntry("subagent-command", "", true)];
     const ctx = { sessionManager: { getEntries: () => entries } };

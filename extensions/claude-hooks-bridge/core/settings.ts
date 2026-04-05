@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
   type ClaudeSettings,
@@ -16,19 +16,12 @@ export function getSettingsPath(cwd: string): string {
 export function loadSettings(cwd: string): LoadedSettings {
   const settingsPath = getSettingsPath(cwd);
 
-  if (!existsSync(settingsPath)) {
-    return { path: settingsPath, settings: null };
-  }
-
   let mtimeMs = 0;
   try {
     mtimeMs = statSync(settingsPath).mtimeMs;
   } catch {
-    return {
-      path: settingsPath,
-      settings: null,
-      parseError: "settings 파일 상태를 읽을 수 없습니다.",
-    };
+    // File missing or unreadable — treat as no settings.
+    return { path: settingsPath, settings: null };
   }
 
   const cached = settingsCache.get(settingsPath);
@@ -45,7 +38,8 @@ export function loadSettings(cwd: string): LoadedSettings {
     settingsCache.set(settingsPath, { mtimeMs, loaded });
     return loaded;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    // readFileSync and JSON.parse always throw Error subclasses (NodeJS.ErrnoException / SyntaxError).
+    const message = (error as Error).message;
     const loaded: LoadedSettings = {
       path: settingsPath,
       settings: null,

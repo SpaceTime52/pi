@@ -48,7 +48,6 @@ export function matcherMatches(matcher: string | undefined, toolName: string): b
     .map((token) => token.trim())
     .filter(Boolean);
 
-  if (tokens.length === 0) return false;
   return tokens.some((token) =>
     candidates.some((name) => name === token || name.toLowerCase() === token.toLowerCase()),
   );

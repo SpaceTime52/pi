@@ -9,7 +9,7 @@ interface McpToolResultDetails {
   tool: string;
   cancelled?: boolean;
   disabled?: boolean;
-  raw?: unknown | undefined;
+  raw?: unknown;
   payloadTruncated?: boolean;
   payloadOriginalLength?: number;
   payloadFilePath?: string | undefined;

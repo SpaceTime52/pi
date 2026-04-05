@@ -17,8 +17,11 @@ function docKey(key: string): KeyId {
   return key as KeyId;
 }
 
-// ── onTerminalInput hack: auto-redirect <> / >< to command path ─────
-// Module-level state so it persists across calls.
+// pi's shortcut system does not yet support automatic rewrite from a shortcut
+// alias into a slash command. To make `<>` and `><` feel like first-class
+// aliases, we intercept Enter in onTerminalInput and rewrite the editor text
+// into `/sub:trans ...` or `/sub:back`. This workaround can be removed once
+// pi exposes an API for shortcut-to-command aliasing.
 let unsubTerminalInput: (() => void) | null = null;
 
 export function registerTerminalInputRedirect(ctx: ExtensionContext, store: SubagentStore): void {

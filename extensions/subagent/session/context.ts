@@ -5,11 +5,68 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AssistantMessage, TextContent, UserMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage, UserMessage } from "@mariozechner/pi-ai";
 import type { SessionEntry, SessionMessageEntry } from "@mariozechner/pi-coding-agent";
 import { PIPELINE_PREVIOUS_STEP_MAX_CHARS } from "../core/constants.js";
 import { isCompactionEntry, isCustomMessageEntry } from "../core/types.js";
 import { stringifyToolCallArguments } from "../ui/format.js";
+
+// ━━━ Local type guards ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+interface TextContentPart {
+  type: "text";
+  text: string;
+}
+
+function isTextContentPart(value: unknown): value is TextContentPart {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    (value as { type: unknown }).type === "text" &&
+    "text" in value &&
+    typeof (value as { text: unknown }).text === "string"
+  );
+}
+
+interface ToolCallPart {
+  type: "toolCall";
+  name: string;
+  // `arguments` may be absent/undefined on partial/streaming entries; callers
+  // must tolerate that (stringifyToolCallArguments returns "" for non-objects).
+  arguments: Record<string, unknown> | undefined;
+}
+
+function isToolCallPart(value: unknown): value is ToolCallPart {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("type" in value) || (value as { type: unknown }).type !== "toolCall") return false;
+  if (!("name" in value) || typeof (value as { name: unknown }).name !== "string") return false;
+  return true;
+}
+
+// Narrows AgentMessage (Message | custom extensions) to the concrete Message shapes.
+// Role + `content` presence are sufficient because UserMessage/AssistantMessage
+// are the only Message variants with role="user"/"assistant".
+
+function isUserMessage(msg: unknown): msg is UserMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    "role" in msg &&
+    (msg as { role: unknown }).role === "user" &&
+    "content" in msg
+  );
+}
+
+function isAssistantMessage(msg: unknown): msg is AssistantMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    "role" in msg &&
+    (msg as { role: unknown }).role === "assistant" &&
+    "content" in msg
+  );
+}
 
 const SUBAGENT_SESSION_DIR = path.join(os.homedir(), ".pi", "agent", "sessions", "subagents");
 
@@ -40,13 +97,7 @@ export function extractTextFromContent(
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     return content
-      .filter(
-        (c): c is { type: "text"; text: string } =>
-          typeof c === "object" &&
-          c !== null &&
-          (c as { type?: string }).type === "text" &&
-          typeof (c as { text?: string }).text === "string",
-      )
+      .filter(isTextContentPart)
       .map((c) => c.text)
       .join("\n");
   }
@@ -93,36 +144,27 @@ export function buildMainContextText(ctx: MainContextSource): {
       const msg = entry.message;
       if (!msg) continue;
 
-      const role = msg.role;
-      if (role === "user") {
-        const text = extractTextFromContent((msg as UserMessage).content);
+      if (isUserMessage(msg)) {
+        const text = extractTextFromContent(msg.content);
         if (text) messageParts.push(`User: ${text}`);
         continue;
       }
 
-      if (role === "assistant") {
-        const assistantMsg = msg as AssistantMessage;
-        const content = assistantMsg.content;
+      if (isAssistantMessage(msg)) {
+        const content = msg.content;
 
         if (Array.isArray(content)) {
           for (const part of content) {
-            if (!part || typeof part !== "object") continue;
-            if (part.type === "text" && (part as TextContent).text) {
-              messageParts.push(`Main agent: ${(part as TextContent).text}`);
+            if (isTextContentPart(part) && part.text) {
+              messageParts.push(`Main agent: ${part.text}`);
               continue;
             }
-            if (part.type === "toolCall") {
-              const toolCallPart = part as {
-                type: "toolCall";
-                name: string;
-                arguments: Record<string, unknown>;
-              };
-              const toolName = toolCallPart.name;
-              const argsText = stringifyToolCallArguments(toolCallPart.arguments);
+            if (isToolCallPart(part)) {
+              const argsText = stringifyToolCallArguments(part.arguments);
               messageParts.push(
                 argsText
-                  ? `Main agent ToolCall (${toolName}): ${argsText}`
-                  : `Main agent ToolCall (${toolName})`,
+                  ? `Main agent ToolCall (${part.name}): ${argsText}`
+                  : `Main agent ToolCall (${part.name})`,
               );
             }
           }
