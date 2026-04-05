@@ -20,7 +20,7 @@ export function sIcon(status: ServerStatus): string {
     case "connected":
       return "●";
     case "error":
-      return "x";
+      return "✗";
     case "disconnected":
       return "○";
     default:

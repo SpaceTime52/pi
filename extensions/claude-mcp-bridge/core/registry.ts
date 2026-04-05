@@ -26,7 +26,7 @@ function renderToolResult(
   if (!options.expanded) {
     if (tc?.type === "text") {
       const count = tc.text.trim().split("\n").filter(Boolean).length;
-      if (count > 0) return new Text(theme.fg("muted", ` -> ${count} lines`), 0, 0);
+      if (count > 0) return new Text(theme.fg("muted", ` → ${count} lines`), 0, 0);
     }
     return new Text("", 0, 0);
   }

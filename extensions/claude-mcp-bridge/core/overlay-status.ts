@@ -59,7 +59,7 @@ export class McpStatusOverlay {
       const cursor = sel ? th.fg("accent", "▸") : " ";
       const name = sel ? th.fg("accent", th.bold(st.name)) : st.name;
       const tools = st.toolCount > 0 ? th.fg("muted", ` ${st.toolCount} tools`) : "";
-      const err = st.error ? `  ${th.fg("error", "!")}` : "";
+      const err = st.error ? `  ${th.fg("error", "⚠")}` : "";
       lines.push(
         boxRow(
           th,
@@ -71,11 +71,11 @@ export class McpStatusOverlay {
 
     if (this.warnings.length > 0) {
       lines.push(boxSep(th, iW));
-      lines.push(boxRow(th, th.fg("warning", `! ${this.warnings.length} warning(s)`), iW));
+      lines.push(boxRow(th, th.fg("warning", `⚠ ${this.warnings.length} warning(s)`), iW));
     }
 
     lines.push(boxSep(th, iW));
-    lines.push(boxRow(th, th.fg("muted", "up/down navigate · enter select · ESC close"), iW));
+    lines.push(boxRow(th, th.fg("muted", "↑↓ navigate · enter select · ESC close"), iW));
     lines.push(boxBot(th, iW));
     return lines;
   }

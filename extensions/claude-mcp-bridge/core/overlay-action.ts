@@ -61,7 +61,7 @@ export class McpActionOverlay {
       lines.push(boxRow(th, th.fg("muted", `${st.toolCount} tools registered`), iW));
     }
     if (st.error) {
-      lines.push(boxRow(th, th.fg("error", `! ${st.error}`), iW));
+      lines.push(boxRow(th, th.fg("error", `⚠ ${st.error}`), iW));
     }
     lines.push(boxSep(th, iW));
 
@@ -75,7 +75,7 @@ export class McpActionOverlay {
     }
 
     lines.push(boxSep(th, iW));
-    lines.push(boxRow(th, th.fg("muted", "up/down navigate · enter select · ESC back"), iW));
+    lines.push(boxRow(th, th.fg("muted", "↑↓ navigate · enter select · ESC back"), iW));
     lines.push(boxBot(th, iW));
     return lines;
   }

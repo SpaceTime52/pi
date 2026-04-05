@@ -134,10 +134,10 @@ export function buildMcpToolResultContent(
 ): { type: "text"; text: string }[] {
   const content: { type: "text"; text: string }[] = [{ type: "text", text: prepared.text }];
   for (const imgPath of formatted.imagePaths) {
-    content.push({ type: "text", text: `Use Read tool to view: ${imgPath}` });
+    content.push({ type: "text", text: `📎 Use Read tool to view: ${imgPath}` });
   }
   if (prepared.fullPayloadPath) {
-    content.push({ type: "text", text: `Full payload file: ${prepared.fullPayloadPath}` });
+    content.push({ type: "text", text: `📄 Full payload file: ${prepared.fullPayloadPath}` });
   }
   return content;
 }

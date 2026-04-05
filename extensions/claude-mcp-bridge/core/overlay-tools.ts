@@ -75,13 +75,13 @@ export class McpToolListOverlay {
       const piName = buildPiToolName(this.serverName, tool.name);
       const name = selected ? th.fg("accent", th.bold(piName)) : piName;
       const enabled = !this.isToolDisabled(tool.name);
-      const state = enabled ? th.fg("success", "on ") : th.fg("muted", "off");
+      const state = enabled ? th.fg("success", "● on") : th.fg("muted", "○ off");
       const desc = tool.description ? ` ${th.fg("muted", `— ${tool.description}`)}` : "";
       lines.push(boxRow(th, `${cursor} ${state} ${name}${desc}`, iW));
     }
     if (this.tools.length > MAX_VISIBLE_TOOLS) {
       lines.push(boxSep(th, iW));
-      const info = `${from + 1}-${to} of ${this.tools.length}`;
+      const info = `${from + 1}–${to} of ${this.tools.length}`;
       lines.push(boxRow(th, th.fg("muted", info), iW));
     }
   }
@@ -103,7 +103,7 @@ export class McpToolListOverlay {
     }
 
     lines.push(boxSep(th, iW));
-    lines.push(boxRow(th, th.fg("muted", "up/down navigate · Enter/Space toggle · ESC back"), iW));
+    lines.push(boxRow(th, th.fg("muted", "↑↓ navigate · Enter/Space toggle · ESC back"), iW));
     lines.push(boxBot(th, iW));
     return lines;
   }

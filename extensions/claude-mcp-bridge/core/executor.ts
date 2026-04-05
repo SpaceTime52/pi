@@ -74,7 +74,7 @@ function buildDisabled(serverName: string, toolName: string): McpToolResult {
     content: [
       {
         type: "text",
-        text: "This MCP tool is disabled. Open /mcp-status -> Tools to enable it.",
+        text: "This MCP tool is disabled. Open /mcp-status → Tools to enable it.",
       },
     ],
     details: { server: serverName, tool: toolName, disabled: true, isError: true },
