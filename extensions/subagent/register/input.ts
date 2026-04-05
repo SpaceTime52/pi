@@ -68,8 +68,8 @@ export function registerInputHandlers(
   const { pi, store } = deps;
   const { subCommand, handleSubClear, handleSubAbort } = commandExports;
 
-  // /hotkeys "Extensions" 섹션에 >> shorthand 사용법을 노출한다.
-  // 실제 입력 처리는 아래 input 핸들러에서 수행된다.
+  // Expose the >> shorthand usage in the /hotkeys "Extensions" section.
+  // Actual input handling is performed by the input handler below.
   pi.registerShortcut(docKey(">>"), {
     description: "Run subagent task",
     handler: async () => {

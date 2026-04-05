@@ -19,9 +19,18 @@ export function loadSettings(cwd: string): LoadedSettings {
   let mtimeMs = 0;
   try {
     mtimeMs = statSync(settingsPath).mtimeMs;
-  } catch {
-    // File missing or unreadable — treat as no settings.
-    return { path: settingsPath, settings: null };
+  } catch (e) {
+    // ENOENT: the settings file is simply absent — silent no-op.
+    // Anything else (EACCES, EPERM, ...) is a real failure worth surfacing.
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      return { path: settingsPath, settings: null };
+    }
+    return {
+      path: settingsPath,
+      settings: null,
+      parseError: `settings stat 실패: ${(e as Error).message}`,
+    };
   }
 
   const cached = settingsCache.get(settingsPath);

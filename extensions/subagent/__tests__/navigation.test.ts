@@ -16,6 +16,7 @@ import {
   subBackHandler,
   subTransHandler,
 } from "../session/navigation.js";
+import { asMock } from "./_helpers.js";
 
 // ━━━ Temp dir management ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -633,7 +634,7 @@ describe("subTransHandler", () => {
     };
     // Pass undefined (cast as any) to trigger ?? fallback
     await subTransHandler(undefined as unknown as string, ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     // Should behave same as empty string: no completed runs
     assert.equal(calls.length, 1);
     assert.ok((calls[0]?.arguments[0] as string).includes("No completed runs"));
@@ -651,7 +652,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.equal(calls.length, 1);
     assert.ok((calls[0]?.arguments[0] as string).includes("No completed runs"));
   });
@@ -699,7 +700,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("abc", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("Usage"));
   });
 
@@ -715,7 +716,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("999", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("not found"));
   });
 
@@ -743,7 +744,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("1", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("still running"));
   });
 
@@ -771,7 +772,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("1", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("no session file"));
   });
 
@@ -800,7 +801,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("1", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("not ready"));
   });
 
@@ -832,7 +833,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("1", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("Failed to switch"));
   });
 
@@ -866,7 +867,7 @@ describe("subTransHandler", () => {
       }),
     };
     await subTransHandler("1", ctx, store, pi as never);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("Session switch error"));
   });
 
@@ -956,7 +957,7 @@ describe("subBackHandler", () => {
     const store = createStore();
     const ctx = makeMockCtx();
     await subBackHandler(ctx, store);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("No parent session"));
   });
 
@@ -966,7 +967,7 @@ describe("subBackHandler", () => {
     const ctx = makeMockCtx();
     await subBackHandler(ctx, store);
     assert.equal(store.currentParentSessionFile, null);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("No parent session"));
   });
 
@@ -977,7 +978,7 @@ describe("subBackHandler", () => {
     store.currentParentSessionFile = parentFile;
     const ctx = makeMockCtx();
     await subBackHandler(ctx, store);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("not ready"));
   });
 
@@ -1001,7 +1002,7 @@ describe("subBackHandler", () => {
     const switchFn = mock.fn(async (_p: string) => ({ cancelled: true }));
     const ctx = makeMockCtx({ switchSession: switchFn });
     await subBackHandler(ctx, store);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("Failed to return"));
   });
 
@@ -1015,7 +1016,7 @@ describe("subBackHandler", () => {
     });
     const ctx = makeMockCtx({ switchSession: switchFn });
     await subBackHandler(ctx, store);
-    const calls = (ctx.ui.notify as unknown as ReturnType<typeof mock.fn>).mock.calls;
+    const calls = asMock(ctx.ui.notify).mock.calls;
     assert.ok((calls[0]?.arguments[0] as string).includes("Session switch error"));
   });
 });

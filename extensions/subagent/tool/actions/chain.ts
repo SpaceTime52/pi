@@ -78,8 +78,7 @@ export function handleChainAction(
         if (!pipeline) return;
         pipeline.currentIndex = index;
 
-        const step = steps[index];
-        if (!step) continue;
+        const step = steps[index] as BatchOrChainItem;
         const pipelineReferenceSection =
           index > 0
             ? buildPipelineReferenceSection(previousOutput, {
@@ -165,10 +164,6 @@ export function handleChainAction(
     } finally {
       const pipeline = store.pipelines.get(pipelineId);
       if (pipeline) {
-        const hasError = pipeline.stepResults.some((step) => step.status === "error");
-        if (terminalStatus === "completed" && hasError) {
-          terminalStatus = "error";
-        }
         const orderedRuns = pipeline.stepRunIds
           .map((runId) => store.commandRuns.get(runId))
           .filter((run): run is CommandRunState => Boolean(run));

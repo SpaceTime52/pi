@@ -20,6 +20,7 @@ import {
   formatRunDetailOutput,
   getAssistantTextPart,
   getRunCounts,
+  makeIdleRunWarningWrapper,
   parseSessionDetailSummary,
   toLaunchSummary,
 } from "../tool/helpers.js";
@@ -1467,5 +1468,46 @@ describe("buildErrorOutput", () => {
       messages: [],
     });
     assert.equal(output, "found error");
+  });
+});
+
+describe("makeIdleRunWarningWrapper", () => {
+  it("returns identity wrapper when idleRunCount < threshold", () => {
+    const wrap = makeIdleRunWarningWrapper(0, { hasUI: false });
+    assert.equal(wrap("hello"), "hello");
+  });
+
+  it("returns prepending wrapper when idleRunCount >= threshold", () => {
+    // IDLE_RUN_WARNING_THRESHOLD is Infinity at present, so this path isn't
+    // reachable via the real constant. Test by passing Infinity as count and
+    // relying on >= comparison (Infinity >= Infinity is true).
+    const wrap = makeIdleRunWarningWrapper(Number.POSITIVE_INFINITY, {
+      hasUI: false,
+    });
+    const result = wrap("body");
+    assert.ok(result.includes("Idle subagent runs"));
+    assert.ok(result.endsWith("body"));
+  });
+
+  it("notifies via ctx.ui when hasUI=true and threshold crossed", () => {
+    const notifications: [string, string | undefined][] = [];
+    makeIdleRunWarningWrapper(Number.POSITIVE_INFINITY, {
+      hasUI: true,
+      ui: {
+        notify: (message: string, type?: string) => notifications.push([message, type]),
+      },
+    });
+    assert.equal(notifications.length, 1);
+    assert.ok(notifications[0]?.[0].includes("Idle subagent runs"));
+    assert.equal(notifications[0]?.[1], "warning");
+  });
+
+  it("does not notify when hasUI=true but count < threshold", () => {
+    const notifications: unknown[] = [];
+    makeIdleRunWarningWrapper(0, {
+      hasUI: true,
+      ui: { notify: () => notifications.push(1) },
+    });
+    assert.equal(notifications.length, 0);
   });
 });

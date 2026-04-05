@@ -5,7 +5,7 @@
 import type { ThemeColor } from "@mariozechner/pi-coding-agent";
 import { visibleWidth } from "@mariozechner/pi-tui";
 import { AGENT_NAME_PALETTE } from "../core/constants.js";
-import { formatPathValueForPreview, formatToolCallPlain } from "../core/tool-preview.js";
+import { formatToolCallParts, formatToolCallPlain } from "../core/tool-preview.js";
 
 export { AGENT_NAME_PALETTE, formatToolCallPlain };
 
@@ -162,63 +162,40 @@ export function formatToolCall(
   args: Record<string, unknown>,
   themeFg: ThemeFg,
 ): string {
-  const shortenPath = (v: unknown) => formatPathValueForPreview(v);
-  switch (toolName) {
-    case "bash": {
-      const c = (args.command as string) || "...";
-      const p = c.length > 60 ? `${c.slice(0, 60)}...` : c;
-      return themeFg("muted", "$ ") + themeFg("toolOutput", p);
-    }
+  const parts = formatToolCallParts(toolName, args);
+  switch (parts.kind) {
+    case "bash":
+      return themeFg("muted", "$ ") + themeFg("toolOutput", parts.command);
     case "read": {
-      const fp = shortenPath(args.file_path || args.path || "...");
-      let t = themeFg("accent", fp);
-      const o = args.offset as number | undefined;
-      const l = args.limit as number | undefined;
-      if (o !== undefined || l !== undefined) {
-        const s = o ?? 1;
-        const e = l !== undefined ? s + l - 1 : "";
-        t += themeFg("warning", `:${s}${e ? `-${e}` : ""}`);
-      }
+      let t = themeFg("accent", parts.path);
+      if (parts.range) t += themeFg("warning", parts.range);
       return themeFg("muted", "read ") + t;
     }
     case "write": {
-      const fp = shortenPath(args.file_path || args.path || "...");
-      const c = (args.content || "") as string;
-      const lines = c.split("\n").length;
-      let t = themeFg("muted", "write ") + themeFg("accent", fp);
-      if (lines > 1) t += themeFg("dim", ` (${lines} lines)`);
+      let t = themeFg("muted", "write ") + themeFg("accent", parts.path);
+      if (parts.lines > 1) t += themeFg("dim", ` (${parts.lines} lines)`);
       return t;
     }
     case "edit":
-      return (
-        themeFg("muted", "edit ") +
-        themeFg("accent", shortenPath(args.file_path || args.path || "..."))
-      );
+      return themeFg("muted", "edit ") + themeFg("accent", parts.path);
     case "ls":
-      return themeFg("muted", "ls ") + themeFg("accent", shortenPath(args.path || "."));
-    case "find": {
-      const pattern = typeof args.pattern === "string" && args.pattern ? args.pattern : "*";
+      return themeFg("muted", "ls ") + themeFg("accent", parts.path);
+    case "find":
       return (
         themeFg("muted", "find ") +
-        themeFg("accent", pattern) +
+        themeFg("accent", parts.pattern) +
         themeFg("muted", " in ") +
-        themeFg("accent", shortenPath(args.path || "."))
+        themeFg("accent", parts.path)
       );
-    }
-    case "grep": {
-      const pattern = typeof args.pattern === "string" ? args.pattern : "";
+    case "grep":
       return (
         themeFg("muted", "grep ") +
-        themeFg("accent", `/${pattern}/`) +
+        themeFg("accent", `/${parts.pattern}/`) +
         themeFg("muted", " in ") +
-        themeFg("accent", shortenPath(args.path || "."))
+        themeFg("accent", parts.path)
       );
-    }
-    default: {
-      const s = JSON.stringify(args);
-      const p = s.length > 50 ? `${s.slice(0, 50)}...` : s;
-      return themeFg("accent", toolName) + themeFg("dim", ` ${p}`);
-    }
+    case "default":
+      return themeFg("accent", parts.name) + themeFg("dim", ` ${parts.argsPreview}`);
   }
 }
 

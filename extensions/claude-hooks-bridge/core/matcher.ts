@@ -40,7 +40,7 @@ export function matcherMatches(matcher: string | undefined, toolName: string): b
     const re = new RegExp(`^(?:${matcher})$`);
     if (candidates.some((name) => re.test(name))) return true;
   } catch {
-    // matcher가 정규식으로 유효하지 않아도 fallback 비교를 시도한다.
+    // Even if the matcher isn't a valid regex, fall through to token-based comparison.
   }
 
   const tokens = matcher

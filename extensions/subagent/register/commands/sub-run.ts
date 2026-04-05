@@ -172,8 +172,8 @@ export function buildSubCommand(deps: SubagentDeps) {
             return;
           }
 
-          // NOTE(user-approved): no-UI 모드에서의 안내 처리 방식은 현재 구현을 유지한다.
-          // (headless/RPC 경고 경로 개선은 이번 변경 범위에서 제외)
+          // NOTE(user-approved): keep the current no-UI guidance behavior as-is.
+          // (Improving the headless/RPC warning path is out of scope for this change.)
           if (!ctx.hasUI) {
             ctx.ui.notify(
               `Ambiguous agent alias "${firstToken}": ${names}. Use a longer alias or exact name.`,
@@ -222,8 +222,8 @@ export function buildSubCommand(deps: SubagentDeps) {
           ctx.ui.notify(`Unknown subagent run #${continuedFromRunId}.`, "error");
           return;
         }
-        // NOTE(user-approved): continuation 시 기존 context/session을 유지한다.
-        // /sub:main 과 /sub:isolate 간 모드 전환은 기존 run에는 소급 적용하지 않는다.
+        // NOTE(user-approved): on continuation, keep the existing context/session.
+        // Mode switches between /sub:main and /sub:isolate are not applied retroactively to existing runs.
         sessionFileForRun = existingRunState.sessionFile;
       } else if (forceMainContext) {
         // Extract main session context as text instead of copying the session file.

@@ -94,7 +94,7 @@ export function handleStatusAction(
     };
   }
 
-  const output = run.lastOutput ?? run.lastLine ?? "(no output yet)";
+  const output = run.lastOutput ?? run.lastLine;
   const preview =
     output.length > STATUS_OUTPUT_PREVIEW_MAX_CHARS
       ? `${output.slice(0, STATUS_OUTPUT_PREVIEW_MAX_CHARS)}\n\n... [truncated]`

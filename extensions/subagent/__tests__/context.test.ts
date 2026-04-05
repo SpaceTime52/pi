@@ -282,6 +282,75 @@ describe("buildMainContextText", () => {
     assert.equal(result.totalMessageCount, 2);
   });
 
+  it("skips message entries where message is a non-object (string)", () => {
+    // Exercises the `typeof msg !== "object"` branch in isUserMessage/isAssistantMessage.
+    const entry = makeBase({ type: "message" }) as SessionMessageEntry;
+    (entry as unknown as Record<string, unknown>).message = "not an object";
+    const entries: SessionEntry[] = [entry, makeMessageEntry("user", "valid")];
+    const ctx = { sessionManager: { getEntries: () => entries } };
+    const result = buildMainContextText(ctx);
+    // Non-object message is ignored; only the valid user message renders.
+    assert.ok(result.text.includes("User: valid"));
+    assert.ok(!result.text.includes("not an object"));
+  });
+
+  it("skips message entries where message is missing role or content", () => {
+    // Exercises the `!("role" in msg) || !("content" in msg)` branch.
+    const entryNoRole = makeBase({ type: "message" }) as SessionMessageEntry;
+    (entryNoRole as unknown as Record<string, unknown>).message = { content: "orphan" };
+    const entryNoContent = makeBase({ type: "message" }) as SessionMessageEntry;
+    (entryNoContent as unknown as Record<string, unknown>).message = { role: "user" };
+    const entries: SessionEntry[] = [
+      entryNoRole,
+      entryNoContent,
+      makeMessageEntry("user", "valid"),
+    ];
+    const ctx = { sessionManager: { getEntries: () => entries } };
+    const result = buildMainContextText(ctx);
+    assert.ok(result.text.includes("User: valid"));
+    assert.ok(!result.text.includes("orphan"));
+  });
+
+  it("skips messages with unknown role (not user/assistant)", () => {
+    // Exercises the `m.role !== "user"` and `m.role !== "assistant"` branches —
+    // message flows through both guards and is rejected by each.
+    const entry = makeBase({ type: "message" }) as SessionMessageEntry;
+    (entry as unknown as Record<string, unknown>).message = {
+      role: "tool",
+      content: "ignored",
+    };
+    const entries: SessionEntry[] = [entry, makeMessageEntry("user", "kept")];
+    const ctx = { sessionManager: { getEntries: () => entries } };
+    const result = buildMainContextText(ctx);
+    assert.ok(result.text.includes("User: kept"));
+    assert.ok(!result.text.includes("ignored"));
+  });
+
+  it("skips user/assistant messages whose content is neither string nor array", () => {
+    // Exercises the final `typeof m.content === "string" || Array.isArray(m.content)`
+    // branch — role matches but content is an object/number.
+    const userBadContent = makeBase({ type: "message" }) as SessionMessageEntry;
+    (userBadContent as unknown as Record<string, unknown>).message = {
+      role: "user",
+      content: 42,
+    };
+    const assistantBadContent = makeBase({ type: "message" }) as SessionMessageEntry;
+    (assistantBadContent as unknown as Record<string, unknown>).message = {
+      role: "assistant",
+      content: { shape: "object" },
+    };
+    const entries: SessionEntry[] = [
+      userBadContent,
+      assistantBadContent,
+      makeMessageEntry("user", "valid"),
+    ];
+    const ctx = { sessionManager: { getEntries: () => entries } };
+    const result = buildMainContextText(ctx);
+    assert.ok(result.text.includes("User: valid"));
+    assert.ok(!result.text.includes("42"));
+    assert.ok(!result.text.includes("shape"));
+  });
+
   it("returns empty on exception", () => {
     const ctx = {
       sessionManager: {

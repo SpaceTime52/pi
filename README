@@ -28,6 +28,25 @@
     stress-interview ···· verifier/reviewer/challenger 병렬 교차 검토
     systematic-debugging ···· 근본원인 기반 4단계 디버깅
 
+  AGENTS
+    browser ···· 웹 브라우저 자동화
+    challenger ···· 반론/리스크 제기
+    code-cleaner ···· 품질 진단
+    finder ···· 파일 탐색
+    planner ···· 계획 수립
+    reviewer ···· 코드 리뷰 관점
+    searcher ···· 코드 검색
+    security-auditor ···· 보안 취약점 검사
+    simplifier ···· 단순화/정리
+    verifier ···· 실행 증거 기반 검증
+    worker ···· 코드 수정/구현
+
+  TESTS
+    subagent ···· 1011 tests, 100% coverage (c8 --all --100)
+    claude-mcp-bridge ···· 259 tests, 100% coverage
+    claude-hooks-bridge ···· 219 tests, 100% coverage
+    cross-agent ···· 67 tests, 100% coverage
+
   REQUIRES
     node 22
     go 1.26

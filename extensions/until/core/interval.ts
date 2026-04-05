@@ -1,10 +1,10 @@
 import type { ParsedInterval } from "./types.js";
 
 /**
- * 다양한 형식의 interval 문자열을 파싱합니다.
- * 지원 형식: 5m, 1h, 5분, 1시간, 5분마다, 1시간마다
+ * Parses interval strings in several formats.
+ * Supported: 5m, 1h, 5분, 1시간, 5분마다, 1시간마다
  *
- * @returns { ms, label } 또는 파싱 실패 시 null
+ * @returns { ms, label }, or null if parsing fails.
  */
 
 const INTERVAL_RE = /^(\d+(?:\.\d+)?)\s*(?:(m|h|분|시간)(?:마다)?)\s*$/i;

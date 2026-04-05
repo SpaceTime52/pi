@@ -178,7 +178,7 @@ export async function handleStop(pi: ExtensionAPI, ctx: ExtensionContext): Promi
     return;
   }
 
-  // 무한 루프 보호: 이미 stop_hook_active=true 인 상태에서 다시 block이면 자동 재시도하지 않는다.
+  // Loop guard: if stop_hook_active is already true and we get another block, don't auto-retry.
   setStopHookActive(sessionId, false);
   if (ctx.hasUI) {
     ctx.ui.notify(

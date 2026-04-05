@@ -14,9 +14,9 @@ interface FrontmatterResult {
 }
 
 function parseFrontmatter(content: string): FrontmatterResult {
-  // UTF-8 BOM 제거
+  // Strip UTF-8 BOM.
   const cleaned = content.replace(/^\uFEFF/, "");
-  // body가 없는 frontmatter-only 파일도 정상 파싱 (닫는 --- 후 EOF 허용)
+  // Also parse frontmatter-only files without a body (allow EOF right after the closing ---).
   const match = cleaned.match(/^---\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n([\s\S]*))?$/);
   if (!match) return { meta: {}, body: cleaned.trim() };
 

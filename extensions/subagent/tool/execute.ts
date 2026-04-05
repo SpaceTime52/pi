@@ -6,10 +6,7 @@
 
 import { discoverAgents } from "../agent/discovery.js";
 import { parseSubagentToolCommand, SUBAGENT_CLI_HELP_TEXT } from "../cli/parser.js";
-import {
-  IDLE_RUN_WARNING_THRESHOLD,
-  MAX_CONCURRENT_ASYNC_SUBAGENT_RUNS,
-} from "../core/constants.js";
+import { MAX_CONCURRENT_ASYNC_SUBAGENT_RUNS } from "../core/constants.js";
 import type { SubagentDeps } from "../core/deps.js";
 import { updateRunFromResult } from "../core/store.js";
 import type {
@@ -34,8 +31,8 @@ import { handleDetailAction, handleListAction, handleStatusAction } from "./acti
 import {
   createEmptyDetails,
   finalizeRunState,
-  formatIdleRunWarning,
   getRunCounts,
+  makeIdleRunWarningWrapper,
 } from "./helpers.js";
 import type {
   FinalizedRun,
@@ -89,8 +86,8 @@ export function createSubagentToolExecute(deps: SubagentDeps) {
         const model = agent.model ?? "(inherit current model)";
         const thinking = agent.thinking ?? "(inherit current thinking)";
         const tools = agent.tools && agent.tools.length > 0 ? agent.tools.join(",") : "default";
-        const description = agent.description ? ` · ${agent.description}` : "";
-        return `${agent.name} [${agent.source}] · model: ${model} · thinking: ${thinking} · tools: ${tools}${description}`;
+        // discoverAgents guarantees description is non-empty.
+        return `${agent.name} [${agent.source}] · model: ${model} · thinking: ${thinking} · tools: ${tools} · ${agent.description}`;
       });
 
       return {
@@ -114,16 +111,7 @@ export function createSubagentToolExecute(deps: SubagentDeps) {
     const originSessionFile = getCurrentSessionFile(ctx);
 
     const runCounts = getRunCounts(store);
-    const idleRunWarning =
-      runCounts.idle >= IDLE_RUN_WARNING_THRESHOLD
-        ? formatIdleRunWarning(runCounts.idle)
-        : undefined;
-    const withIdleRunWarning = (text: string): string =>
-      idleRunWarning ? `${idleRunWarning}\n\n${text}` : text;
-
-    if (idleRunWarning && ctx.hasUI) {
-      ctx.ui?.notify?.(idleRunWarning, "warning");
-    }
+    const withIdleRunWarning = makeIdleRunWarningWrapper(runCounts.idle, ctx);
 
     const hasBatch = asyncAction === "batch";
     const hasChain = asyncAction === "chain";
@@ -158,10 +146,13 @@ export function createSubagentToolExecute(deps: SubagentDeps) {
     if (hasSingle || hasBatch || hasChain) {
       const requestedNames: string[] = [];
       if (hasSingle) {
-        const name =
-          (resolvedParams.agent as string | undefined) ??
-          (resolvedParams.continueFromRunId ? undefined : "worker");
-        if (name) requestedNames.push(name);
+        // Parser always supplies `agent` for `run` and makes it optional for
+        // `continue` (where it can be omitted to reuse the prior run's agent).
+        // For early-validation we only need to check that an explicit `agent`
+        // override exists in the known list; when omitted we default to
+        // "worker" which is always expected to be available.
+        const name = (resolvedParams.agent as string | undefined) ?? "worker";
+        requestedNames.push(name);
       }
       if (hasBatch && Array.isArray(resolvedParams.runs)) {
         for (const item of resolvedParams.runs as BatchOrChainItem[])
@@ -195,58 +186,23 @@ export function createSubagentToolExecute(deps: SubagentDeps) {
     }
 
     // ── RunId / RunIds resolution for non-launch actions ───────────────
-    const rawRunIds = Array.isArray(resolvedParams.runIds) ? resolvedParams.runIds : undefined;
-    const invalidRunIds = (rawRunIds ?? []).filter((value) => !Number.isInteger(value));
-    if (invalidRunIds.length > 0) {
-      return {
-        content: [{ type: "text", text: "runIds must be an array of integer run IDs." }],
-        details: makeDetails("single"),
-        isError: true,
-      };
-    }
-
-    const runIdsFromArray = ((rawRunIds ?? []) as number[]).filter((value) =>
-      Number.isInteger(value),
-    );
-    const hasRunId = Number.isInteger(resolvedParams.runId);
+    // Trust boundary: `resolvedParams` comes from parseSubagentToolCommand,
+    // which guarantees:
+    //   - `status`/`detail` always set `runId: number` (never `runIds`)
+    //   - `abort`/`remove` always set exactly one of `runId` or `runIds: number[]`
+    // So we don't re-validate here.
+    const rawRunIds = Array.isArray(resolvedParams.runIds)
+      ? (resolvedParams.runIds as number[])
+      : undefined;
+    const runIdsFromArray = rawRunIds ?? [];
     const hasRunIds = runIdsFromArray.length > 0;
-    const isBulkAction = asyncAction === "abort" || asyncAction === "remove";
 
     if (!hasSingle && !hasBatch && !hasChain) {
-      if (!isBulkAction && rawRunIds !== undefined) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `asyncAction=${asyncAction} does not support runIds. Use runId.`,
-            },
-          ],
-          details: makeDetails("single"),
-          isError: true,
-        };
-      }
-
-      if (hasRunId && hasRunIds) {
-        return {
-          content: [{ type: "text", text: "Use either runId or runIds, not both." }],
-          details: makeDetails("single"),
-          isError: true,
-        };
-      }
-
-      if (!hasRunId && !hasRunIds) {
-        const required = isBulkAction ? "runId or runIds" : "runId";
-        return {
-          content: [{ type: "text", text: `asyncAction=${asyncAction} requires ${required}.` }],
-          details: makeDetails("single"),
-          isError: true,
-        };
-      }
-
       const targetRunIds = hasRunIds
         ? Array.from(new Set(runIdsFromArray))
         : [resolvedParams.runId as number];
-      const firstRunId = targetRunIds[0] ?? 0;
+      // Parser guarantees targetRunIds has at least one element.
+      const firstRunId = targetRunIds[0] as number;
 
       if (asyncAction === "status") {
         return handleStatusAction(firstRunId, store, makeDetails);
@@ -266,13 +222,8 @@ export function createSubagentToolExecute(deps: SubagentDeps) {
     }
 
     // ── Concurrent run limit check ─────────────────────────────────────
-    const requestedLaunchCount = hasBatch
-      ? Array.isArray(resolvedParams.runs)
-        ? resolvedParams.runs.length
-        : 0
-      : hasChain
-        ? 1
-        : 1;
+    // Trust boundary: parser guarantees `runs: BatchOrChainItem[]` for batch.
+    const requestedLaunchCount = hasBatch ? (resolvedParams.runs as unknown[]).length : 1;
     if (runCounts.running + requestedLaunchCount > MAX_CONCURRENT_ASYNC_SUBAGENT_RUNS) {
       return {
         content: [
@@ -312,8 +263,9 @@ export function createSubagentToolExecute(deps: SubagentDeps) {
           runState.abortController?.signal,
           (partial) => {
             if (runState.removed) return;
-            const current = partial.details?.results?.[0];
-            if (!current) return;
+            // runSingleAgent's emitUpdate always includes a single-entry
+            // results array on details.
+            const current = (partial.details as SubagentDetails).results[0] as SingleResult;
             updateRunFromResult(runState, current);
             updateCommandRunsWidget(store);
           },
@@ -343,21 +295,16 @@ export function createSubagentToolExecute(deps: SubagentDeps) {
     };
 
     if (hasSingle) {
-      return handleLaunchAction(params, sharedLaunchCtx);
+      return handleLaunchAction(resolvedParams, sharedLaunchCtx);
     }
 
     if (hasBatch) {
-      return handleBatchAction(params, sharedLaunchCtx);
+      return handleBatchAction(resolvedParams, sharedLaunchCtx);
     }
 
-    if (hasChain) {
-      return handleChainAction(params, sharedLaunchCtx);
-    }
-
-    return {
-      content: [{ type: "text", text: withIdleRunWarning("Invalid subagent invocation.") }],
-      details: makeDetails(),
-      isError: true,
-    };
+    // At this point `hasChain` must be true: the parser only emits
+    // list/status/detail/abort/remove/run/continue/batch/chain, and all other
+    // values are returned to the caller before this block.
+    return handleChainAction(resolvedParams, sharedLaunchCtx);
   };
 }

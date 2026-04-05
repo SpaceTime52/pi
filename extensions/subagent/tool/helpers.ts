@@ -210,6 +210,29 @@ export function formatIdleRunWarning(idleRunCount: number): string {
   );
 }
 
+/**
+ * Build a function that prepends an "idle runs" warning to a given text when
+ * the idle-run threshold is exceeded. Returns the identity function when the
+ * threshold is not yet met. Also side-effects a ui.notify("warning") in that
+ * case when the ctx supports UI.
+ */
+export function makeIdleRunWarningWrapper(
+  idleRunCount: number,
+  ctx: {
+    readonly hasUI?: boolean | undefined;
+    readonly ui?:
+      | { notify?: ((message: string, type?: "info" | "warning" | "error") => void) | undefined }
+      | undefined;
+  },
+): (text: string) => string {
+  if (idleRunCount < IDLE_RUN_WARNING_THRESHOLD) {
+    return (text) => text;
+  }
+  const warning = formatIdleRunWarning(idleRunCount);
+  if (ctx.hasUI) ctx.ui?.notify?.(warning, "warning");
+  return (text) => `${warning}\n\n${text}`;
+}
+
 export function createEmptyDetails(
   mode: LaunchMode,
   inheritMainContext: boolean,

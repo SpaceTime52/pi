@@ -85,7 +85,7 @@ export function createTaskManager(pi: ExtensionAPI): TaskManager {
 
     const now = Date.now();
 
-    // 만료 체크
+    // Expiry check
     if (now >= task.expiresAt) {
       if (latestCtx?.hasUI) {
         latestCtx.ui.notify(`⏳ until #${task.id} 만료됨 (24시간 초과)`, "warning");
@@ -99,7 +99,7 @@ export function createTaskManager(pi: ExtensionAPI): TaskManager {
       return;
     }
 
-    // 이전 실행이 아직 진행 중이면 다음 타이머만 재설정
+    // If the previous run is still in flight, just reschedule the next timer.
     if (task.inFlight) {
       scheduleNext(id);
       return;
@@ -132,7 +132,7 @@ export function createTaskManager(pi: ExtensionAPI): TaskManager {
         pi.sendUserMessage(wrappedPrompt);
       }
     } catch {
-      // sendUserMessage 실패 시 inFlight 고착 방지
+      // Prevent inFlight from getting stuck if sendUserMessage throws.
       task.inFlight = false;
     }
 

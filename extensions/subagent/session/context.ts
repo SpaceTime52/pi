@@ -49,23 +49,19 @@ function isToolCallPart(value: unknown): value is ToolCallPart {
 // are the only Message variants with role="user"/"assistant".
 
 function isUserMessage(msg: unknown): msg is UserMessage {
-  return (
-    typeof msg === "object" &&
-    msg !== null &&
-    "role" in msg &&
-    (msg as { role: unknown }).role === "user" &&
-    "content" in msg
-  );
+  if (typeof msg !== "object" || msg === null) return false;
+  if (!("role" in msg) || !("content" in msg)) return false;
+  const m = msg as { role: unknown; content: unknown };
+  if (m.role !== "user") return false;
+  return typeof m.content === "string" || Array.isArray(m.content);
 }
 
 function isAssistantMessage(msg: unknown): msg is AssistantMessage {
-  return (
-    typeof msg === "object" &&
-    msg !== null &&
-    "role" in msg &&
-    (msg as { role: unknown }).role === "assistant" &&
-    "content" in msg
-  );
+  if (typeof msg !== "object" || msg === null) return false;
+  if (!("role" in msg) || !("content" in msg)) return false;
+  const m = msg as { role: unknown; content: unknown };
+  if (m.role !== "assistant") return false;
+  return typeof m.content === "string" || Array.isArray(m.content);
 }
 
 const SUBAGENT_SESSION_DIR = path.join(os.homedir(), ".pi", "agent", "sessions", "subagents");

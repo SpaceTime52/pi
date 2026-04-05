@@ -128,6 +128,24 @@ describe("loadSettings", () => {
     assert.equal(first, second);
     assert.ok(first.parseError);
   });
+
+  it("returns parseError when stat fails for non-ENOENT reasons", () => {
+    // Place a directory at the settings path — statSync will succeed on it,
+    // but readFileSync will fail (EISDIR), which is parseError territory.
+    // To exercise the non-ENOENT stat path specifically, we substitute the
+    // settings file location with a path whose parent is not a directory,
+    // forcing statSync to throw ENOTDIR rather than ENOENT.
+    const cwd = path.join(tmpRoot, `stat-err-${counter}`);
+    fs.mkdirSync(cwd, { recursive: true });
+    // Create a regular file where `.claude` is expected to be a directory.
+    // Then cwd/.claude/settings.json resolves through a non-directory,
+    // which makes statSync fail with ENOTDIR (non-ENOENT).
+    fs.writeFileSync(path.join(cwd, ".claude"), "not a directory", "utf8");
+    const loaded = loadSettings(cwd);
+    assert.equal(loaded.settings, null);
+    assert.ok(loaded.parseError, "expected parseError on non-ENOENT stat failure");
+    assert.ok(loaded.parseError?.includes("settings stat"));
+  });
 });
 
 // ━━━ countHooks ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
