@@ -11,6 +11,9 @@
     pi update
 
   EXTENSIONS
+    claude-hooks-bridge ···· .claude/settings.json 훅을 pi 이벤트로 연결
+    claude-mcp-bridge ···· Claude Code MCP 설정을 pi에서 재사용하는 브릿지
+    cross-agent ···· 다른 AI 에이전트의 커맨드/스킬/에이전트 로드
     delayed-action ···· 지정 시간 후 작업을 자동 실행하는 리마인더
     notify ···· 작업 완료 시 터미널 알림
     subagent ···· 하위 에이전트 위임 실행 레이어

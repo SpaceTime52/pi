@@ -1,0 +1,13 @@
+Claude Hooks Bridge — Claude Code 훅을 pi에서 실행
+
+프로젝트의 .claude/settings.json 훅 설정을 읽어
+SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop
+이벤트를 pi 세션에 매핑한다.
+
+PreToolUse deny/block/ask 결과를 감지해 도구 실행을 차단하고,
+Stop hook이 block을 내면 follow-up으로 계속 진행시킨다.
+
+훅 커맨드는 bash -lc 로 실행하고, Claude Code 스펙대로
+stdin JSON 페이로드와 CLAUDE_PROJECT_DIR 환경 변수를 넘긴다.
+
+포크 원본: github.com/Jonghakseo/my-pi/extensions/claude-hooks-bridge.ts
