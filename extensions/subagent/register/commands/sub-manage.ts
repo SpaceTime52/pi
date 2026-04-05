@@ -1,8 +1,24 @@
+/**
+ * Thin pi-SDK wrapper for subagent management commands (/sub:open, /sub:history,
+ * /sub:rm, /sub:clear, /sub:abort, /sub:back).
+ *
+ * All argument parsing, bulk-target selection, and completion rendering live
+ * in `./sub-manage-logic.ts` and are covered by
+ * `__tests__/sub-manage-logic.test.ts`. This file composes those decisions with
+ * pi ExtensionContext (ui.notify, ui.custom overlay rendering, fs existence
+ * checks on session files) and pi SDK commands (`pi.registerCommand`,
+ * `removeRun`, `updateCommandRunsWidget`).
+ *
+ * Coverage: this wrapper is EXCLUDED from `npm run test:subagent` coverage
+ * because the remaining branching is ExtensionContext wiring (overlay
+ * rendering, fs session-file probes, widget refresh plumbing, controller
+ * abort side effects) that is not exercisable as pure logic. The extracted
+ * decisions in `sub-manage-logic.ts` are fully covered instead.
+ */
+
 import * as fs from "node:fs";
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import {
-  COMMAND_COMPLETION_LIMIT,
-  COMMAND_TASK_PREVIEW_CHARS,
   DEFAULT_TURN_COUNT,
   MS_PER_SECOND,
   SUBVIEW_OVERLAY_MAX_HEIGHT,
@@ -12,10 +28,31 @@ import type { SubagentDeps } from "../../core/deps.js";
 import type { CommandRunState } from "../../core/types.js";
 import { getLatestRun, removeRun } from "../../execution/run.js";
 import { captureSwitchSession, subBackHandler, subTransHandler } from "../../session/navigation.js";
-import { formatUsageStats, truncateText } from "../../ui/format.js";
+import { formatUsageStats } from "../../ui/format.js";
 import { SubagentHistoryOverlay } from "../../ui/history-overlay.js";
 import { readSessionReplayItems, SubagentSessionReplayOverlay } from "../../ui/replay.js";
 import { toWidgetCtx, updateCommandRunsWidget } from "../../ui/widget.js";
+import {
+  buildSubOpenCompletions,
+  formatAvailableRunIds,
+  formatHistoryFallbackLines,
+  formatSubClearAllSummary,
+  formatSubClearFinishedSummary,
+  NO_ABORTABLE_SUBAGENT_JOBS,
+  NO_RUNNING_SUBAGENT_JOBS,
+  NO_SUBAGENT_HISTORY_YET,
+  NO_SUBAGENT_RUNS_TO_REMOVE,
+  NO_SUBAGENT_RUNS_YET,
+  parseRunIdArg,
+  parseSubClearMode,
+  SUB_ABORT_USAGE,
+  SUB_OPEN_USAGE,
+  SUB_RM_USAGE,
+  selectSubAbortTarget,
+  selectSubClearTargets,
+  sortRunsForHistory,
+  validateSubAbortById,
+} from "./sub-manage-logic.js";
 
 export function registerManagementCommands(deps: SubagentDeps): {
   handleSubClear: (args: string, ctx: ExtensionContext) => Promise<void>;
@@ -26,48 +63,30 @@ export function registerManagementCommands(deps: SubagentDeps): {
   // ── sub:open ─────────────────────────────────────────────────────────
   pi.registerCommand("sub:open", {
     description: "Open a subagent session replay overlay: /sub:open [runId]",
-    getArgumentCompletions: (argumentPrefix) => {
-      const trimmedStart = argumentPrefix.trimStart();
-      if (trimmedStart.includes(" ")) return null;
-
-      const items = Array.from(store.commandRuns.values())
-        .sort((a, b) => b.id - a.id)
-        .filter((run) => !trimmedStart || run.id.toString().startsWith(trimmedStart))
-        .slice(0, COMMAND_COMPLETION_LIMIT)
-        .map((run) => ({
-          value: `${run.id}`,
-          label: `${run.id}`,
-          description: `${run.status} ${run.agent}: ${truncateText(run.task, COMMAND_TASK_PREVIEW_CHARS)}`,
-        }));
-
-      return items.length > 0 ? items : null;
-    },
+    getArgumentCompletions: (argumentPrefix) =>
+      buildSubOpenCompletions(Array.from(store.commandRuns.values()), argumentPrefix),
     handler: async (args, ctx) => {
       captureSwitchSession(store, ctx);
-      const raw = (args ?? "").trim();
+      const request = parseRunIdArg(args);
       let id: number;
       let run: CommandRunState | undefined;
 
-      if (!raw) {
+      if (request.kind === "empty") {
         run = getLatestRun(store);
         if (!run) {
-          ctx.ui.notify("No subagent runs yet.", "info");
+          ctx.ui.notify(NO_SUBAGENT_RUNS_YET, "info");
           return;
         }
         id = run.id;
-      } else if (/^\d+$/.test(raw)) {
-        id = Number(raw);
+      } else if (request.kind === "by-id") {
+        id = request.id;
         run = store.commandRuns.get(id);
       } else {
-        ctx.ui.notify("Usage: /sub:open [runId]", "info");
+        ctx.ui.notify(SUB_OPEN_USAGE, "info");
         return;
       }
       if (!run) {
-        const availableRunIds = Array.from(store.commandRuns.keys()).sort((a, b) => a - b);
-        const availableText =
-          availableRunIds.length > 0
-            ? `Available run IDs: ${availableRunIds.join(", ")}`
-            : "No recent subagent runs available.";
+        const availableText = formatAvailableRunIds(Array.from(store.commandRuns.values()));
         ctx.ui.notify(`Unknown subagent run #${id}. ${availableText}`, "error");
         return;
       }
@@ -130,25 +149,16 @@ export function registerManagementCommands(deps: SubagentDeps): {
     handler: async (_args, ctx) => {
       captureSwitchSession(store, ctx);
 
-      const allRuns = Array.from(store.commandRuns.values()).sort(
-        (a, b) => b.startedAt - a.startedAt,
-      );
+      const allRuns = sortRunsForHistory(Array.from(store.commandRuns.values()));
 
       if (allRuns.length === 0) {
-        ctx.ui.notify("No subagent run history yet.", "info");
+        ctx.ui.notify(NO_SUBAGENT_HISTORY_YET, "info");
         return;
       }
 
       if (!ctx.hasUI) {
         // Fallback: plain text list
-        const lines = allRuns.map((r) => {
-          const removed = r.removed ? " [removed]" : "";
-          const task = r.task
-            .replace(/\s*\n+\s*/g, " ")
-            .trim()
-            .slice(0, COMMAND_TASK_PREVIEW_CHARS);
-          return `#${r.id} [${r.status}]${removed} ${r.agent}: ${task}`;
-        });
+        const lines = formatHistoryFallbackLines(allRuns);
         ctx.ui.notify(lines.join("\n"), "info");
         return;
       }
@@ -198,22 +208,22 @@ export function registerManagementCommands(deps: SubagentDeps): {
     description: "Remove one /sub job entry (aborts it if running): /sub:rm [runId]",
     handler: async (args, ctx) => {
       captureSwitchSession(store, ctx);
-      const raw = (args ?? "").trim();
+      const request = parseRunIdArg(args);
       let id: number;
       let run: CommandRunState | undefined;
 
-      if (!raw) {
+      if (request.kind === "empty") {
         run = getLatestRun(store);
         if (!run) {
-          ctx.ui.notify("No subagent runs to remove.", "info");
+          ctx.ui.notify(NO_SUBAGENT_RUNS_TO_REMOVE, "info");
           return;
         }
         id = run.id;
-      } else if (/^\d+$/.test(raw)) {
-        id = Number(raw);
+      } else if (request.kind === "by-id") {
+        id = request.id;
         run = store.commandRuns.get(id);
       } else {
-        ctx.ui.notify("Usage: /sub:rm [runId]", "info");
+        ctx.ui.notify(SUB_RM_USAGE, "info");
         return;
       }
       if (!run) {
@@ -237,12 +247,14 @@ export function registerManagementCommands(deps: SubagentDeps): {
   // ── sub:clear ────────────────────────────────────────────────────────
   const handleSubClear = async (args: string, ctx: ExtensionContext) => {
     captureSwitchSession(store, ctx);
-    const mode = (args ?? "").trim().toLowerCase();
+    const mode = parseSubClearMode(args);
+    const targets = selectSubClearTargets(Array.from(store.commandRuns.values()), mode);
+
     if (mode === "all") {
       let removed = 0;
       let aborted = 0;
-      for (const id of Array.from(store.commandRuns.keys())) {
-        const result = removeRun(store, id, {
+      for (const target of targets) {
+        const result = removeRun(store, target.id, {
           ctx: toWidgetCtx(ctx),
           pi,
           updateWidget: false,
@@ -254,19 +266,13 @@ export function registerManagementCommands(deps: SubagentDeps): {
         if (result.aborted) aborted++;
       }
       updateCommandRunsWidget(store, toWidgetCtx(ctx));
-      ctx.ui.notify(
-        aborted > 0
-          ? `Cleared ${removed} subagent job(s), aborting ${aborted} running job(s).`
-          : `Cleared ${removed} subagent job(s).`,
-        aborted > 0 ? "warning" : "info",
-      );
+      ctx.ui.notify(formatSubClearAllSummary(removed, aborted), aborted > 0 ? "warning" : "info");
       return;
     }
 
     let removed = 0;
-    for (const [id, run] of Array.from(store.commandRuns.entries())) {
-      if (run.status === "running") continue;
-      const result = removeRun(store, id, {
+    for (const target of targets) {
+      const result = removeRun(store, target.id, {
         ctx: toWidgetCtx(ctx),
         pi,
         updateWidget: false,
@@ -276,7 +282,7 @@ export function registerManagementCommands(deps: SubagentDeps): {
       if (result.removed) removed++;
     }
     updateCommandRunsWidget(store, toWidgetCtx(ctx));
-    ctx.ui.notify(`Cleared ${removed} finished subagent job(s).`, "info");
+    ctx.ui.notify(formatSubClearFinishedSummary(removed), "info");
   };
 
   pi.registerCommand("sub:clear", {
@@ -288,13 +294,10 @@ export function registerManagementCommands(deps: SubagentDeps): {
 
   // ── sub:abort ────────────────────────────────────────────────────────
   const handleSubAbort = async (args: string, ctx: ExtensionContext) => {
-    const raw = (args ?? "").trim().toLowerCase();
-    const running = Array.from(store.commandRuns.values())
-      .filter((run) => run.status === "running")
-      .sort((a, b) => b.id - a.id);
+    const target = selectSubAbortTarget(Array.from(store.commandRuns.values()), args);
 
-    if (running.length === 0) {
-      ctx.ui.notify("No running subagent jobs.", "info");
+    if (target.kind === "none-running") {
+      ctx.ui.notify(NO_RUNNING_SUBAGENT_JOBS, "info");
       return;
     }
 
@@ -309,56 +312,50 @@ export function registerManagementCommands(deps: SubagentDeps): {
       return true;
     };
 
-    if (!raw) {
-      const target = running[0];
-      if (!target || !abortRun(target)) {
-        ctx.ui.notify(
-          target
-            ? `Subagent #${target.id} is not abortable right now.`
-            : "No abortable subagent jobs.",
-          "warning",
-        );
+    if (target.kind === "latest") {
+      if (!abortRun(target.run)) {
+        ctx.ui.notify(`Subagent #${target.run.id} is not abortable right now.`, "warning");
         return;
       }
       updateCommandRunsWidget(store, toWidgetCtx(ctx));
-      ctx.ui.notify(`Aborting subagent #${target.id} (${target.agent})...`, "warning");
+      ctx.ui.notify(`Aborting subagent #${target.run.id} (${target.run.agent})...`, "warning");
       return;
     }
 
-    if (raw === "all") {
+    if (target.kind === "all") {
       let count = 0;
-      for (const run of running) {
+      for (const run of target.runs) {
         if (abortRun(run)) count++;
       }
       updateCommandRunsWidget(store, toWidgetCtx(ctx));
       ctx.ui.notify(
-        count > 0 ? `Aborting ${count} running subagent job(s)...` : "No abortable subagent jobs.",
+        count > 0 ? `Aborting ${count} running subagent job(s)...` : NO_ABORTABLE_SUBAGENT_JOBS,
         count > 0 ? "warning" : "info",
       );
       return;
     }
 
-    if (/^\d+$/.test(raw)) {
-      const id = Number(raw);
-      const run = store.commandRuns.get(id);
-      if (!run) {
-        ctx.ui.notify(`Unknown subagent run #${id}.`, "error");
+    if (target.kind === "by-id") {
+      const validation = validateSubAbortById(store.commandRuns.get(target.id));
+      if (validation.kind === "unknown") {
+        ctx.ui.notify(`Unknown subagent run #${target.id}.`, "error");
         return;
       }
-      if (run.status !== "running") {
-        ctx.ui.notify(`Subagent #${id} is not running.`, "info");
+      if (validation.kind === "not-running") {
+        ctx.ui.notify(`Subagent #${target.id} is not running.`, "info");
         return;
       }
-      if (!abortRun(run)) {
-        ctx.ui.notify(`Subagent #${id} is not abortable right now.`, "warning");
+      if (!abortRun(validation.run)) {
+        ctx.ui.notify(`Subagent #${target.id} is not abortable right now.`, "warning");
         return;
       }
       updateCommandRunsWidget(store, toWidgetCtx(ctx));
-      ctx.ui.notify(`Aborting subagent #${id} (${run.agent})...`, "warning");
+      ctx.ui.notify(`Aborting subagent #${target.id} (${validation.run.agent})...`, "warning");
       return;
     }
 
-    ctx.ui.notify("Usage: /sub:abort [runId|all]", "info");
+    // target.kind === "invalid"
+    ctx.ui.notify(SUB_ABORT_USAGE, "info");
   };
 
   pi.registerCommand("sub:abort", {

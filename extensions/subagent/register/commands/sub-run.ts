@@ -1,16 +1,23 @@
+/**
+ * Thin pi-SDK wrapper for `/sub:isolate` and `/sub:main` slash commands.
+ *
+ * All argument parsing, agent resolution, continuation decisions, and
+ * main-context wrapping live in `./sub-run-logic.ts` and are covered by
+ * `__tests__/sub-run-logic.test.ts`. This file composes those decisions with
+ * the pi ExtensionContext (ui.notify, ui.select, hasUI guards), spawns the
+ * fire-and-forget subagent run via `runSingleAgent`/`enqueueSubagentInvocation`,
+ * and forwards completion/error telemetry through `pi.sendMessage`.
+ *
+ * Coverage: this wrapper is EXCLUDED from `npm run test:subagent` coverage
+ * because the remaining branching is pi runtime orchestration (tick interval,
+ * widget updates, session origin switching, pi.sendMessage delivery paths) that
+ * cannot be meaningfully exercised without a live pi runtime. The extracted
+ * pure logic in `sub-run-logic.ts` is fully covered instead.
+ */
+
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
-import {
-  discoverAgents,
-  getSubCommandAgentCompletions,
-  matchSubCommandAgent,
-} from "../../agent/discovery.js";
-import {
-  COMMAND_COMPLETION_LIMIT,
-  COMMAND_TASK_PREVIEW_CHARS,
-  CONTINUATION_OUTPUT_CONTEXT_MAX_CHARS,
-  RUN_OUTPUT_MESSAGE_MAX_CHARS,
-  RUN_TICK_INTERVAL_MS,
-} from "../../core/constants.js";
+import { discoverAgents, getSubCommandAgentCompletions } from "../../agent/discovery.js";
+import { RUN_OUTPUT_MESSAGE_MAX_CHARS, RUN_TICK_INTERVAL_MS } from "../../core/constants.js";
 import type { SubagentDeps } from "../../core/deps.js";
 import { getFinalOutput, getLastNonEmptyLine, updateRunFromResult } from "../../core/store.js";
 import type { CommandRunState, SingleResult, SubagentDetails } from "../../core/types.js";
@@ -26,8 +33,24 @@ import { enqueueSubagentInvocation } from "../../execution/run.js";
 import { runSingleAgent } from "../../execution/runner.js";
 import { buildMainContextText, wrapTaskWithMainContext } from "../../session/context.js";
 import { captureSwitchSession } from "../../session/navigation.js";
-import { formatUsageStats, truncateLines, truncateText } from "../../ui/format.js";
+import { formatUsageStats, truncateLines } from "../../ui/format.js";
 import { updateCommandRunsWidget } from "../../ui/widget.js";
+import {
+  buildResolvedDecisionFromAgent,
+  buildRunContinuationCompletions,
+  contextModeLabel,
+  decideMainContextWrap,
+  decideSubRun,
+  formatAmbiguousAgentMessage,
+  formatContinuationUnknownAgentMessage,
+  LEGACY_MAIN_PREFIX_WARNING,
+  mergeSubRunCompletions,
+  NO_AGENTS_FOUND_MESSAGE,
+  SUB_RUN_USAGE_TEXT,
+  type SubRunDecision,
+  sanitiseSessionFilePath,
+  startedStateLabel,
+} from "./sub-run-logic.js";
 
 export function buildSubCommand(deps: SubagentDeps) {
   const { pi, store } = deps;
@@ -36,183 +59,103 @@ export function buildSubCommand(deps: SubagentDeps) {
     description:
       "Run a subagent in a dedicated sub-session: /sub:isolate <agent|alias> <task>, /sub:isolate <runId> <task>, /sub:isolate <task> (defaults to worker)",
     getArgumentCompletions: (argumentPrefix: string) => {
-      const trimmedStart = argumentPrefix.trimStart();
-      if (trimmedStart.includes(" ")) return null;
-
       const discovery = discoverAgents(process.cwd());
       const agentItems = getSubCommandAgentCompletions(discovery.agents, argumentPrefix) ?? [];
-
-      const runItems = Array.from(store.commandRuns.values())
-        .sort((a, b) => b.id - a.id)
-        .filter((run) => !trimmedStart || run.id.toString().startsWith(trimmedStart))
-        .slice(0, COMMAND_COMPLETION_LIMIT)
-        .map((run) => ({
-          value: `${run.id} `,
-          label: `${run.id}`,
-          description: `continue ${run.agent}: ${truncateText(run.task, COMMAND_TASK_PREVIEW_CHARS)}`,
-        }));
-
-      const merged = [...runItems, ...agentItems];
-      return merged.length > 0 ? merged : null;
+      const runItems = buildRunContinuationCompletions(
+        Array.from(store.commandRuns.values()),
+        argumentPrefix,
+      );
+      return mergeSubRunCompletions(runItems, agentItems, argumentPrefix);
     },
     handler: async (args: string, ctx: ExtensionContext, forceMainContextFromWrapper = false) => {
       captureSwitchSession(store, ctx);
-      const input = (args ?? "").trim();
-      const usageText =
-        "Usage: /sub:main <agent|alias> <task> | /sub:main <runId> <task> | /sub:main <task> | /sub:isolate <agent|alias> <task> | /sub:isolate <runId> <task> | /sub:isolate <task>";
       let forceMainContext = forceMainContextFromWrapper;
-
-      if (input === "--main" || input.startsWith("--main ")) {
-        ctx.ui.notify(
-          "'--main' 접두어는 사용할 수 없습니다. /sub:main 또는 /sub:isolate 명령 자체로 컨텍스트를 선택하세요.",
-          "warning",
-        );
-        return;
-      }
-
-      if (!input) {
-        ctx.ui.notify(usageText, "info");
-        return;
-      }
 
       const discovery = discoverAgents(ctx.cwd);
       const agents = discovery.agents;
 
-      if (agents.length === 0) {
+      const decision = decideSubRun(args, {
+        agents,
+        getRun: (id) => store.commandRuns.get(id),
+      });
+
+      // Handle decision outcomes that short-circuit the handler.
+      if (decision.kind === "legacy-main-prefix") {
+        ctx.ui.notify(LEGACY_MAIN_PREFIX_WARNING, "warning");
+        return;
+      }
+      if (decision.kind === "empty-input") {
+        ctx.ui.notify(SUB_RUN_USAGE_TEXT, "info");
+        return;
+      }
+      if (decision.kind === "no-agents-found") {
+        ctx.ui.notify(NO_AGENTS_FOUND_MESSAGE, "error");
+        return;
+      }
+      if (decision.kind === "usage-missing-task") {
+        ctx.ui.notify(SUB_RUN_USAGE_TEXT, "info");
+        return;
+      }
+      if (decision.kind === "continuation-target-running") {
+        ctx.ui.notify(`Subagent #${decision.targetRunId} is already running.`, "warning");
+        return;
+      }
+      if (decision.kind === "continuation-target-unknown-agent") {
         ctx.ui.notify(
-          "No subagents found. Checked user (~/.pi/agent/agents) + project-local (.pi/agents, .claude/agents).",
+          formatContinuationUnknownAgentMessage(decision.targetRunId, decision.previousAgentName),
           "error",
         );
         return;
       }
 
-      const firstSpace = input.indexOf(" ");
-      const firstToken = firstSpace === -1 ? input : input.slice(0, firstSpace);
-      const continuationRun = /^\d+$/.test(firstToken)
-        ? store.commandRuns.get(Number(firstToken))
-        : undefined;
-
-      let selectedAgent: string;
-      let taskForDisplay: string;
-      let taskForAgent: string;
-      let continuedFromRunId: number | undefined;
-      let sessionFileForRun: string | undefined;
-
-      if (continuationRun) {
-        if (firstSpace === -1) {
-          ctx.ui.notify(usageText, "info");
-          return;
-        }
-
-        const targetRunId = Number(firstToken);
-        const targetRun = continuationRun;
-
-        if (targetRun.status === "running") {
-          ctx.ui.notify(`Subagent #${targetRunId} is already running.`, "warning");
-          return;
-        }
-
-        const nextInstruction = input.slice(firstSpace + 1).trim();
-        if (!nextInstruction) {
-          ctx.ui.notify(usageText, "info");
-          return;
-        }
-
-        const previousAgentName = targetRun.agent;
-        const directAgent = agents.find(
-          (agent) => agent.name.toLowerCase() === previousAgentName.toLowerCase(),
-        );
-        const fuzzyAgent = matchSubCommandAgent(agents, previousAgentName).matchedAgent;
-        selectedAgent = directAgent?.name ?? fuzzyAgent?.name ?? previousAgentName;
-
-        if (!agents.some((agent) => agent.name === selectedAgent)) {
+      // Ambiguous agent — may require interactive selection.
+      let finalDecision: Extract<SubRunDecision, { kind: "resolved" | "continuation" }>;
+      if (decision.kind === "ambiguous-agent") {
+        if (!decision.taskProvided) {
           ctx.ui.notify(
-            `Run #${targetRunId} references unknown agent "${previousAgentName}". Use /sub:main <agent> <task> instead.`,
+            formatAmbiguousAgentMessage(decision.firstToken, decision.ambiguousAgents, true),
+            "error",
+          );
+          return;
+        }
+        // NOTE(user-approved): keep the current no-UI guidance behavior as-is.
+        // (Improving the headless/RPC warning path is out of scope for this change.)
+        if (!ctx.hasUI) {
+          ctx.ui.notify(
+            formatAmbiguousAgentMessage(decision.firstToken, decision.ambiguousAgents, false),
             "error",
           );
           return;
         }
 
-        taskForDisplay = `[continue #${targetRunId}] ${nextInstruction}`;
-        continuedFromRunId = targetRunId;
-        sessionFileForRun = targetRun.sessionFile;
-
-        if (sessionFileForRun) {
-          // True continuation: reuse the same per-run session file.
-          taskForAgent = nextInstruction;
-        } else {
-          // Fallback for older runs that were started in isolated/no-session mode.
-          const previousOutputRaw = (targetRun.lastOutput ?? targetRun.lastLine ?? "").trim();
-          const previousOutput =
-            previousOutputRaw.length > CONTINUATION_OUTPUT_CONTEXT_MAX_CHARS
-              ? `${previousOutputRaw.slice(0, CONTINUATION_OUTPUT_CONTEXT_MAX_CHARS)}\n... [truncated]`
-              : previousOutputRaw;
-
-          taskForAgent = [
-            `Continue subagent run #${targetRunId} using the same agent (${selectedAgent}).`,
-            `Previous task:\n${targetRun.task}`,
-            previousOutput
-              ? `Previous output:\n${previousOutput}`
-              : "Previous output: (not available)",
-            `New instruction:\n${nextInstruction}`,
-          ].join("\n\n");
+        const selectedName = await ctx.ui.select(
+          `Ambiguous alias "${decision.firstToken}" — choose subagent`,
+          decision.ambiguousAgents.map((agent) => agent.name),
+        );
+        if (!selectedName) {
+          ctx.ui.notify("Subagent selection cancelled.", "info");
+          return;
         }
+        const resolvedAgent = decision.ambiguousAgents.find((agent) => agent.name === selectedName);
+        if (!resolvedAgent) {
+          ctx.ui.notify("Could not resolve selected subagent.", "error");
+          return;
+        }
+        const resolved = buildResolvedDecisionFromAgent(resolvedAgent.name, args);
+        if (resolved.kind === "usage-missing-task") {
+          ctx.ui.notify(SUB_RUN_USAGE_TEXT, "info");
+          return;
+        }
+        finalDecision = resolved;
       } else {
-        const { matchedAgent, ambiguousAgents } = matchSubCommandAgent(agents, firstToken);
-        let resolvedAgent = matchedAgent;
-
-        if (ambiguousAgents.length > 1) {
-          const names = ambiguousAgents.map((agent) => agent.name).join(", ");
-
-          if (firstSpace === -1) {
-            ctx.ui.notify(
-              `${usageText}. Ambiguous agent alias "${firstToken}": ${names}.`,
-              "error",
-            );
-            return;
-          }
-
-          // NOTE(user-approved): keep the current no-UI guidance behavior as-is.
-          // (Improving the headless/RPC warning path is out of scope for this change.)
-          if (!ctx.hasUI) {
-            ctx.ui.notify(
-              `Ambiguous agent alias "${firstToken}": ${names}. Use a longer alias or exact name.`,
-              "error",
-            );
-            return;
-          }
-
-          const selectedName = await ctx.ui.select(
-            `Ambiguous alias "${firstToken}" — choose subagent`,
-            ambiguousAgents.map((agent) => agent.name),
-          );
-          if (!selectedName) {
-            ctx.ui.notify("Subagent selection cancelled.", "info");
-            return;
-          }
-
-          resolvedAgent = ambiguousAgents.find((agent) => agent.name === selectedName);
-          if (!resolvedAgent) {
-            ctx.ui.notify("Could not resolve selected subagent.", "error");
-            return;
-          }
-        }
-
-        if (resolvedAgent && firstSpace === -1) {
-          ctx.ui.notify(usageText, "info");
-          return;
-        }
-
-        selectedAgent = resolvedAgent?.name ?? "worker";
-        taskForDisplay = resolvedAgent ? input.slice(firstSpace + 1).trim() : input;
-
-        if (!taskForDisplay) {
-          ctx.ui.notify(usageText, "info");
-          return;
-        }
-
-        taskForAgent = taskForDisplay;
+        finalDecision = decision;
       }
+
+      const selectedAgent = finalDecision.selectedAgent;
+      const taskForDisplay = finalDecision.taskForDisplay;
+      let taskForAgent = finalDecision.taskForAgent;
+      const continuedFromRunId =
+        finalDecision.kind === "continuation" ? finalDecision.targetRunId : undefined;
 
       let existingRunState: CommandRunState | undefined;
 
@@ -224,7 +167,6 @@ export function buildSubCommand(deps: SubagentDeps) {
         }
         // NOTE(user-approved): on continuation, keep the existing context/session.
         // Mode switches between /sub:main and /sub:isolate are not applied retroactively to existing runs.
-        sessionFileForRun = existingRunState.sessionFile;
       } else if (forceMainContext) {
         // Extract main session context as text instead of copying the session file.
         // This prevents subagents from inheriting the main agent's persona.
@@ -234,14 +176,16 @@ export function buildSubCommand(deps: SubagentDeps) {
         const totalMessageCount =
           typeof subContextResult === "string" ? 0 : subContextResult.totalMessageCount;
         const rawMainSessionFile = ctx.sessionManager?.getSessionFile?.() ?? undefined;
-        const mainSessionFile =
-          typeof rawMainSessionFile === "string"
-            ? rawMainSessionFile.replace(/[\r\n\t]+/g, "").trim() || undefined
-            : undefined;
-        if (subContextText || mainSessionFile) {
-          taskForAgent = wrapTaskWithMainContext(taskForAgent, subContextText, {
-            mainSessionFile,
-            totalMessageCount,
+        const mainSessionFile = sanitiseSessionFilePath(rawMainSessionFile);
+        const wrapDecision = decideMainContextWrap({
+          contextText: subContextText,
+          totalMessageCount,
+          mainSessionFile,
+        });
+        if (wrapDecision.apply) {
+          taskForAgent = wrapTaskWithMainContext(taskForAgent, wrapDecision.contextText, {
+            mainSessionFile: wrapDecision.mainSessionFile,
+            totalMessageCount: wrapDecision.totalMessageCount,
           });
         } else {
           ctx.ui.notify(
@@ -278,9 +222,8 @@ export function buildSubCommand(deps: SubagentDeps) {
         results,
       });
 
-      const contextLabel =
-        runState.contextMode === "main" ? "main context" : "dedicated sub-session";
-      const startedState = continuedFromRunId !== undefined ? "resumed" : "started";
+      const contextLabel = contextModeLabel(runState.contextMode);
+      const startedState = startedStateLabel(continuedFromRunId);
 
       pi.sendMessage(
         {
