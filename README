@@ -33,5 +33,13 @@
     go 1.26
     lefthook 2.1
 
+  NOTES
+    claude-hooks-bridge: SessionStart 훅은 resume/fork 세션에서도 실행됨 (pi 0.64 제약)
+    subagent: 에이전트는 ~/.pi/agent/agents/, .pi/agents/, .claude/agents/ 순으로 탐색
+    until: 프리셋은 extensions/until/presets/*.md에 직접 작성
+
+  DOCS
+    AGENTS.md  프로젝트 규약 (주석 언어, 금지 패턴, 테스트 정책)
+
   LINKS
     pi-coding-agent  https://github.com/badlogic/pi-mono

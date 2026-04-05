@@ -68,7 +68,12 @@ export function execCommandHook(
       child.stdin.write(`${JSON.stringify(payload)}\n`);
       child.stdin.end();
     } catch (error) {
+      // stdin write failed (e.g. circular JSON). The child never receives EOF
+      // and would hang on stdin read forever, so we must kill it explicitly.
       stderr += `\nstdin write failed: ${errorToMessage(error)}`;
+      if (timeout) clearTimeout(timeout);
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 1000);
       finalize(1);
     }
   });
