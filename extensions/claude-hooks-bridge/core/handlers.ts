@@ -1,7 +1,6 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
-  SessionStartEvent,
   ToolCallEvent,
   ToolCallEventResult,
   ToolResultEvent,
@@ -30,23 +29,15 @@ import { loadSettings } from "./settings.js";
 import { createTranscriptFile, getLastAssistantMessage } from "./transcript.js";
 import type { JsonRecord } from "./types.js";
 
-function getSessionStartReason(event: SessionStartEvent): string | undefined {
-  if (!("reason" in event)) return undefined;
-  const value: unknown = (event as SessionStartEvent & { reason?: unknown }).reason;
-  return typeof value === "string" ? value : undefined;
-}
-
-export async function handleSessionStart(
-  event: SessionStartEvent,
-  ctx: ExtensionContext,
-): Promise<void> {
+export async function handleSessionStart(ctx: ExtensionContext): Promise<void> {
   const sessionId = getSessionId(ctx);
   pinHookSessionId(sessionId);
   setStopHookActive(sessionId, false);
 
-  const reason = getSessionStartReason(event);
-  if (reason === "resume" || reason === "fork") return;
-
+  // Note: pi-coding-agent 0.64's SessionStartEvent has no `reason` field,
+  // so resume/fork cannot be distinguished here. Claude Code's original
+  // skip-on-resume/fork behavior is not reproducible until pi-coding-agent
+  // exposes the reason on this event.
   const loaded = loadSettings(ctx.cwd);
   notifyOnceForParseError(ctx, loaded);
   const settings = loaded.settings;

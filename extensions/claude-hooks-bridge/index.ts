@@ -9,8 +9,8 @@ import {
 } from "./core/handlers.js";
 
 export default function (pi: ExtensionAPI) {
-  pi.on("session_start", async (event, ctx) => {
-    await handleSessionStart(event, ctx);
+  pi.on("session_start", async (_event, ctx) => {
+    await handleSessionStart(ctx);
   });
 
   pi.on("session_shutdown", async () => {
