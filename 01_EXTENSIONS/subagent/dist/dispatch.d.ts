@@ -14,3 +14,4 @@ export declare function dispatchChain(steps: Array<{
 }>, agents: AgentConfig[], pi: SubagentPi, ctx: Parameters<typeof createRunner>[1], main: boolean): string;
 export declare function dispatchAbort(id: number): string;
 export declare function dispatchContinue(id: number, task: string, agents: AgentConfig[], pi: SubagentPi, ctx: Parameters<typeof createRunner>[1]): string;
+export declare function onSessionRestore(pi: SubagentPi): (_e: unknown, ctx: Parameters<typeof createRunner>[1]) => Promise<void>;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { sessionPath, buildRunsEntry, restoreRuns, getRunHistory, getSessionFile, resetSession, addToHistory } from "../src/session.js";
+import { sessionPath, buildRunsEntry, restoreRuns, getRunHistory, getSessionFile, resetSession, addToHistory, addPending, drainPending, resetPending } from "../src/session.js";
 
 describe("sessionPath", () => {
 	it("generates path from id", () => {
@@ -20,10 +20,12 @@ describe("addToHistory", () => {
 
 describe("entry persistence", () => {
 	beforeEach(() => resetSession());
-	it("buildRunsEntry captures history", () => {
+	it("buildRunsEntry captures history and pending", () => {
 		addToHistory({ id: 1, agent: "scout" });
+		addPending({ id: 2, agent: "w", output: "done", usage: { inputTokens: 0, outputTokens: 0, turns: 0 } });
 		const entry = buildRunsEntry();
 		expect(entry.runs).toHaveLength(1);
+		expect(entry.pending).toHaveLength(1);
 		expect(entry.updatedAt).toBeGreaterThan(0);
 	});
 	it("restoreRuns from custom entries", () => {
@@ -34,6 +36,11 @@ describe("entry persistence", () => {
 		restoreRuns(entries);
 		expect(getRunHistory()).toHaveLength(1);
 		expect(getRunHistory()[0].agent).toBe("scout");
+	});
+	it("restores pending results", () => {
+		const pend = [{ id: 3, agent: "w", output: "x", usage: { inputTokens: 0, outputTokens: 0, turns: 0 } }];
+		restoreRuns([{ type: "custom", customType: "subagent-runs", data: { runs: [], pending: pend, updatedAt: 0 } }]);
+		expect(drainPending()).toHaveLength(1);
 	});
 	it("takes last entry", () => {
 		const entries = [
@@ -54,6 +61,22 @@ describe("entry persistence", () => {
 	it("handles data object without runs array", () => {
 		restoreRuns([{ type: "custom", customType: "subagent-runs", data: { other: true } }]);
 		expect(getRunHistory()).toEqual([]);
+	});
+});
+
+describe("pending results", () => {
+	beforeEach(() => resetSession());
+	it("addPending and drainPending", () => {
+		addPending({ id: 1, agent: "a", output: "x", usage: { inputTokens: 0, outputTokens: 0, turns: 0 } });
+		addPending({ id: 2, agent: "b", output: "y", usage: { inputTokens: 0, outputTokens: 0, turns: 0 } });
+		const drained = drainPending();
+		expect(drained).toHaveLength(2);
+		expect(drainPending()).toHaveLength(0);
+	});
+	it("resetPending clears all", () => {
+		addPending({ id: 1, agent: "a", output: "", usage: { inputTokens: 0, outputTokens: 0, turns: 0 } });
+		resetPending();
+		expect(drainPending()).toHaveLength(0);
 	});
 });
 

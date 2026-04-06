@@ -1,12 +1,17 @@
 import { getAgent } from "./agents.js";
 import { executeSingle, executeBatch, executeChain } from "./execute.js";
 import { listRuns, getRun, removeRun } from "./store.js";
-import { getSessionFile, getRunHistory } from "./session.js";
+import { getSessionFile, getRunHistory, addPending, restoreRuns, drainPending } from "./session.js";
 import { buildResultText } from "./render.js";
 import { syncWidget } from "./widget.js";
 import { createRunner, createSessionRunner } from "./run-factory.js";
 function sendFollowUp(pi, result, customType = "subagent-result") {
-    pi.sendMessage({ customType, content: buildResultText(result), display: true }, { deliverAs: "followUp", triggerTurn: true });
+    try {
+        pi.sendMessage({ customType, content: buildResultText(result), display: true }, { deliverAs: "followUp", triggerTurn: true });
+    }
+    catch {
+        addPending(result);
+    }
 }
 function errorResult(agent, e) {
     return { id: 0, agent, output: "", error: e.message, usage: { inputTokens: 0, outputTokens: 0, turns: 0 } };
@@ -63,4 +68,13 @@ export function dispatchContinue(id, task, agents, pi, ctx) {
         .catch((e) => sendFollowUp(pi, errorResult(agent.name, e)))
         .finally(() => syncWidget(ctx, listRuns()));
     return `continue #${id} (${agent.name}) started`;
+}
+export function onSessionRestore(pi) {
+    return async (_e, ctx) => {
+        restoreRuns(ctx.sessionManager.getBranch());
+        syncWidget(ctx, listRuns());
+        for (const r of drainPending()) {
+            pi.sendMessage({ customType: "subagent-pending", content: buildResultText(r), display: true }, { deliverAs: "followUp", triggerTurn: true });
+        }
+    };
 }
