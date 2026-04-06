@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
 	buildWidgetLines, syncWidget, setCurrentTool, clearToolState, resetWidgetState,
-	startWidgetTimer, stopWidgetTimer,
+	startWidgetTimer, stopWidgetTimer, advanceFrame,
 } from "../src/widget.js";
 
 const SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
@@ -38,16 +38,16 @@ describe("buildWidgetLines", () => {
 		const lines = buildWidgetLines([{ id: 1, agent: "scout", startedAt: 0 }], Date.now());
 		expect(lines[0]).not.toContain("→");
 	});
-	it("increments spinner frame each call", () => {
+	it("increments spinner frame via advanceFrame", () => {
 		const run = [{ id: 1, agent: "a", startedAt: Date.now() }];
 		const now = Date.now();
-		const frames = Array.from({ length: SPINNER.length }, () => buildWidgetLines(run, now)[0][0]);
+		const frames = Array.from({ length: SPINNER.length }, () => { advanceFrame(); return buildWidgetLines(run, now)[0][0]; });
 		expect(new Set(frames).size).toBeGreaterThan(1);
 	});
 	it("cycles through all braille spinner characters", () => {
 		const run = [{ id: 1, agent: "a", startedAt: Date.now() }];
 		const now = Date.now();
-		const frames = Array.from({ length: SPINNER.length }, () => buildWidgetLines(run, now)[0][0]);
+		const frames = Array.from({ length: SPINNER.length }, () => { advanceFrame(); return buildWidgetLines(run, now)[0][0]; });
 		for (const ch of SPINNER) expect(frames).toContain(ch);
 	});
 	it("shows idle warning when no event for >120s", () => {

@@ -236,7 +236,6 @@ function setCurrentTool(runId, toolName, preview) {
   }
 }
 function buildWidgetLines(runs, now) {
-  frame++;
   const spin = SPINNER[frame % SPINNER.length];
   return runs.slice(0, MAX_VISIBLE).map((r) => {
     const elapsed = formatDuration(now - r.startedAt);
@@ -263,6 +262,7 @@ function startWidgetTimer(ctx, getRuns) {
   timerCtx = ctx;
   timerRuns = getRuns;
   timerId = setInterval(() => {
+    frame++;
     if (timerCtx && timerRuns) syncWidget(timerCtx, timerRuns());
   }, 150);
 }
@@ -435,11 +435,20 @@ function spawnAndCollect(cmd, args, id, agentName, signal, onEvent) {
 }
 
 // src/run-factory.ts
+function registerRun(id, agent, ctx, ac) {
+  addRun({ id, agent, startedAt: Date.now(), abort: () => ac.abort() });
+  if (listRuns().length === 1) startWidgetTimer(ctx, listRuns);
+}
+function unregisterRun(id) {
+  clearToolState(id);
+  removeRun(id);
+  if (listRuns().length === 0) stopWidgetTimer();
+}
 function makeOnEvent(id, ctx, collected, texts, onUpdate) {
   return (evt) => {
     collected.push({ type: evt.type, text: evt.text, toolName: evt.toolName });
     if (evt.type === "tool_start") {
-      setCurrentTool(id, evt.toolName, evt.toolName);
+      setCurrentTool(id, evt.toolName);
       syncWidget(ctx, listRuns());
       texts.push(`\u2192 ${evt.toolName ?? ""}`);
       onUpdate?.({ content: [{ type: "text", text: texts.join("\n") }] });
@@ -474,8 +483,7 @@ ${mainCtx}`;
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const args = buildArgs({ base, model: agent.model, thinking: agent.thinking, tools: agent.tools, systemPromptPath: promptPath, task, sessionPath: sessPath });
     const ac = new AbortController();
-    addRun({ id, agent: agent.name, startedAt: Date.now(), abort: () => ac.abort() });
-    if (listRuns().length === 1) startWidgetTimer(ctx, listRuns);
+    registerRun(id, agent.name, ctx, ac);
     const collected = [];
     const texts = [];
     const onEvent = makeOnEvent(id, ctx, collected, texts, onUpdate);
@@ -484,9 +492,7 @@ ${mainCtx}`;
       addToHistory({ id, agent: agent.name, output: result.output, sessionFile: sessPath, events: collected });
       return result;
     } finally {
-      clearToolState(id);
-      removeRun(id);
-      if (listRuns().length === 0) stopWidgetTimer();
+      unregisterRun(id);
     }
   };
 }
@@ -498,8 +504,7 @@ function createSessionRunner(sessFile, ctx, onUpdate) {
     const idx = args.indexOf("--append-system-prompt");
     if (idx !== -1) args.splice(idx, 2);
     const ac = new AbortController();
-    addRun({ id, agent: agent.name, startedAt: Date.now(), abort: () => ac.abort() });
-    if (listRuns().length === 1) startWidgetTimer(ctx, listRuns);
+    registerRun(id, agent.name, ctx, ac);
     const collected = [];
     const texts = [];
     const onEvent = makeOnEvent(id, ctx, collected, texts, onUpdate);
@@ -508,9 +513,7 @@ function createSessionRunner(sessFile, ctx, onUpdate) {
       addToHistory({ id, agent: agent.name, output: result.output, sessionFile: sessFile, events: collected });
       return result;
     } finally {
-      clearToolState(id);
-      removeRun(id);
-      if (listRuns().length === 0) stopWidgetTimer();
+      unregisterRun(id);
     }
   };
 }

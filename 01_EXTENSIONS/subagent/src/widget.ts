@@ -22,8 +22,9 @@ export function setCurrentTool(runId: number, toolName: string | undefined, prev
 	} else { currentTools.delete(runId); }
 }
 
+export function advanceFrame(): void { frame++; }
+
 export function buildWidgetLines(runs: MinimalRun[], now: number): string[] {
-	frame++;
 	const spin = SPINNER[frame % SPINNER.length];
 	return runs.slice(0, MAX_VISIBLE).map((r) => {
 		const elapsed = formatDuration(now - r.startedAt);
@@ -47,7 +48,7 @@ export function syncWidget(ctx: MinimalCtx, runs: MinimalRun[]): void {
 export function startWidgetTimer(ctx: MinimalCtx, getRuns: () => MinimalRun[]): void {
 	stopWidgetTimer();
 	timerCtx = ctx; timerRuns = getRuns;
-	timerId = setInterval(() => { if (timerCtx && timerRuns) syncWidget(timerCtx, timerRuns()); }, 150);
+	timerId = setInterval(() => { frame++; if (timerCtx && timerRuns) syncWidget(timerCtx, timerRuns()); }, 150);
 }
 
 export function stopWidgetTimer(): void {
