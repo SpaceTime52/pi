@@ -14,6 +14,7 @@ interface NpxFsOps {
 	readFileSync(p: string): string;
 	writeFileSync(p: string, data: string): void;
 	renameSync(src: string, dest: string): void;
+	getPid(): number;
 }
 
 export function loadNpxCache(path: string, fs: NpxFsOps): NpxCache {
@@ -29,7 +30,7 @@ export function loadNpxCache(path: string, fs: NpxFsOps): NpxCache {
 }
 
 export function saveNpxCache(path: string, cache: NpxCache, fs: NpxFsOps): void {
-	const tmp = `${path}.${process.pid}.tmp`;
+	const tmp = `${path}.${fs.getPid()}.tmp`;
 	fs.writeFileSync(tmp, JSON.stringify(cache));
 	fs.renameSync(tmp, path);
 }

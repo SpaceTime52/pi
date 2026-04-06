@@ -12,6 +12,7 @@ interface CacheFsOps {
 	readFileSync(p: string): string;
 	writeFileSync(p: string, data: string): void;
 	renameSync(src: string, dest: string): void;
+	getPid(): number;
 }
 
 export function loadMetadataCache(path: string, fs: CacheFsOps): MetadataCache | null {
@@ -26,7 +27,7 @@ export function loadMetadataCache(path: string, fs: CacheFsOps): MetadataCache |
 }
 
 export function saveMetadataCache(path: string, cache: MetadataCache, fs: CacheFsOps): void {
-	const tmp = `${path}.${process.pid}.tmp`;
+	const tmp = `${path}.${fs.getPid()}.tmp`;
 	fs.writeFileSync(tmp, JSON.stringify(cache));
 	fs.renameSync(tmp, path);
 }

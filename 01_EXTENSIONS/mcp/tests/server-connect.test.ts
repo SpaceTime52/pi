@@ -42,7 +42,14 @@ describe("connectServer", () => {
 		const deps = makeDeps();
 		const headers = { "X-Key": "val" };
 		await connectServer("s1", { url: "http://h", headers }, deps);
-		expect(deps.createHttpTransport).toHaveBeenCalledWith("http://h", headers);
+		expect(deps.createHttpTransport).toHaveBeenCalledWith("http://h", { "X-Key": "val" });
+	});
+
+	it("interpolates env vars in headers", async () => {
+		const deps = makeDeps({ processEnv: { API_KEY: "secret123" } });
+		const headers = { Authorization: "Bearer ${API_KEY}" };
+		await connectServer("s1", { url: "http://h", headers }, deps);
+		expect(deps.createHttpTransport).toHaveBeenCalledWith("http://h", { Authorization: "Bearer secret123" });
 	});
 
 	it("throws on entry without command or url", async () => {

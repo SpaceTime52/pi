@@ -26,3 +26,12 @@ export function clearFailure(server: string): void {
 export function clearAllFailures(): void {
 	failures.clear();
 }
+
+const BASE_BACKOFF_MS = 1000;
+const MAX_BACKOFF_MS = 5 * 60 * 1000;
+
+export function getBackoffMs(server: string): number {
+	const record = failures.get(server);
+	if (!record) return 0;
+	return Math.min(BASE_BACKOFF_MS * Math.pow(2, record.count), MAX_BACKOFF_MS);
+}

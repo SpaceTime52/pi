@@ -2,6 +2,7 @@ import type { McpTransport, McpClient, ServerConnection, McpToolRaw, McpResource
 import type { ServerEntry } from "./types-config.js";
 import { mcpError } from "./errors.js";
 import { paginateAll } from "./pagination.js";
+import { interpolateEnv } from "./env.js";
 
 export interface ConnectableClient extends McpClient {
 	connect(transport: McpTransport): Promise<void>;
@@ -44,10 +45,15 @@ export async function connectServer(
 	entry: ServerEntry,
 	deps: ConnectDeps,
 ): Promise<ConnectResult> {
+	const interpolatedHeaders = entry.headers
+		? Object.fromEntries(Object.entries(entry.headers).map(
+			([k, v]) => [k, interpolateEnv(v, deps.processEnv)],
+		))
+		: undefined;
 	const transport = entry.command
 		? deps.createStdioTransport(entry, deps.processEnv)
 		: entry.url
-			? await deps.createHttpTransport(entry.url, entry.headers)
+			? await deps.createHttpTransport(entry.url, interpolatedHeaders)
 			: null;
 	if (!transport) {
 		throw mcpError("no_transport", `Server "${name}" has no command or url`);

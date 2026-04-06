@@ -35,23 +35,26 @@ function routeAction(params, deps) {
   }
 }
 var FALLBACK_DESC = "MCP proxy tool. Actions: call, list, describe, search, status, connect.";
+var noServers = () => ({ content: [{ type: "text", text: "No servers." }] });
+var noServersAsync = () => Promise.resolve(noServers());
 var EMPTY_DEPS = {
-  search: () => ({ content: [{ type: "text", text: "No servers." }] }),
-  list: () => ({ content: [{ type: "text", text: "No servers." }] }),
-  describe: () => ({ content: [{ type: "text", text: "No servers." }] }),
-  status: () => ({ content: [{ type: "text", text: "No servers." }] }),
-  call: async () => ({ content: [{ type: "text", text: "No servers." }] }),
-  connect: async () => ({ content: [{ type: "text", text: "No servers." }] })
+  search: noServers,
+  list: noServers,
+  describe: noServers,
+  status: noServers,
+  call: noServersAsync,
+  connect: noServersAsync
 };
 function createProxyTool(_pi, buildDesc, makeDeps) {
   return {
     name: "mcp",
     label: "MCP",
-    description: buildDesc ? buildDesc() : FALLBACK_DESC,
+    description: FALLBACK_DESC,
     parameters: ProxySchema,
     execute: async (_toolCallId, params) => {
       const result = await routeAction(params, makeDeps ? makeDeps() : EMPTY_DEPS);
-      return { ...result, details: result.details };
+      const desc = buildDesc ? buildDesc() : void 0;
+      return { ...result, details: { ...result.details, ...desc ? { description: desc } : {} } };
     }
   };
 }
@@ -263,6 +266,7 @@ var failures = /* @__PURE__ */ new Map();
 function getFailure(server) {
   return failures.get(server);
 }
+var MAX_BACKOFF_MS = 5 * 60 * 1e3;
 
 // src/cmd-router.ts
 var VALID_CMDS = /* @__PURE__ */ new Set(["status", "tools", "connect", "disconnect", "reconnect", "auth", "search"]);
@@ -384,19 +388,19 @@ function onSessionStart(pi, deps) {
     }
     deps.setConfig(config2);
     const hash = deps.computeHash(config2);
-    deps.loadCache();
+    const cache = deps.loadCache();
+    const cacheHit = deps.isCacheValid(cache, hash);
     const { eager } = classifyServers(config2);
     const total = Object.keys(config2.mcpServers).length;
-    const promises = eager.map((s) => connectAndDiscover(gen, s, deps));
-    await Promise.allSettled(promises);
+    const toConnect = cacheHit ? [] : eager;
+    await Promise.allSettled(toConnect.map((s) => connectAndDiscover(gen, s, deps)));
     if (deps.getGeneration() !== gen) return;
-    const allMeta = /* @__PURE__ */ new Map();
-    const directSpecs = deps.resolveDirectTools(allMeta, config2);
+    const directSpecs = deps.resolveDirectTools(deps.getAllMetadata(), config2);
     const deduped = deps.deduplicateTools(directSpecs);
     deps.registerDirectTools(pi, deduped, deps);
     deps.startIdleTimer(config2);
     deps.startKeepalive(config2);
-    deps.saveCache(hash, allMeta).catch(() => {
+    deps.saveCache(hash, deps.getAllMetadata()).catch(() => {
     });
     deps.updateFooter();
     deps.logger.info(`Session started: ${eager.length}/${total} servers connected`);

@@ -1,19 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { onSessionStart } from "../src/lifecycle-init.js";
-import type { InitDeps } from "../src/lifecycle-init.js";
+import { onSessionStart, type InitDeps } from "../src/lifecycle-init.js";
 
 function makeDeps(overrides?: Partial<InitDeps>): InitDeps {
 	return {
 		loadConfig: vi.fn().mockResolvedValue({ mcpServers: {} }),
 		mergeConfigs: vi.fn().mockImplementation((c) => c),
 		computeHash: vi.fn().mockReturnValue("hash1"),
-		loadCache: vi.fn().mockReturnValue(null), saveCache: vi.fn().mockResolvedValue(undefined),
+		loadCache: vi.fn().mockReturnValue(null), isCacheValid: vi.fn().mockReturnValue(false),
+		saveCache: vi.fn().mockResolvedValue(undefined),
 		connectServer: vi.fn().mockResolvedValue({ name: "s1", client: {}, status: "connected" }),
 		buildMetadata: vi.fn().mockResolvedValue([]), resolveDirectTools: vi.fn().mockReturnValue([]),
 		registerDirectTools: vi.fn(), buildResourceTools: vi.fn().mockReturnValue([]),
 		deduplicateTools: vi.fn().mockImplementation((t) => t),
 		startIdleTimer: vi.fn(), startKeepalive: vi.fn(),
 		setConfig: vi.fn(), setConnection: vi.fn(), setMetadata: vi.fn(),
+		getAllMetadata: vi.fn().mockReturnValue(new Map()),
 		incrementGeneration: vi.fn().mockReturnValue(1), getGeneration: vi.fn().mockReturnValue(1),
 		updateFooter: vi.fn(),
 		logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() },
@@ -91,8 +92,8 @@ describe("lifecycle-init errors", () => {
 		expect(deps.setMetadata).not.toHaveBeenCalled();
 	});
 	it("classifies servers without lifecycle as lazy", async () => {
-		const deps = makeDeps({ loadConfig: vi.fn().mockResolvedValue({ mcpServers: { s1: {} } }) });
-		await run(deps);
-		expect(deps.connectServer).not.toHaveBeenCalled();
+		const d = makeDeps({ loadConfig: vi.fn().mockResolvedValue({ mcpServers: { s1: {} } }) });
+		await run(d);
+		expect(d.connectServer).not.toHaveBeenCalled();
 	});
 });

@@ -3,17 +3,15 @@ import { loadMetadataCache, saveMetadataCache, isMetadataCacheValid } from "../s
 
 describe("loadMetadataCache", () => {
 	it("returns null when file does not exist", () => {
-		const fs = { existsSync: () => false, readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn() };
+		const fs = { existsSync: () => false, readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 123 };
 		expect(loadMetadataCache("/cache.json", fs)).toBeNull();
 	});
 
 	it("returns parsed cache when file exists", () => {
 		const cache = { version: 1, servers: {}, savedAt: Date.now(), configHash: "abc" };
 		const fs = {
-			existsSync: () => true,
-			readFileSync: () => JSON.stringify(cache),
-			writeFileSync: vi.fn(),
-			renameSync: vi.fn(),
+			existsSync: () => true, readFileSync: () => JSON.stringify(cache),
+			writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 123,
 		};
 		const result = loadMetadataCache("/cache.json", fs);
 		expect(result?.configHash).toBe("abc");
@@ -21,10 +19,8 @@ describe("loadMetadataCache", () => {
 
 	it("returns null on invalid JSON", () => {
 		const fs = {
-			existsSync: () => true,
-			readFileSync: () => "not json",
-			writeFileSync: vi.fn(),
-			renameSync: vi.fn(),
+			existsSync: () => true, readFileSync: () => "not json",
+			writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 123,
 		};
 		expect(loadMetadataCache("/cache.json", fs)).toBeNull();
 	});
@@ -32,7 +28,7 @@ describe("loadMetadataCache", () => {
 
 describe("saveMetadataCache", () => {
 	it("writes via atomic temp file then rename", () => {
-		const fs = { existsSync: vi.fn(), readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn() };
+		const fs = { existsSync: vi.fn(), readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 99 };
 		const cache = { version: 1, servers: {}, savedAt: Date.now(), configHash: "h" };
 		saveMetadataCache("/cache.json", cache, fs);
 		expect(fs.writeFileSync).toHaveBeenCalledTimes(1);

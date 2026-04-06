@@ -3,7 +3,7 @@ import { loadNpxCache, saveNpxCache, getNpxEntry, setNpxEntry, isNpxEntryValid }
 
 describe("loadNpxCache", () => {
 	it("returns empty entries when file does not exist", () => {
-		const fs = { existsSync: () => false, readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn() };
+		const fs = { existsSync: () => false, readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 1 };
 		const cache = loadNpxCache("/npx.json", fs);
 		expect(cache.entries).toEqual({});
 	});
@@ -11,10 +11,8 @@ describe("loadNpxCache", () => {
 	it("returns parsed entries when file exists", () => {
 		const data = { entries: { pkg: { resolvedPath: "/bin/pkg", savedAt: Date.now() } } };
 		const fs = {
-			existsSync: () => true,
-			readFileSync: () => JSON.stringify(data),
-			writeFileSync: vi.fn(),
-			renameSync: vi.fn(),
+			existsSync: () => true, readFileSync: () => JSON.stringify(data),
+			writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 1,
 		};
 		const cache = loadNpxCache("/npx.json", fs);
 		expect(cache.entries.pkg.resolvedPath).toBe("/bin/pkg");
@@ -22,20 +20,16 @@ describe("loadNpxCache", () => {
 
 	it("returns empty entries on invalid JSON", () => {
 		const fs = {
-			existsSync: () => true,
-			readFileSync: () => "{broken",
-			writeFileSync: vi.fn(),
-			renameSync: vi.fn(),
+			existsSync: () => true, readFileSync: () => "{broken",
+			writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 1,
 		};
 		expect(loadNpxCache("/npx.json", fs).entries).toEqual({});
 	});
 
 	it("returns empty entries when parsed object has no entries field", () => {
 		const fs = {
-			existsSync: () => true,
-			readFileSync: () => JSON.stringify({ foo: "bar" }),
-			writeFileSync: vi.fn(),
-			renameSync: vi.fn(),
+			existsSync: () => true, readFileSync: () => JSON.stringify({ foo: "bar" }),
+			writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 1,
 		};
 		expect(loadNpxCache("/npx.json", fs).entries).toEqual({});
 	});
@@ -43,7 +37,7 @@ describe("loadNpxCache", () => {
 
 describe("saveNpxCache", () => {
 	it("writes via atomic temp file then rename", () => {
-		const fs = { existsSync: vi.fn(), readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn() };
+		const fs = { existsSync: vi.fn(), readFileSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn(), getPid: () => 42 };
 		saveNpxCache("/npx.json", { entries: {} }, fs);
 		const tmpPath = fs.writeFileSync.mock.calls[0][0];
 		expect(tmpPath).toContain(".tmp");

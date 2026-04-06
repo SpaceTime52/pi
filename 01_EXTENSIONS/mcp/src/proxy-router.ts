@@ -57,11 +57,12 @@ export function createProxyTool(
 	return {
 		name: "mcp",
 		label: "MCP",
-		description: buildDesc ? buildDesc() : FALLBACK_DESC,
+		description: FALLBACK_DESC,
 		parameters: ProxySchema,
 		execute: async (_toolCallId: string, params: ProxyParams) => {
 			const result = await routeAction(params, makeDeps ? makeDeps() : EMPTY_DEPS);
-			return { ...result, details: result.details };
+			const desc = buildDesc ? buildDesc() : undefined;
+			return { ...result, details: { ...result.details, ...(desc ? { description: desc } : {}) } };
 		},
 	};
 }

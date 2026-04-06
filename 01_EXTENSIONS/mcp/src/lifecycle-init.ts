@@ -8,11 +8,14 @@ interface InitPi {
 	sendMessage(msg: { customType: string; content: string; display: boolean }): void;
 }
 
+export interface CacheData { hash: string; servers: Record<string, unknown[]>; timestamp: number }
+
 export interface InitDeps {
 	loadConfig: () => Promise<McpConfig>;
 	mergeConfigs: (config: McpConfig) => McpConfig;
 	computeHash: (config: McpConfig) => string;
-	loadCache: () => { hash: string; servers: Record<string, unknown[]>; timestamp: number } | null;
+	loadCache: () => CacheData | null;
+	isCacheValid: (cache: CacheData | null, hash: string) => boolean;
 	saveCache: (hash: string, metadata: Map<string, ToolMetadata[]>) => Promise<void>;
 	connectServer: (name: string, entry: ServerEntry) => Promise<{ name: string; client: unknown; status: string }>;
 	buildMetadata: (name: string, client: unknown) => Promise<ToolMetadata[]>;
@@ -20,15 +23,13 @@ export interface InitDeps {
 	registerDirectTools: (pi: InitPi, specs: DirectToolSpec[], deps: InitDeps) => void;
 	buildResourceTools: (name: string, client: unknown) => ToolMetadata[];
 	deduplicateTools: (tools: DirectToolSpec[]) => DirectToolSpec[];
-	startIdleTimer: (opts: unknown) => void;
-	startKeepalive: (opts: unknown) => void;
+	startIdleTimer: (opts: unknown) => void; startKeepalive: (opts: unknown) => void;
 	setConfig: (config: McpConfig) => void;
 	setConnection: (name: string, conn: unknown) => void;
 	setMetadata: (name: string, tools: ToolMetadata[]) => void;
-	incrementGeneration: () => number;
-	getGeneration: () => number;
-	updateFooter: () => void;
-	logger: Logger;
+	getAllMetadata: () => Map<string, ToolMetadata[]>;
+	incrementGeneration: () => number; getGeneration: () => number;
+	updateFooter: () => void; logger: Logger;
 }
 
 type ServerClassification = { name: string; entry: ServerEntry; mode: string };
@@ -80,19 +81,18 @@ export function onSessionStart(pi: InitPi, deps?: InitDeps) {
 		}
 		deps.setConfig(config);
 		const hash = deps.computeHash(config);
-		deps.loadCache();
+		const cache = deps.loadCache();
+		const cacheHit = deps.isCacheValid(cache, hash);
 		const { eager } = classifyServers(config);
 		const total = Object.keys(config.mcpServers).length;
-		const promises = eager.map((s) => connectAndDiscover(gen, s, deps));
-		await Promise.allSettled(promises);
+		const toConnect = cacheHit ? [] : eager;
+		await Promise.allSettled(toConnect.map((s) => connectAndDiscover(gen, s, deps)));
 		if (deps.getGeneration() !== gen) return;
-		const allMeta = new Map<string, ToolMetadata[]>();
-		const directSpecs = deps.resolveDirectTools(allMeta, config);
+		const directSpecs = deps.resolveDirectTools(deps.getAllMetadata(), config);
 		const deduped = deps.deduplicateTools(directSpecs);
 		deps.registerDirectTools(pi, deduped, deps);
-		deps.startIdleTimer(config);
-		deps.startKeepalive(config);
-		deps.saveCache(hash, allMeta).catch(() => {});
+		deps.startIdleTimer(config); deps.startKeepalive(config);
+		deps.saveCache(hash, deps.getAllMetadata()).catch(() => {});
 		deps.updateFooter();
 		deps.logger.info(`Session started: ${eager.length}/${total} servers connected`);
 	};
