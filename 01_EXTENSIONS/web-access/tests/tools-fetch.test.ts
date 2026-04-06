@@ -20,7 +20,7 @@ describe("createFetchContentTool", () => {
 		const r = await tool.execute("", { url: "https://example.com" });
 		expect(r.content[0].text).toContain("Page");
 	});
-	it("returns content without title prefix when title is empty", async () => {
+	it("returns content with url as title for plain text", async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: true, status: 200, statusText: "OK",
 			headers: { get: () => null },
@@ -29,6 +29,19 @@ describe("createFetchContentTool", () => {
 		const tool = createFetchContentTool(mockFetch);
 		const r = await tool.execute("", { url: "https://example.com/data" });
 		expect(r.content[0].text).toContain("plain content");
+	});
+	it("returns content without title prefix when html title is empty", async () => {
+		const html = `<html><body><article><h1>H</h1>
+		<p>Long enough paragraph for readability to work properly with extraction.
+		Multiple sentences help ensure proper parsing by the algorithm.</p></article></body></html>`;
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true, status: 200, statusText: "OK",
+			headers: { get: (k: string) => k === "content-type" ? "text/html" : null },
+			text: async () => html,
+		});
+		const tool = createFetchContentTool(mockFetch);
+		const r = await tool.execute("", { url: "https://example.com" });
+		expect(r.content[0].text.startsWith("# ")).toBe(false);
 	});
 	it("returns fetch error message", async () => {
 		const mockFetch = vi.fn().mockResolvedValue({

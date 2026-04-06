@@ -20,7 +20,7 @@ describe("createWebSearchTool", () => {
 		expect(r.content[0].text).toContain("Source:");
 	});
 	it("returns answer only when no sources", async () => {
-		const text = "Title: Ex\nURL: https://ex.com\nText: ";
+		const text = "Title: No URL result\nText: some content without a url";
 		const tool = createWebSearchTool(okFetch(mcpOk(text)));
 		const r = await tool.execute("", { query: "test" });
 		expect(r.content[0].text).toBeDefined();

@@ -28,6 +28,10 @@ describe("parseMcpResults", () => {
 		const results = parseMcpResults("Title: T\nURL: https://a.com\n");
 		expect(results[0].content).toBe("");
 	});
+	it("handles missing Title field", () => {
+		const results = parseMcpResults("URL: https://a.com\nText: content");
+		expect(results[0].title).toBe("");
+	});
 });
 
 describe("buildAnswer", () => {
@@ -42,6 +46,10 @@ describe("buildAnswer", () => {
 	});
 	it("skips results with empty content", () => {
 		expect(buildAnswer([{ title: "T", url: "https://a.com", content: "" }])).toBe("");
+	});
+	it("uses fallback title when empty", () => {
+		const answer = buildAnswer([{ title: "", url: "https://a.com", content: "some content" }]);
+		expect(answer).toContain("Source 1");
 	});
 });
 
