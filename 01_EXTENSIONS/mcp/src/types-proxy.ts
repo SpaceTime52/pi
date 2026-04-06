@@ -8,8 +8,10 @@ export interface ProxyParams {
 	query?: string;
 }
 
+export type ContentBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
 export interface ProxyToolResult {
-	content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+	content: ContentBlock[];
 	details?: Record<string, unknown>;
 }
 

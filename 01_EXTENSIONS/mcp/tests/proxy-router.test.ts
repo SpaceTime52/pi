@@ -68,10 +68,27 @@ describe("createProxyTool", () => {
 	});
 
 	it("execute delegates to routeAction with makeDeps", async () => {
-		const statusFn = vi.fn(() => ({ content: [{ type: "text", text: "ok" }] }));
+		const statusFn = vi.fn(() => ({ content: [{ type: "text" as const, text: "ok" }] }));
 		const tool = createProxyTool(pi, () => "desc", () => stubDeps({ status: statusFn }));
 		const result = await tool.execute("id", { action: "status" }, null, null, null);
 		expect(statusFn).toHaveBeenCalled();
 		expect(result.content[0].text).toBe("ok");
+	});
+
+	it("uses fallback description when buildDesc omitted", () => {
+		const tool = createProxyTool(pi);
+		expect(tool.description).toContain("MCP proxy");
+	});
+
+	it("uses EMPTY_DEPS when makeDeps omitted", async () => {
+		const tool = createProxyTool(pi);
+		const result = await tool.execute("id", { action: "status" }, null, null, null);
+		expect(result.content[0].text).toBe("No servers.");
+	});
+
+	it("uses async EMPTY_DEPS for call action when makeDeps omitted", async () => {
+		const tool = createProxyTool(pi);
+		const result = await tool.execute("id", { action: "call", tool: "t" }, null, null, null);
+		expect(result.content[0].text).toBe("No servers.");
 	});
 });

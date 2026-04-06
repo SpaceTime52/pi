@@ -17,6 +17,11 @@ describe("transformContent", () => {
 		expect(result).toEqual({ type: "image", data: "abc", mimeType: "image/png" });
 	});
 
+	it("transforms image with missing data and mimeType", () => {
+		const result = transformContent({ type: "image" });
+		expect(result).toEqual({ type: "image", data: "", mimeType: "application/octet-stream" });
+	});
+
 	it("transforms resource content", () => {
 		const result = transformContent({
 			type: "resource",

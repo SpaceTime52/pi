@@ -73,4 +73,14 @@ describe("lifecycle-shutdown", () => {
 		await handler(undefined, undefined);
 		expect(ops.logger.error).toHaveBeenCalledWith("Close connections failed: 42");
 	});
+
+	it("returns no-op handler when called without ops", async () => {
+		const handler = onSessionShutdown();
+		await handler(undefined, undefined);
+	});
+
+	it("returns no-op handler when called with non-ShutdownOps", async () => {
+		const handler = onSessionShutdown({ sendMessage: vi.fn() });
+		await handler(undefined, undefined);
+	});
 });

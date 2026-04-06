@@ -34,7 +34,9 @@ export type ToolExecuteFn = (
 	ctx: unknown,
 ) => Promise<ToolResult>;
 
+export type ToolContentBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
 export interface ToolResult {
-	content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+	content: ToolContentBlock[];
 	details?: Record<string, unknown>;
 }

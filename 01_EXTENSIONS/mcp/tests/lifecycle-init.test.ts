@@ -78,4 +78,8 @@ describe("lifecycle-init", () => {
 		await run(deps);
 		expect(deps.loadCache).toHaveBeenCalled();
 	});
+	it("returns no-op handler when deps not provided", async () => {
+		const pi = mockPi();
+		await onSessionStart(pi)(undefined, undefined);
+	});
 });

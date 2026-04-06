@@ -1,6 +1,5 @@
 import { Type } from "@sinclair/typebox";
 import type { ProxyParams, ProxyToolResult } from "./types-proxy.js";
-import type { ToolDef } from "./types-tool.js";
 
 export interface ProxyPi {
 	sendMessage(msg: { customType: string; content: string; display: boolean }): void;
@@ -42,19 +41,27 @@ export function routeAction(params: ProxyParams, deps: ActionDeps): Promise<Prox
 	}
 }
 
+const FALLBACK_DESC = "MCP proxy tool. Actions: call, list, describe, search, status, connect.";
+const noServers = (): ProxyToolResult => ({ content: [{ type: "text", text: "No servers." }] });
+const noServersAsync = (): Promise<ProxyToolResult> => Promise.resolve(noServers());
+const EMPTY_DEPS: ActionDeps = {
+	search: noServers, list: noServers, describe: noServers, status: noServers,
+	call: noServersAsync, connect: noServersAsync,
+};
+
 export function createProxyTool(
 	_pi: ProxyPi,
-	buildDesc: () => string,
-	makeDeps: () => ActionDeps,
-): ToolDef {
+	buildDesc?: () => string,
+	makeDeps?: () => ActionDeps,
+) {
 	return {
 		name: "mcp",
 		label: "MCP",
-		description: buildDesc(),
+		description: buildDesc ? buildDesc() : FALLBACK_DESC,
 		parameters: ProxySchema,
-		execute: async (_toolCallId, params) => {
-			const p = params as ProxyParams;
-			return routeAction(p, makeDeps());
+		execute: async (_toolCallId: string, params: ProxyParams) => {
+			const result = await routeAction(params, makeDeps ? makeDeps() : EMPTY_DEPS);
+			return { ...result, details: result.details };
 		},
 	};
 }

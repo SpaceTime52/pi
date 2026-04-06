@@ -1,18 +1,13 @@
 import type { McpContent } from "./types-server.js";
 
-interface ContentBlock {
-	type: string;
-	text?: string;
-	data?: string;
-	mimeType?: string;
-}
+type ContentBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 
 export function transformContent(content: McpContent): ContentBlock {
 	switch (content.type) {
 		case "text":
 			return { type: "text", text: content.text ?? "" };
 		case "image":
-			return { type: "image", data: content.data, mimeType: content.mimeType };
+			return { type: "image", data: content.data ?? "", mimeType: content.mimeType ?? "application/octet-stream" };
 		case "resource":
 			return {
 				type: "text",

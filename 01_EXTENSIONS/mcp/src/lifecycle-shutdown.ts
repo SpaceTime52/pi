@@ -14,8 +14,14 @@ interface ShutdownOps {
 	logger: Logger;
 }
 
-export function onSessionShutdown(ops: ShutdownOps) {
+function isShutdownOps(v: unknown): v is ShutdownOps {
+	return typeof v === "object" && v !== null && "closeAll" in v;
+}
+
+export function onSessionShutdown(opsOrPi?: unknown) {
+	const ops = isShutdownOps(opsOrPi) ? opsOrPi : undefined;
 	return async (_event: unknown, _ctx: unknown): Promise<void> => {
+		if (!ops) return;
 		ops.logger.info("Session shutdown starting");
 		ops.stopIdle();
 		ops.stopKeepalive();

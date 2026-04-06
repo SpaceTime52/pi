@@ -1,10 +1,9 @@
 import type { McpConfig, ServerEntry } from "./types-config.js";
-import type { ToolMetadata, DirectToolSpec, ToolDef } from "./types-tool.js";
-
+import type { ToolMetadata, DirectToolSpec } from "./types-tool.js";
 interface Logger { info(m: string): void; warn(m: string): void; error(m: string): void; debug(m: string): void }
 
 interface InitPi {
-	registerTool(tool: ToolDef): void;
+	registerTool(tool: { name: string; parameters: Record<string, unknown>; execute: Function }): void;
 	exec(cmd: string, args: string[], opts?: { cwd?: string }): Promise<{ stdout: string; code: number }>;
 	sendMessage(msg: { customType: string; content: string; display: boolean }): void;
 }
@@ -66,8 +65,9 @@ async function connectAndDiscover(
 	}
 }
 
-export function onSessionStart(pi: InitPi, deps: InitDeps) {
+export function onSessionStart(pi: InitPi, deps?: InitDeps) {
 	return async (_event: unknown, _ctx: unknown): Promise<void> => {
+		if (!deps) return;
 		const gen = deps.incrementGeneration();
 		deps.logger.info("Session start: loading config");
 		let config: McpConfig;

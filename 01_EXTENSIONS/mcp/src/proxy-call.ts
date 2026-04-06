@@ -14,12 +14,7 @@ interface CallConnection {
 	inFlight: number;
 }
 
-interface ContentBlock {
-	type: string;
-	text?: string;
-	data?: string;
-	mimeType?: string;
-}
+type ContentBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 
 export interface CallDeps {
 	findTool: (name: string) => ToolMetadata | undefined;
