@@ -2,3 +2,5 @@ pre-commit:
   commands:
     architecture:
       run: cd 00_ARCHITECTURE/tests && go test ./...
+    biome:
+      run: if ls -d 01_EXTENSIONS/*/ >/dev/null 2>&1; then for dir in 01_EXTENSIONS/*/; do [ -f "$dir/biome.json" ] && (cd "$dir" && npx biome check --error-on-warnings .); done; fi

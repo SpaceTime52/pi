@@ -8,6 +8,8 @@ import (
 
 var extensionRequiredFiles = []string{
 	"package.json",
+	"tsconfig.json",
+	"biome.json",
 	".gitignore",
 	"README",
 	"src/index.ts",
