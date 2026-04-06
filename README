@@ -11,54 +11,13 @@
     pi update
 
   EXTENSIONS
-    claude-hooks-bridge ···· .claude/settings.json 훅을 pi 이벤트로 연결
-    claude-mcp-bridge ···· Claude Code MCP 설정을 pi에서 재사용하는 브릿지
-    cross-agent ···· 다른 AI 에이전트의 커맨드/스킬/에이전트 로드
-    delayed-action ···· 지정 시간 후 작업을 자동 실행하는 리마인더
-    notify ···· 작업 완료 시 터미널 알림
-    subagent ···· 하위 에이전트 위임 실행 레이어
-    todo-write ···· 코딩 세션 할 일 목록 관리 및 진행 표시
-    until ···· 조건 충족까지 주기적 반복 실행
+    (none)
 
   SKILLS
-    design-first ···· 코드 작성 전 설계 확정 프로세스
-    security-review ···· security-auditor로 보안 취약점 리포트
-    self-healing ···· stress-interview + worker 2사이클 자가 치유
-    simplify ···· code-cleaner 진단 후 품질 개선
-    stress-interview ···· verifier/reviewer/challenger 병렬 교차 검토
-    systematic-debugging ···· 근본원인 기반 4단계 디버깅
+    (none)
 
   AGENTS
-    browser ···· 웹 브라우저 자동화
-    challenger ···· 반론/리스크 제기
-    code-cleaner ···· 품질 진단
-    finder ···· 파일 탐색
-    planner ···· 계획 수립
-    reviewer ···· 코드 리뷰 관점
-    searcher ···· 코드 검색
-    security-auditor ···· 보안 취약점 검사
-    simplifier ···· 단순화/정리
-    verifier ···· 실행 증거 기반 검증
-    worker ···· 코드 수정/구현
-
-  TESTS
-    subagent ···· 1011 tests, 100% coverage (c8 --all --100)
-    claude-mcp-bridge ···· 259 tests, 100% coverage
-    claude-hooks-bridge ···· 219 tests, 100% coverage
-    cross-agent ···· 67 tests, 100% coverage
-
-  REQUIRES
-    node 22
-    go 1.26
-    lefthook 2.1
-
-  NOTES
-    claude-hooks-bridge: SessionStart 훅은 resume/fork 세션에서도 실행됨 (pi 0.64 제약)
-    subagent: 에이전트는 ~/.pi/agent/agents/, .pi/agents/, .claude/agents/ 순으로 탐색
-    until: 프리셋은 extensions/until/presets/*.md에 직접 작성
-
-  DOCS
-    AGENTS.md  프로젝트 규약 (주석 언어, 금지 패턴, 테스트 정책)
+    (none)
 
   LINKS
     pi-coding-agent  https://github.com/badlogic/pi-mono
