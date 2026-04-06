@@ -59,9 +59,10 @@ function buildSnippet(agents: AgentConfig[]): string {
 }
 
 function buildGuidelines(agents: AgentConfig[]): string[] {
-	const names = agents.map((a) => a.name).join(", ");
+	const list = agents.map((a) => `  - ${a.name}: ${a.description}`);
 	return [
-		`Available agents: ${names || "none"}`,
+		"Available agents:",
+		...list,
 		"Command format: run <agent> [--main] -- <task>",
 		"Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]",
 		"Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'",
