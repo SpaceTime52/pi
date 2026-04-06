@@ -49,5 +49,6 @@ export type Subcommand =
 	| { type: "batch"; items: Array<{ agent: string; task: string }>; main: boolean }
 	| { type: "chain"; steps: Array<{ agent: string; task: string }>; main: boolean }
 	| { type: "continue"; id: number; task: string }
+	| { type: "abort"; id: number }
 	| { type: "detail"; id: number }
 	| { type: "runs" };

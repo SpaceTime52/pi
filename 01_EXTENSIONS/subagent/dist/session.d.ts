@@ -14,5 +14,6 @@ export declare function buildRunsEntry(): {
 export declare function restoreRuns(entries: Array<{
     type: string;
 }>): void;
+export declare function getSessionFile(id: number): string | undefined;
 export declare function resetSession(): void;
 export {};

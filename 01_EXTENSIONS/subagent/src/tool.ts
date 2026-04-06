@@ -4,7 +4,7 @@ import { parseCommand } from "./cli.js";
 import { loadAgentsFromDir, getAgent } from "./agents.js";
 import { listRuns } from "./store.js";
 import { getRunHistory } from "./session.js";
-import { dispatchRun, dispatchBatch, dispatchChain } from "./dispatch.js";
+import { dispatchRun, dispatchBatch, dispatchChain, dispatchAbort, dispatchContinue } from "./dispatch.js";
 import type { DispatchCtx } from "./dispatch.js";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import type { Subcommand } from "./types.js";
@@ -40,7 +40,8 @@ function dispatch(cmd: Subcommand, agents: AgentConfig[], pi: SubagentPi, ctx: D
 	}
 	if (cmd.type === "batch") return textResult(dispatchBatch(cmd.items, agents, pi, ctx, cmd.main));
 	if (cmd.type === "chain") return textResult(dispatchChain(cmd.steps, agents, pi, ctx, cmd.main));
-	return textResult(`continue not yet implemented for #${cmd.id}`, true);
+	if (cmd.type === "abort") return textResult(dispatchAbort(cmd.id));
+	return textResult(dispatchContinue(cmd.id, cmd.task, agents, pi, ctx));
 }
 
 export function createTool(pi: SubagentPi, agentsDir: string) {
@@ -50,7 +51,7 @@ export function createTool(pi: SubagentPi, agentsDir: string) {
 	return {
 		name: "subagent",
 		label: "Subagent",
-		description: "Run isolated subagent processes. Commands: run, batch, chain, continue, detail, runs",
+		description: "Run isolated subagent processes. Commands: run, batch, chain, continue, abort, detail, runs",
 		parameters: SubagentParams,
 		async execute(_id: string, params: { command: string }, _signal: unknown, _onUpdate: unknown, ctx: DispatchCtx) {
 			try { return dispatch(parseCommand(params.command), agents, pi, ctx); }

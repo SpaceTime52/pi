@@ -2,9 +2,12 @@ import { spawn } from "child_process";
 import { createInterface } from "readline";
 import { parseLine } from "./parser.js";
 import { collectOutput } from "./runner.js";
-export function spawnAndCollect(cmd, args, id, agentName) {
+export function spawnAndCollect(cmd, args, id, agentName, signal) {
     return new Promise((resolve, reject) => {
         const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+        if (signal) {
+            signal.addEventListener("abort", () => { proc.kill(); reject(new Error("Aborted")); });
+        }
         const events = [];
         const rl = createInterface({ input: proc.stdout });
         rl.on("line", (line) => {

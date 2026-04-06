@@ -1,22 +1,16 @@
-import type { AgentConfig, RunResult, SubagentPi } from "./types.js";
-export interface DispatchCtx {
-    hasUI: boolean;
-    ui: {
-        setWidget(k: string, v: unknown, o?: unknown): void;
-    };
-    sessionManager: {
-        getBranch(): unknown[];
-    };
-}
-export declare function createRunner(main: boolean, ctx: DispatchCtx): (agent: AgentConfig, task: string) => Promise<RunResult>;
-export declare function dispatchRun(agent: AgentConfig, task: string, pi: SubagentPi, ctx: DispatchCtx, main: boolean): {
+import type { AgentConfig, SubagentPi } from "./types.js";
+import { createRunner } from "./run-factory.js";
+export type { DispatchCtx } from "./run-factory.js";
+export declare function dispatchRun(agent: AgentConfig, task: string, pi: SubagentPi, ctx: Parameters<typeof createRunner>[1], main: boolean): {
     text: string;
 };
 export declare function dispatchBatch(items: Array<{
     agent: string;
     task: string;
-}>, agents: AgentConfig[], pi: SubagentPi, ctx: DispatchCtx, main: boolean): string;
+}>, agents: AgentConfig[], pi: SubagentPi, ctx: Parameters<typeof createRunner>[1], main: boolean): string;
 export declare function dispatchChain(steps: Array<{
     agent: string;
     task: string;
-}>, agents: AgentConfig[], pi: SubagentPi, ctx: DispatchCtx, main: boolean): string;
+}>, agents: AgentConfig[], pi: SubagentPi, ctx: Parameters<typeof createRunner>[1], main: boolean): string;
+export declare function dispatchAbort(id: number): string;
+export declare function dispatchContinue(id: number, task: string, agents: AgentConfig[], pi: SubagentPi, ctx: Parameters<typeof createRunner>[1]): string;

@@ -9,6 +9,7 @@ export function buildCallText(params: { command: string }): string {
 		if (cmd.type === "batch") return `▶ batch (${cmd.items.length} tasks)`;
 		if (cmd.type === "chain") return `▶ chain (${cmd.steps.length} steps)`;
 		if (cmd.type === "continue") return `▶ continue #${cmd.id}: ${cmd.task}`;
+		if (cmd.type === "abort") return `▶ abort #${cmd.id}`;
 		if (cmd.type === "detail") return `▶ detail #${cmd.id}`;
 		return `▶ ${params.command}`;
 	} catch { return `▶ ${params.command}`; }
@@ -17,6 +18,6 @@ export function buildCallText(params: { command: string }): string {
 export function buildResultText(result: RunResult): string {
 	const header = `${result.agent} #${result.id}`;
 	if (result.error) return `✗ ${header} error: ${result.error}`;
-	if (result.escalation) return `⚠ ${header} escalation: ${result.escalation}`;
+	if (result.escalation) return `⚠ ${header} needs your input:\n${result.escalation}\n\nUse: subagent continue ${result.id} -- <your answer>`;
 	return `✓ ${header}\n${result.output}\n\n${formatUsage(result.usage)}`;
 }

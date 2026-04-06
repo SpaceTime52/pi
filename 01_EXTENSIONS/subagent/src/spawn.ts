@@ -10,9 +10,13 @@ export function spawnAndCollect(
 	args: string[],
 	id: number,
 	agentName: string,
+	signal?: AbortSignal,
 ): Promise<RunResult> {
 	return new Promise((resolve, reject) => {
 		const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+		if (signal) {
+			signal.addEventListener("abort", () => { proc.kill(); reject(new Error("Aborted")); });
+		}
 		const events: ParsedEvent[] = [];
 		const rl = createInterface({ input: proc.stdout });
 		rl.on("line", (line) => {

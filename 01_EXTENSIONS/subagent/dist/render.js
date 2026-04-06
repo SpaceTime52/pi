@@ -11,6 +11,8 @@ export function buildCallText(params) {
             return `▶ chain (${cmd.steps.length} steps)`;
         if (cmd.type === "continue")
             return `▶ continue #${cmd.id}: ${cmd.task}`;
+        if (cmd.type === "abort")
+            return `▶ abort #${cmd.id}`;
         if (cmd.type === "detail")
             return `▶ detail #${cmd.id}`;
         return `▶ ${params.command}`;
@@ -24,6 +26,6 @@ export function buildResultText(result) {
     if (result.error)
         return `✗ ${header} error: ${result.error}`;
     if (result.escalation)
-        return `⚠ ${header} escalation: ${result.escalation}`;
+        return `⚠ ${header} needs your input:\n${result.escalation}\n\nUse: subagent continue ${result.id} -- <your answer>`;
     return `✓ ${header}\n${result.output}\n\n${formatUsage(result.usage)}`;
 }

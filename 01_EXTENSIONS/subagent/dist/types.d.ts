@@ -65,6 +65,9 @@ export type Subcommand = {
     id: number;
     task: string;
 } | {
+    type: "abort";
+    id: number;
+} | {
     type: "detail";
     id: number;
 } | {

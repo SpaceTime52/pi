@@ -77,4 +77,8 @@ describe("parseCommand", () => {
 			expect(cmd.items[1].task).toBe("");
 		}
 	});
+
+	it("parses abort", () => {
+		expect(parseCommand("abort 7")).toEqual({ type: "abort", id: 7 });
+	});
 });

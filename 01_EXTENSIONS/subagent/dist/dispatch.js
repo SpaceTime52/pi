@@ -1,53 +1,21 @@
-import { writeFileSync, existsSync, mkdirSync } from "fs";
-import { tmpdir } from "os";
-import { join, dirname } from "path";
-import { getPiCommand, buildArgs } from "./runner.js";
-import { withRetry } from "./retry.js";
-import { extractMainContext } from "./context.js";
+import { getAgent } from "./agents.js";
 import { executeSingle, executeBatch, executeChain } from "./execute.js";
-import { nextId, addRun, removeRun, listRuns } from "./store.js";
-import { addToHistory, sessionPath } from "./session.js";
+import { listRuns, getRun, removeRun } from "./store.js";
+import { getSessionFile, getRunHistory } from "./session.js";
 import { buildResultText } from "./render.js";
 import { syncWidget } from "./widget.js";
-import { MAX_RETRIES, RETRY_BASE_MS } from "./constants.js";
-import { spawnAndCollect } from "./spawn.js";
-export function createRunner(main, ctx) {
-    return async (agent, task) => {
-        const id = nextId();
-        const promptPath = join(tmpdir(), `pi-sub-${agent.name}-${id}.md`);
-        let prompt = agent.systemPrompt;
-        if (main) {
-            const branch = ctx.sessionManager.getBranch();
-            const mainCtx = extractMainContext(branch, 20);
-            if (mainCtx)
-                prompt += `\n\n[Main Context]\n${mainCtx}`;
-        }
-        writeFileSync(promptPath, prompt);
-        const { cmd, base } = getPiCommand(process.execPath, process.argv[1], existsSync);
-        const sessPath = sessionPath(id);
-        const dir = dirname(sessPath);
-        if (!existsSync(dir))
-            mkdirSync(dir, { recursive: true });
-        const args = buildArgs({ base, model: agent.model, tools: agent.tools, systemPromptPath: promptPath, task, sessionPath: sessPath });
-        addRun({ id, agent: agent.name, startedAt: Date.now(), abort: () => { } });
-        try {
-            const result = await withRetry(() => spawnAndCollect(cmd, args, id, agent.name), MAX_RETRIES, RETRY_BASE_MS);
-            addToHistory({ id, agent: agent.name, output: result.output, sessionFile: sessPath });
-            return result;
-        }
-        finally {
-            removeRun(id);
-        }
-    };
-}
+import { createRunner, createSessionRunner } from "./run-factory.js";
 function sendFollowUp(pi, result, customType = "subagent-result") {
     pi.sendMessage({ customType, content: buildResultText(result), display: true }, { deliverAs: "followUp", triggerTurn: true });
+}
+function errorResult(agent, e) {
+    return { id: 0, agent, output: "", error: e.message, usage: { inputTokens: 0, outputTokens: 0, turns: 0 } };
 }
 export function dispatchRun(agent, task, pi, ctx, main) {
     const runner = createRunner(main, ctx);
     executeSingle(agent, task, { runner })
         .then((r) => sendFollowUp(pi, r))
-        .catch((e) => sendFollowUp(pi, { id: 0, agent: agent.name, output: "", error: e.message, usage: { inputTokens: 0, outputTokens: 0, turns: 0 } }))
+        .catch((e) => sendFollowUp(pi, errorResult(agent.name, e)))
         .finally(() => syncWidget(ctx, listRuns()));
     syncWidget(ctx, listRuns());
     return { text: `${agent.name} started` };
@@ -70,4 +38,29 @@ export function dispatchChain(steps, agents, pi, ctx, main) {
         .finally(() => syncWidget(ctx, listRuns()));
     syncWidget(ctx, listRuns());
     return `chain started (${steps.length} steps)`;
+}
+export function dispatchAbort(id) {
+    const run = getRun(id);
+    if (!run)
+        return `Run #${id} not found`;
+    run.abort();
+    removeRun(id);
+    return `Run #${id} (${run.agent}) aborted`;
+}
+export function dispatchContinue(id, task, agents, pi, ctx) {
+    const hist = getRunHistory().find((r) => r.id === id);
+    if (!hist)
+        return `Run #${id} not found in history`;
+    const sessFile = getSessionFile(id);
+    if (!sessFile)
+        return `Run #${id} not found in history`;
+    const agent = getAgent(hist.agent, agents);
+    if (!agent)
+        return `Agent for run #${id} not found`;
+    const runner = createSessionRunner(sessFile, ctx);
+    executeSingle(agent, task, { runner })
+        .then((r) => sendFollowUp(pi, r))
+        .catch((e) => sendFollowUp(pi, errorResult(agent.name, e)))
+        .finally(() => syncWidget(ctx, listRuns()));
+    return `continue #${id} (${agent.name}) started`;
 }

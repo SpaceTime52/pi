@@ -44,6 +44,10 @@ export function restoreRuns(entries: Array<{ type: string }>): void {
 	}
 }
 
+export function getSessionFile(id: number): string | undefined {
+	return history.find((r) => r.id === id)?.sessionFile;
+}
+
 export function resetSession(): void {
 	history = [];
 }

@@ -25,6 +25,8 @@ export function parseCommand(command) {
             return { type: "chain", steps: zipAgentTask(argv), main: Boolean(argv.main) };
         case "continue":
             return { type: "continue", id: Number(argv._[1]), task };
+        case "abort":
+            return { type: "abort", id: Number(argv._[1]) };
         case "detail":
             return { type: "detail", id: Number(argv._[1]) };
         case "runs":

@@ -63,7 +63,24 @@ describe("createTool", () => {
 	});
 	it("batch command", async () => { expect((await exec("batch --agent scout --task find")).content[0].text).toContain("batch started"); });
 	it("chain command", async () => { expect((await exec("chain --agent scout --task find")).content[0].text).toContain("chain started"); });
-	it("continue command returns error", async () => { const r = await exec("continue 1 -- more"); expect(r.content[0].text).toContain("not yet implemented"); expect(r.details.isError).toBe(true); });
+	it("abort active run", async () => {
+		addRun({ id: 10, agent: "scout", startedAt: Date.now(), abort: vi.fn() });
+		const r = await exec("abort 10");
+		expect(r.content[0].text).toContain("aborted");
+	});
+	it("abort missing run", async () => {
+		const r = await exec("abort 999");
+		expect(r.content[0].text).toContain("not found");
+	});
+	it("continue missing history", async () => {
+		const r = await exec("continue 999 -- more");
+		expect(r.content[0].text).toContain("not found");
+	});
+	it("continue existing run", async () => {
+		addToHistory({ id: 1, agent: "scout", output: "ok", sessionFile: "/tmp/s.json" });
+		const r = await exec("continue 1 -- more");
+		expect(r.content[0].text).toContain("continue");
+	});
 	it("result includes details", async () => {
 		const r = await exec("runs");
 		expect(r.details).toBeDefined();

@@ -28,6 +28,9 @@ export function restoreRuns(entries) {
         history = [];
     }
 }
+export function getSessionFile(id) {
+    return history.find((r) => r.id === id)?.sessionFile;
+}
 export function resetSession() {
     history = [];
 }

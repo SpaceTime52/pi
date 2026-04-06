@@ -26,6 +26,10 @@ describe("buildCallText", () => {
 		expect(buildCallText({ command: "runs" })).toContain("runs");
 	});
 
+	it("shows abort", () => {
+		expect(buildCallText({ command: "abort 5" })).toContain("#5");
+	});
+
 	it("handles invalid command gracefully", () => {
 		expect(buildCallText({ command: "invalid stuff" })).toContain("invalid stuff");
 	});
@@ -44,9 +48,10 @@ describe("buildResultText", () => {
 		expect(text).toContain("crashed");
 	});
 
-	it("formats escalation", () => {
+	it("formats escalation with continue hint", () => {
 		const text = buildResultText({ id: 1, agent: "worker", output: "", escalation: "delete file?", usage: { inputTokens: 0, outputTokens: 0, turns: 0 } });
-		expect(text).toContain("escalation");
+		expect(text).toContain("needs your input");
 		expect(text).toContain("delete file?");
+		expect(text).toContain("subagent continue 1");
 	});
 });

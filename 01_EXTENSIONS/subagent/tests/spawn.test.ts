@@ -76,4 +76,23 @@ describe("spawnAndCollect", () => {
 		const result = await p;
 		expect(result.output).toBe("");
 	});
+
+	it("rejects with Aborted when signal fires", async () => {
+		const ac = new AbortController();
+		const p = spawnAndCollect("node", [], 6, "scout", ac.signal);
+		const proc = getLastProc();
+		proc.kill = vi.fn();
+		ac.abort();
+		await expect(p).rejects.toThrow("Aborted");
+		expect(proc.kill).toHaveBeenCalled();
+	});
+
+	it("works without signal", async () => {
+		const p = spawnAndCollect("node", [], 7, "scout");
+		const proc = getLastProc();
+		proc.stdout.end();
+		proc.emit("close", 0);
+		const result = await p;
+		expect(result.id).toBe(7);
+	});
 });
