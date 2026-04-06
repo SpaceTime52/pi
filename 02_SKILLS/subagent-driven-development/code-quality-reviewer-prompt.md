@@ -7,18 +7,14 @@ Use this template when dispatching a code quality reviewer subagent.
 **Only dispatch after spec compliance review passes.**
 
 ```
-subagent tool:
-  description: "Review code quality for Task N"
-  prompt: |
-    You are reviewing code quality for a task implementation.
+subagent tool (code-reviewer):
+  Use template at requesting-code-review/code-reviewer.md
 
-    Read the SKILL.md for requesting-code-review to get the code review template.
-
-    WHAT_WAS_IMPLEMENTED: [from implementer's report]
-    PLAN_OR_REQUIREMENTS: Task N from [plan-file]
-    BASE_SHA: [commit before task]
-    HEAD_SHA: [current commit]
-    DESCRIPTION: [task summary]
+  WHAT_WAS_IMPLEMENTED: [from implementer's report]
+  PLAN_OR_REQUIREMENTS: Task N from [plan-file]
+  BASE_SHA: [commit before task]
+  HEAD_SHA: [current commit]
+  DESCRIPTION: [task summary]
 ```
 
 **In addition to standard code quality concerns, the reviewer should check:**

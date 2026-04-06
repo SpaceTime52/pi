@@ -65,6 +65,8 @@ scripts/start-server.sh \
 
 Use `--url-host` to control what hostname is printed in the returned URL JSON.
 
+**Other environments:** The server must keep running in the background across conversation turns. If your environment reaps detached processes, use `--foreground` and launch the command with your platform's background execution mechanism.
+
 ## The Loop
 
 1. **Check server is alive**, then **write HTML** to a new file in `screen_dir`:
