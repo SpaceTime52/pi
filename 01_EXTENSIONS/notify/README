@@ -1,0 +1,6 @@
+
+  에이전트 작업 완료 시 터미널 네이티브 알림을 보낸다.
+
+  SUPPORTED
+    OSC 777    Ghostty, iTerm2, WezTerm, rxvt-unicode
+    OSC 99     Kitty
