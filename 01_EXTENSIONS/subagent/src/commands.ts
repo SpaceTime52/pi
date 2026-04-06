@@ -23,13 +23,15 @@ function buildHelpText(agentsDir: string): string {
 	return lines.join("\n");
 }
 
+interface SendFn { (content: string, opts?: { deliverAs?: string }): void }
 interface CommandCtx { ui: { notify(msg: string, type?: string): void } }
 
-export function buildSubCommand(agentsDir: string) {
+export function buildSubCommand(agentsDir: string, sendUserMessage: SendFn) {
 	return {
 		description: "서브에이전트 명령 (run, batch, chain, continue, abort, detail, runs)",
-		handler: async (_args: string, ctx: CommandCtx) => {
-			ctx.ui.notify(buildHelpText(agentsDir), "info");
+		handler: async (args: string, ctx: CommandCtx) => {
+			if (!args.trim()) { ctx.ui.notify(buildHelpText(agentsDir), "info"); return; }
+			sendUserMessage(`Use the subagent tool with command: ${args}`);
 		},
 	};
 }

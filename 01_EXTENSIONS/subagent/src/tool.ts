@@ -8,6 +8,7 @@ import { dispatchRun, dispatchBatch, dispatchChain, dispatchAbort, dispatchConti
 import type { DispatchCtx } from "./dispatch.js";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import type { Subcommand } from "./types.js";
+import { renderCall, renderResult } from "./render.js";
 
 function textResult(text: string, isError = false) {
 	return { content: [{ type: "text" as const, text }], details: { isError } };
@@ -63,11 +64,12 @@ function buildGuidelines(agents: AgentConfig[]): string[] {
 	return [
 		"Available agents:",
 		...list,
-		"Command format: run <agent> [--main] -- <task>",
+		"Command: run <agent> [--main] -- <task>",
 		"Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]",
 		"Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'",
-		"Management: continue <id> -- <task>, abort <id>, detail <id>, runs",
-		"Use --main to inject current conversation context into the subagent",
+		"Manage: continue <id> -- <task>, abort <id>, detail <id>, runs",
+		"ASYNC: run/batch/chain return immediately. The result arrives as a followUp message automatically.",
+		"After starting a subagent, tell the user it's running and STOP. Do NOT poll with runs/detail.",
 	];
 }
 
@@ -86,5 +88,7 @@ export function createTool(pi: SubagentPi, agentsDir: string) {
 			try { return dispatch(parseCommand(params.command), agents, pi, ctx); }
 			catch (e) { return textResult(`Error: ${errorMsg(e)}`, true); }
 		},
+		renderCall: (args: { command: string }) => renderCall(args),
+		renderResult: (result: { content: Array<{ type: string; text: string }>; details?: { isError?: boolean } }) => renderResult(result),
 	};
 }

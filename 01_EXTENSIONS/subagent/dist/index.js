@@ -226,6 +226,20 @@ function formatDuration(ms) {
 }
 
 // src/render.ts
+function buildCallText(params) {
+  try {
+    const cmd = parseCommand(params.command);
+    if (cmd.type === "run") return `\u25B6 subagent run ${cmd.agent} -- ${cmd.task}`;
+    if (cmd.type === "batch") return `\u25B6 subagent batch (${cmd.items.length} tasks)`;
+    if (cmd.type === "chain") return `\u25B6 subagent chain (${cmd.steps.length} steps)`;
+    if (cmd.type === "continue") return `\u25B6 subagent continue #${cmd.id} -- ${cmd.task}`;
+    if (cmd.type === "abort") return `\u25B6 subagent abort #${cmd.id}`;
+    if (cmd.type === "detail") return `\u25B6 subagent detail #${cmd.id}`;
+    return `\u25B6 subagent ${params.command}`;
+  } catch {
+    return `\u25B6 subagent ${params.command}`;
+  }
+}
 function buildResultText(result) {
   const header = `${result.agent} #${result.id}`;
   if (result.error) return `\u2717 ${header} error: ${result.error}`;
@@ -237,6 +251,19 @@ Use: subagent continue ${result.id} -- <your answer>`;
 ${result.output}
 
 ${formatUsage(result.usage)}`;
+}
+function textComponent(text) {
+  const lines = text.split("\n");
+  return { render(width) {
+    return lines.map((l) => l.slice(0, width));
+  } };
+}
+function renderCall(args) {
+  return textComponent(buildCallText(args));
+}
+function renderResult(result) {
+  const text = result.content.map((c) => c.text).join("\n");
+  return textComponent(text);
 }
 
 // src/widget.ts
@@ -608,11 +635,12 @@ function buildGuidelines(agents) {
   return [
     "Available agents:",
     ...list,
-    "Command format: run <agent> [--main] -- <task>",
+    "Command: run <agent> [--main] -- <task>",
     "Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]",
     "Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'",
-    "Management: continue <id> -- <task>, abort <id>, detail <id>, runs",
-    "Use --main to inject current conversation context into the subagent"
+    "Manage: continue <id> -- <task>, abort <id>, detail <id>, runs",
+    "ASYNC: run/batch/chain return immediately. The result arrives as a followUp message automatically.",
+    "After starting a subagent, tell the user it's running and STOP. Do NOT poll with runs/detail."
   ];
 }
 function createTool(pi, agentsDir) {
@@ -630,7 +658,9 @@ function createTool(pi, agentsDir) {
       } catch (e) {
         return textResult(`Error: ${errorMsg(e)}`, true);
       }
-    }
+    },
+    renderCall: (args) => renderCall(args),
+    renderResult: (result) => renderResult(result)
   };
 }
 
@@ -655,11 +685,15 @@ function buildHelpText(agentsDir) {
   ];
   return lines.join("\n");
 }
-function buildSubCommand(agentsDir) {
+function buildSubCommand(agentsDir, sendUserMessage) {
   return {
     description: "\uC11C\uBE0C\uC5D0\uC774\uC804\uD2B8 \uBA85\uB839 (run, batch, chain, continue, abort, detail, runs)",
-    handler: async (_args, ctx) => {
-      ctx.ui.notify(buildHelpText(agentsDir), "info");
+    handler: async (args, ctx) => {
+      if (!args.trim()) {
+        ctx.ui.notify(buildHelpText(agentsDir), "info");
+        return;
+      }
+      sendUserMessage(`Use the subagent tool with command: ${args}`);
     }
   };
 }
@@ -675,7 +709,7 @@ function index_default(pi) {
     syncWidget(ctx, listRuns());
   });
   pi.registerTool(createTool(pi, join3(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
-  pi.registerCommand("sub", buildSubCommand(join3(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerCommand("sub", buildSubCommand(join3(dirname2(fileURLToPath(import.meta.url)), "..", "agents"), (c, o) => pi.sendUserMessage(c, o)));
 }
 export {
   index_default as default

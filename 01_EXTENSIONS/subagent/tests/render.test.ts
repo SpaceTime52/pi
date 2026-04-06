@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildCallText, buildResultText } from "../src/render.js";
+import { buildCallText, buildResultText, renderCall, renderResult } from "../src/render.js";
 
 describe("buildCallText", () => {
 	it("shows run command", () => {
@@ -53,5 +53,24 @@ describe("buildResultText", () => {
 		expect(text).toContain("needs your input");
 		expect(text).toContain("delete file?");
 		expect(text).toContain("subagent continue 1");
+	});
+});
+
+describe("renderCall", () => {
+	it("returns component with render method", () => {
+		const comp = renderCall({ command: "run scout -- find auth" });
+		expect(comp.render(80)).toBeInstanceOf(Array);
+		expect(comp.render(80)[0]).toContain("scout");
+	});
+});
+
+describe("renderResult", () => {
+	it("returns component with render method", () => {
+		const comp = renderResult({ content: [{ type: "text", text: "hello world" }] });
+		expect(comp.render(80)).toEqual(["hello world"]);
+	});
+	it("handles multiline content", () => {
+		const comp = renderResult({ content: [{ type: "text", text: "line1" }, { type: "text", text: "line2" }] });
+		expect(comp.render(80)).toEqual(["line1", "line2"]);
 	});
 });

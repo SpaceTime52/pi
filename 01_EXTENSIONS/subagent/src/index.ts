@@ -16,5 +16,5 @@ export default function (pi: ExtensionAPI) {
 		syncWidget(ctx, listRuns());
 	});
 	pi.registerTool(createTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
-	pi.registerCommand("sub", buildSubCommand(join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerCommand("sub", buildSubCommand(join(dirname(fileURLToPath(import.meta.url)), "..", "agents"), (c, o) => pi.sendUserMessage(c, o)));
 }

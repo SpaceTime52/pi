@@ -3,26 +3,35 @@ import { buildSubCommand } from "../src/commands.js";
 
 describe("buildSubCommand", () => {
 	it("returns command with description", () => {
-		const cmd = buildSubCommand("/nonexistent");
+		const send = vi.fn();
+		const cmd = buildSubCommand("/nonexistent", send);
 		expect(cmd.description).toContain("서브에이전트");
 	});
 
-	it("handler calls notify with help text", async () => {
-		const cmd = buildSubCommand(`${import.meta.dirname}/../agents`);
+	it("handler shows help with no args", async () => {
+		const send = vi.fn();
+		const cmd = buildSubCommand(`${import.meta.dirname}/../agents`, send);
 		const notify = vi.fn();
 		await cmd.handler("", { ui: { notify } });
 		expect(notify).toHaveBeenCalledOnce();
-		const text = notify.mock.calls[0][0];
-		expect(text).toContain("/sub run");
-		expect(text).toContain("에이전트:");
-		expect(text).toContain("scout");
+		expect(notify.mock.calls[0][0]).toContain("scout");
+		expect(send).not.toHaveBeenCalled();
 	});
 
-	it("handler works with missing agents dir", async () => {
-		const cmd = buildSubCommand("/nonexistent");
+	it("handler forwards args to sendUserMessage", async () => {
+		const send = vi.fn();
+		const cmd = buildSubCommand("/nonexistent", send);
+		const notify = vi.fn();
+		await cmd.handler("run scout -- hello", { ui: { notify } });
+		expect(send).toHaveBeenCalledWith(expect.stringContaining("run scout -- hello"));
+		expect(notify).not.toHaveBeenCalled();
+	});
+
+	it("handler shows help with missing agents dir", async () => {
+		const send = vi.fn();
+		const cmd = buildSubCommand("/nonexistent", send);
 		const notify = vi.fn();
 		await cmd.handler("", { ui: { notify } });
-		expect(notify).toHaveBeenCalledOnce();
 		expect(notify.mock.calls[0][0]).toContain("사용법:");
 	});
 });
