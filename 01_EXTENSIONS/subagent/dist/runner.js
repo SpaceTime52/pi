@@ -15,6 +15,9 @@ export function buildArgs(input) {
     if (input.model) {
         args.push("--model", input.model);
     }
+    if (input.thinking) {
+        args.push("--thinking", input.thinking);
+    }
     if (input.tools) {
         args.push("--tools", input.tools.join(","));
     }

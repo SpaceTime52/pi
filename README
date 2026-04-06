@@ -5,6 +5,7 @@
          ╚════════════════════════════════════════╝
 
   INSTALL
+    npm install -g @mariozechner/pi-coding-agent
     pi install https://github.com/jeonghyeon-net/pi
 
   UPDATE

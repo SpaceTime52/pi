@@ -52,15 +52,30 @@ describe("buildArgs", () => {
 		expect(args).not.toContain("--no-session");
 	});
 
-	it("omits model and tools when undefined", () => {
+	it("includes --thinking when provided", () => {
+		const args = buildArgs({
+			base: [],
+			model: "gpt-5.4",
+			thinking: "xhigh",
+			tools: ["read"],
+			systemPromptPath: "/tmp/p.md",
+			task: "t",
+		});
+		expect(args).toContain("--thinking");
+		expect(args).toContain("xhigh");
+	});
+
+	it("omits model, thinking, and tools when undefined", () => {
 		const args = buildArgs({
 			base: [],
 			model: undefined,
+			thinking: undefined,
 			tools: undefined,
 			systemPromptPath: "/tmp/p.md",
 			task: "t",
 		});
 		expect(args).not.toContain("--model");
+		expect(args).not.toContain("--thinking");
 		expect(args).not.toContain("--tools");
 	});
 });

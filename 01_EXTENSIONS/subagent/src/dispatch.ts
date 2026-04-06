@@ -2,17 +2,19 @@ import type { AgentConfig, RunResult, SubagentPi } from "./types.js";
 import { getAgent } from "./agents.js";
 import { executeSingle, executeBatch, executeChain } from "./execute.js";
 import { listRuns, getRun, removeRun } from "./store.js";
-import { getSessionFile, getRunHistory } from "./session.js";
+import { getSessionFile, getRunHistory, addPending, restoreRuns, drainPending } from "./session.js";
 import { buildResultText } from "./render.js";
 import { syncWidget } from "./widget.js";
 import { createRunner, createSessionRunner } from "./run-factory.js";
 export type { DispatchCtx } from "./run-factory.js";
 
 function sendFollowUp(pi: SubagentPi, result: RunResult, customType = "subagent-result"): void {
-	pi.sendMessage(
-		{ customType, content: buildResultText(result), display: true },
-		{ deliverAs: "followUp", triggerTurn: true },
-	);
+	try {
+		pi.sendMessage(
+			{ customType, content: buildResultText(result), display: true },
+			{ deliverAs: "followUp", triggerTurn: true },
+		);
+	} catch { addPending(result); }
 }
 
 function errorResult(agent: string, e: Error): RunResult {
@@ -82,4 +84,14 @@ export function dispatchContinue(
 		.catch((e: Error) => sendFollowUp(pi, errorResult(agent.name, e)))
 		.finally(() => syncWidget(ctx, listRuns()));
 	return `continue #${id} (${agent.name}) started`;
+}
+
+export function onSessionRestore(pi: SubagentPi) {
+	return async (_e: unknown, ctx: Parameters<typeof createRunner>[1]) => {
+		restoreRuns(ctx.sessionManager.getBranch() as Array<{ type: string }>);
+		syncWidget(ctx, listRuns());
+		for (const r of drainPending()) {
+			pi.sendMessage({ customType: "subagent-pending", content: buildResultText(r), display: true }, { deliverAs: "followUp", triggerTurn: true });
+		}
+	};
 }

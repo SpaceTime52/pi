@@ -11,6 +11,7 @@ export function spawnAndCollect(
 	id: number,
 	agentName: string,
 	signal?: AbortSignal,
+	onEvent?: (evt: ParsedEvent) => void,
 ): Promise<RunResult> {
 	return new Promise((resolve, reject) => {
 		const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -21,7 +22,7 @@ export function spawnAndCollect(
 		const rl = createInterface({ input: proc.stdout });
 		rl.on("line", (line) => {
 			const evt = parseLine(line);
-			if (evt) events.push(evt);
+			if (evt) { events.push(evt); onEvent?.(evt); }
 		});
 		proc.on("error", (err) => reject(err));
 		proc.on("close", (code) => {

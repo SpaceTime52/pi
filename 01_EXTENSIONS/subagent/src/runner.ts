@@ -14,6 +14,7 @@ export function getPiCommand(
 export interface BuildArgsInput {
 	base: string[];
 	model?: string;
+	thinking?: string;
 	tools?: string[];
 	systemPromptPath: string;
 	task: string;
@@ -28,6 +29,7 @@ export function buildArgs(input: BuildArgsInput): string[] {
 		args.push("--no-session");
 	}
 	if (input.model) { args.push("--model", input.model); }
+	if (input.thinking) { args.push("--thinking", input.thinking); }
 	if (input.tools) { args.push("--tools", input.tools.join(",")); }
 	args.push("--append-system-prompt", input.systemPromptPath);
 	args.push(`Task: ${input.task}`);

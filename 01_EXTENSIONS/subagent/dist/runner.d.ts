@@ -7,6 +7,7 @@ export declare function getPiCommand(execPath: string, argv1: string, exists: (p
 export interface BuildArgsInput {
     base: string[];
     model?: string;
+    thinking?: string;
     tools?: string[];
     systemPromptPath: string;
     task: string;
