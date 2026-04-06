@@ -2,8 +2,3 @@ pre-commit:
   commands:
     architecture:
       run: cd 00_ARCHITECTURE/tests && go test ./...
-
-pre-push:
-  commands:
-    architecture:
-      run: cd 00_ARCHITECTURE/tests && go test ./...
