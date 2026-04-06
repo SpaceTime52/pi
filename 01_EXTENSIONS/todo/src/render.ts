@@ -25,7 +25,7 @@ export function createWidgetFactory(
 			render(width: number): string[] {
 				const w = Math.max(8, width);
 				const frame = Math.floor(Date.now() / SPINNER_INTERVAL_MS) % SPINNER_FRAMES.length;
-				const spinner = SPINNER_FRAMES[frame] ?? "•";
+				const spinner = SPINNER_FRAMES[frame]!;
 
 				const lines = todos.map((t) => {
 					if (t.done) {

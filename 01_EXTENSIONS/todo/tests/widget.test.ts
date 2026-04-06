@@ -15,6 +15,7 @@ function stubPi() {
 
 describe("syncWidget", () => {
 	beforeEach(() => {
+		vi.useFakeTimers();
 		clearTodos();
 		cleanupWidget(stubCtx());
 	});
@@ -62,5 +63,36 @@ describe("syncWidget", () => {
 		const ctx = stubCtx();
 		cleanupWidget(ctx);
 		expect(ctx.ui.setWidget).toHaveBeenCalledWith("todo", undefined);
+	});
+
+	it("clears spinner timer on re-sync (covers clearInterval branch)", () => {
+		addTodo("running task");
+		setAgentRunning(true);
+		const ctx = stubCtx();
+		syncWidget(ctx);
+		const factory = ctx.ui.setWidget.mock.calls[0][1] as (tui: unknown, theme: unknown) => unknown;
+		factory(
+			{ requestRender: vi.fn() },
+			{ fg: (_c: string, t: string) => t, bold: (t: string) => t, strikethrough: (t: string) => t },
+		);
+		const ctx2 = stubCtx();
+		syncWidget(ctx2);
+		expect(ctx2.ui.setWidget).toHaveBeenCalled();
+	});
+
+	it("hide timer fires and re-syncs (covers setTimeout callback)", () => {
+		addTodo("done task");
+		toggleTodo(1);
+		const pi = stubPi();
+		const ctx = stubCtx();
+		syncWidget(ctx, pi);
+		vi.runAllTimers();
+		expect(ctx.ui.setWidget).toHaveBeenCalled();
+	});
+
+	it("cleanupWidget with hasUI false skips setWidget", () => {
+		const ctx = { hasUI: false, ui: { setWidget: vi.fn() } };
+		cleanupWidget(ctx);
+		expect(ctx.ui.setWidget).not.toHaveBeenCalled();
 	});
 });

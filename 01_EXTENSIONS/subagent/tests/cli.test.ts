@@ -81,4 +81,16 @@ describe("parseCommand", () => {
 	it("parses abort", () => {
 		expect(parseCommand("abort 7")).toEqual({ type: "abort", id: 7 });
 	});
+
+	it("empty input string gives empty tokens (covers ?? [] branch)", () => {
+		expect(() => parseCommand("")).toThrow("Unknown subcommand");
+	});
+
+	it("triple agent flag accumulates into array (covers prev.push branch)", () => {
+		const cmd = parseCommand("batch --agent a --agent b --agent c");
+		if (cmd.type === "batch") {
+			expect(cmd.items.length).toBe(3);
+			expect(cmd.items[2].agent).toBe("c");
+		}
+	});
 });
