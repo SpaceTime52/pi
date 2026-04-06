@@ -12,7 +12,7 @@ func TestTopdir_ReadmeOnly(t *testing.T) {
 		t.Fatalf("루트 읽기 실패: %v", err)
 	}
 	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "00_ARCHITECTURE" || e.Name()[0] == '.' {
+		if !e.IsDir() || e.Name()[0] == '.' {
 			continue
 		}
 		t.Run(e.Name(), func(t *testing.T) {
