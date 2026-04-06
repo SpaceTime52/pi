@@ -13,3 +13,9 @@ export interface TodoDetails extends TodoState {
 	action: string;
 	error?: string;
 }
+
+export interface TodoEntry {
+	todos: Todo[];
+	nextId: number;
+	updatedAt: number;
+}

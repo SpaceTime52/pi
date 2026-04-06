@@ -13,7 +13,7 @@ var (
 	importLineRe   = regexp.MustCompile(`^import\s+`)
 	exportFuncRe   = regexp.MustCompile(`^export\s+default\s+function\s*\((\w+)`)
 	closingLineRe  = regexp.MustCompile(`^[\s}\);,]*$`)
-	importedCallRe = regexp.MustCompile(`^\s*(?:await\s+)?(\w+)\s*\(`)
+	importedCallRe = regexp.MustCompile(`^\s*(?:return\s+)?(?:await\s+)?(\w+)\s*\(`)
 	importNamesRe  = regexp.MustCompile(`import\s+(?:type\s+)?(?:\{([^}]+)\}|(\w+))`)
 )
 

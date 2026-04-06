@@ -1,4 +1,4 @@
-import type { Todo, TodoDetails, TodoState } from "./types.js";
+import type { Todo, TodoEntry, TodoState } from "./types.js";
 
 let todos: Todo[] = [];
 let nextId = 1;
@@ -30,19 +30,23 @@ export function clearTodos(): number {
 	return count;
 }
 
-export function reconstructState(
-	entries: { type: string; message?: { role: string; toolName?: string; details?: unknown } }[],
+export function buildEntry(): TodoEntry {
+	return { todos: [...todos], nextId, updatedAt: Date.now() };
+}
+
+export function restoreFromEntries(
+	entries: { type: string; customType?: string; data?: unknown }[],
 ): void {
 	todos = [];
 	nextId = 1;
-	for (const entry of entries) {
-		if (entry.type !== "message") continue;
-		const msg = entry.message;
-		if (!msg || msg.role !== "toolResult" || msg.toolName !== "todo") continue;
-		const details = msg.details as TodoDetails | undefined;
-		if (details) {
-			todos = details.todos;
-			nextId = details.nextId;
+	for (let i = entries.length - 1; i >= 0; i--) {
+		const e = entries[i];
+		if (e.type !== "custom" || e.customType !== "todo-state") continue;
+		const data = e.data as TodoEntry | undefined;
+		if (data?.todos) {
+			todos = data.todos;
+			nextId = data.nextId;
+			return;
 		}
 	}
 }

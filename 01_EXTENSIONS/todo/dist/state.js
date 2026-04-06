@@ -23,19 +23,21 @@ export function clearTodos() {
     nextId = 1;
     return count;
 }
-export function reconstructState(entries) {
+export function buildEntry() {
+    return { todos: [...todos], nextId, updatedAt: Date.now() };
+}
+export function restoreFromEntries(entries) {
     todos = [];
     nextId = 1;
-    for (const entry of entries) {
-        if (entry.type !== "message")
+    for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i];
+        if (e.type !== "custom" || e.customType !== "todo-state")
             continue;
-        const msg = entry.message;
-        if (!msg || msg.role !== "toolResult" || msg.toolName !== "todo")
-            continue;
-        const details = msg.details;
-        if (details) {
-            todos = details.todos;
-            nextId = details.nextId;
+        const data = e.data;
+        if (data?.todos) {
+            todos = data.todos;
+            nextId = data.nextId;
+            return;
         }
     }
 }
