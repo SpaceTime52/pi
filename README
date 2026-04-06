@@ -12,6 +12,7 @@
 
   EXTENSIONS
     notify … 에이전트 작업 완료 시 터미널 알림
+    todo … LLM용 todo 관리 도구
 
   SKILLS
     (none)
