@@ -9,7 +9,7 @@ export async function executeSingle(agent, task, opts) {
 export async function executeBatch(items, agents, opts) {
     const limit = opts.concurrency ?? MAX_CONCURRENCY;
     const results = [];
-    const pending = [];
+    const pending = new Set();
     for (const item of items) {
         const agent = getAgent(item.agent, agents);
         if (!agent) {
@@ -18,9 +18,10 @@ export async function executeBatch(items, agents, opts) {
         }
         const p = opts.runner(agent, item.task)
             .then((r) => { results.push(r); })
-            .catch((e) => { results.push(errorResult(item.agent, e.message)); });
-        pending.push(p);
-        if (pending.length >= limit)
+            .catch((e) => { results.push(errorResult(item.agent, e.message)); })
+            .finally(() => { pending.delete(p); });
+        pending.add(p);
+        if (pending.size >= limit)
             await Promise.race(pending);
     }
     await Promise.all(pending);

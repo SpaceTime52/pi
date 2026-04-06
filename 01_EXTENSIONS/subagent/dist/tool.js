@@ -41,7 +41,7 @@ function dispatch(cmd, agents, pi, ctx) {
         return textResult(dispatchBatch(cmd.items, agents, pi, ctx, cmd.main));
     if (cmd.type === "chain")
         return textResult(dispatchChain(cmd.steps, agents, pi, ctx, cmd.main));
-    return textResult(`continue not yet implemented for #${cmd.id}`);
+    return textResult(`continue not yet implemented for #${cmd.id}`, true);
 }
 export function createTool(pi, agentsDir) {
     const agents = existsSync(agentsDir)

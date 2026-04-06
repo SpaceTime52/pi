@@ -10,7 +10,6 @@ export interface DispatchCtx {
 }
 export declare function createRunner(main: boolean, ctx: DispatchCtx): (agent: AgentConfig, task: string) => Promise<RunResult>;
 export declare function dispatchRun(agent: AgentConfig, task: string, pi: SubagentPi, ctx: DispatchCtx, main: boolean): {
-    id: number;
     text: string;
 };
 export declare function dispatchBatch(items: Array<{
