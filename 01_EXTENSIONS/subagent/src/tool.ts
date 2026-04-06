@@ -53,6 +53,23 @@ function dispatch(cmd: Subcommand, agents: AgentConfig[], pi: SubagentPi, ctx: D
 	return textResult(dispatchContinue(cmd.id, cmd.task, agents, pi, ctx));
 }
 
+function buildSnippet(agents: AgentConfig[]): string {
+	const names = agents.map((a) => `${a.name} (${a.description})`).join(", ");
+	return `Dispatch subagents: ${names || "none loaded"}`;
+}
+
+function buildGuidelines(agents: AgentConfig[]): string[] {
+	const names = agents.map((a) => a.name).join(", ");
+	return [
+		`Available agents: ${names || "none"}`,
+		"Command format: run <agent> [--main] -- <task>",
+		"Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]",
+		"Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'",
+		"Management: continue <id> -- <task>, abort <id>, detail <id>, runs",
+		"Use --main to inject current conversation context into the subagent",
+	];
+}
+
 export function createTool(pi: SubagentPi, agentsDir: string) {
 	const agents = existsSync(agentsDir)
 		? loadAgentsFromDir(agentsDir, (d) => readdirSync(d).map(String), readFileSync as (p: string, e: string) => string)
@@ -60,7 +77,9 @@ export function createTool(pi: SubagentPi, agentsDir: string) {
 	return {
 		name: "subagent",
 		label: "Subagent",
-		description: "Run isolated subagent processes. Commands: run, batch, chain, continue, abort, detail, runs",
+		description: "Run isolated subagent processes in separate pi subprocesses with their own context window",
+		promptSnippet: buildSnippet(agents),
+		promptGuidelines: buildGuidelines(agents),
 		parameters: SubagentParams,
 		async execute(_id: string, params: { command: string }, _signal: unknown, _onUpdate: unknown, ctx: DispatchCtx) {
 			try { return dispatch(parseCommand(params.command), agents, pi, ctx); }
