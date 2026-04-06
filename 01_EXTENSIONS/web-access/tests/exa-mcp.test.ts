@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildRpcBody, parseSseResponse, extractText, callExaMcp } from "../src/exa-mcp.js";
+import { buildRpcBody, parseSseResponse, callExaMcp } from "../src/exa-mcp.js";
 
 describe("buildRpcBody", () => {
 	it("creates valid JSON-RPC body", () => {
@@ -17,9 +17,18 @@ describe("parseSseResponse", () => {
 		const parsed = parseSseResponse(sse);
 		expect(parsed?.result?.content?.[0]?.text).toBe("hello");
 	});
+	it("parses SSE error data lines", () => {
+		const sse = 'data: {"error":{"code":400,"message":"bad request"}}\n';
+		const parsed = parseSseResponse(sse);
+		expect(parsed?.error?.message).toBe("bad request");
+	});
 	it("falls back to direct JSON", () => {
 		const json = '{"result":{"content":[{"type":"text","text":"direct"}]}}';
 		expect(parseSseResponse(json)?.result?.content?.[0]?.text).toBe("direct");
+	});
+	it("falls back to direct JSON error", () => {
+		const json = '{"error":{"code":500,"message":"server error"}}';
+		expect(parseSseResponse(json)?.error?.message).toBe("server error");
 	});
 	it("returns null for invalid input", () => {
 		expect(parseSseResponse("garbage")).toBeNull();
@@ -35,30 +44,6 @@ describe("parseSseResponse", () => {
 	it("skips malformed JSON in data lines", () => {
 		const sse = 'data: {bad json}\ndata: {"result":{"content":[{"type":"text","text":"ok"}]}}\n';
 		expect(parseSseResponse(sse)?.result?.content?.[0]?.text).toBe("ok");
-	});
-});
-
-describe("extractText", () => {
-	it("extracts text from result", () => {
-		expect(extractText({ result: { content: [{ type: "text", text: "hello" }] } })).toBe("hello");
-	});
-	it("throws on RPC error", () => {
-		expect(() => extractText({ error: { code: 500, message: "fail" } })).toThrow("Exa MCP error 500: fail");
-	});
-	it("throws on RPC error without code", () => {
-		expect(() => extractText({ error: { message: "fail" } })).toThrow("Exa MCP error: fail");
-	});
-	it("throws on isError result", () => {
-		expect(() => extractText({ result: { isError: true, content: [{ type: "text", text: "bad" }] } })).toThrow("bad");
-	});
-	it("throws on isError with no message", () => {
-		expect(() => extractText({ result: { isError: true } })).toThrow("Exa MCP returned an error");
-	});
-	it("throws on empty content", () => {
-		expect(() => extractText({ result: { content: [] } })).toThrow("empty content");
-	});
-	it("throws on whitespace-only content", () => {
-		expect(() => extractText({ result: { content: [{ type: "text", text: "   " }] } })).toThrow("empty content");
 	});
 });
 

@@ -12,7 +12,8 @@ export interface ReadableResult {
 export function htmlToMarkdown(html: string): ReadableResult | null {
 	if (!html.trim()) return null;
 	const { document } = parseHTML(html);
-	const reader = new Readability(document as unknown as Document);
+	// @ts-expect-error linkedom Document satisfies Readability's DOM interface
+	const reader = new Readability(document);
 	const article = reader.parse();
 	if (!article) return null;
 	const markdown = turndown.turndown(article.content);
