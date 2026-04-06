@@ -399,20 +399,26 @@ function spawnAndCollect(cmd, args, id, agentName, signal, onEvent) {
 }
 
 // src/run-factory.ts
-function makeOnEvent(id, ctx, collected) {
+function makeOnEvent(id, ctx, collected, texts, onUpdate) {
   return (evt) => {
     collected.push({ type: evt.type, text: evt.text, toolName: evt.toolName });
     if (evt.type === "tool_start") {
       setCurrentTool(id, evt.toolName);
       syncWidget(ctx, listRuns());
+      texts.push(`\u2192 ${evt.toolName ?? ""}`);
+      onUpdate?.({ content: [{ type: "text", text: texts.join("\n") }] });
     }
     if (evt.type === "tool_end") {
       setCurrentTool(id, void 0);
       syncWidget(ctx, listRuns());
     }
+    if (evt.type === "message" && evt.text) {
+      texts.push(evt.text);
+      onUpdate?.({ content: [{ type: "text", text: texts.join("\n") }] });
+    }
   };
 }
-function createRunner(main, ctx) {
+function createRunner(main, ctx, onUpdate) {
   return async (agent, task) => {
     const id = nextId();
     const promptPath = join2(tmpdir(), `pi-sub-${agent.name}-${id}.md`);
@@ -434,7 +440,8 @@ ${mainCtx}`;
     const ac = new AbortController();
     addRun({ id, agent: agent.name, startedAt: Date.now(), abort: () => ac.abort() });
     const collected = [];
-    const onEvent = makeOnEvent(id, ctx, collected);
+    const texts = [];
+    const onEvent = makeOnEvent(id, ctx, collected, texts, onUpdate);
     try {
       const result = await withRetry(() => spawnAndCollect(cmd, args, id, agent.name, ac.signal, onEvent), MAX_RETRIES, RETRY_BASE_MS);
       addToHistory({ id, agent: agent.name, output: result.output, sessionFile: sessPath, events: collected });
@@ -445,7 +452,7 @@ ${mainCtx}`;
     }
   };
 }
-function createSessionRunner(sessFile, ctx) {
+function createSessionRunner(sessFile, ctx, onUpdate) {
   return async (agent, task) => {
     const id = nextId();
     const { cmd, base } = getPiCommand(process.execPath, process.argv[1], existsSync);
@@ -455,7 +462,8 @@ function createSessionRunner(sessFile, ctx) {
     const ac = new AbortController();
     addRun({ id, agent: agent.name, startedAt: Date.now(), abort: () => ac.abort() });
     const collected = [];
-    const onEvent = makeOnEvent(id, ctx, collected);
+    const texts = [];
+    const onEvent = makeOnEvent(id, ctx, collected, texts, onUpdate);
     try {
       const result = await withRetry(() => spawnAndCollect(cmd, args, id, agent.name, ac.signal, onEvent), MAX_RETRIES, RETRY_BASE_MS);
       addToHistory({ id, agent: agent.name, output: result.output, sessionFile: sessFile, events: collected });
@@ -468,24 +476,24 @@ function createSessionRunner(sessFile, ctx) {
 }
 
 // src/dispatch.ts
-async function dispatchRun(agent, task, ctx, main) {
-  const runner = createRunner(main, ctx);
+async function dispatchRun(agent, task, ctx, main, onUpdate) {
+  const runner = createRunner(main, ctx, onUpdate);
   try {
     return await executeSingle(agent, task, { runner });
   } finally {
     syncWidget(ctx, listRuns());
   }
 }
-async function dispatchBatch(items, agents, ctx, main) {
-  const runner = createRunner(main, ctx);
+async function dispatchBatch(items, agents, ctx, main, onUpdate) {
+  const runner = createRunner(main, ctx, onUpdate);
   try {
     return await executeBatch(items, agents, { runner });
   } finally {
     syncWidget(ctx, listRuns());
   }
 }
-async function dispatchChain(steps, agents, ctx, main) {
-  const runner = createRunner(main, ctx);
+async function dispatchChain(steps, agents, ctx, main, onUpdate) {
+  const runner = createRunner(main, ctx, onUpdate);
   try {
     return await executeChain(steps, agents, { runner });
   } finally {
@@ -499,14 +507,14 @@ function dispatchAbort(id) {
   removeRun(id);
   return `Run #${id} (${run.agent}) aborted`;
 }
-async function dispatchContinue(id, task, agents, ctx) {
+async function dispatchContinue(id, task, agents, ctx, onUpdate) {
   const hist = getRunHistory().find((r) => r.id === id);
   if (!hist) return `Run #${id} not found in history`;
   const sessFile = getSessionFile(id);
   if (!sessFile) return `Run #${id} not found in history`;
   const agent = getAgent(hist.agent, agents);
   if (!agent) return `Agent for run #${id} not found`;
-  const runner = createSessionRunner(sessFile, ctx);
+  const runner = createSessionRunner(sessFile, ctx, onUpdate);
   try {
     return await executeSingle(agent, task, { runner });
   } finally {
@@ -595,21 +603,21 @@ function formatDetail(id) {
   }
   return parts.join("\n");
 }
-async function dispatch(cmd, agents, pi, ctx) {
+async function dispatch(cmd, agents, pi, ctx, onUpdate) {
   if (cmd.type === "runs") return textResult(formatRunsList());
   if (cmd.type === "detail") return textResult(formatDetail(cmd.id));
   if (cmd.type === "abort") return textResult(dispatchAbort(cmd.id));
   if (cmd.type === "run") {
     const agent = getAgent(cmd.agent, agents);
     if (!agent) return textResult(`Unknown agent: ${cmd.agent}`);
-    return textResult(buildResultText(await dispatchRun(agent, cmd.task, ctx, cmd.main)));
+    return textResult(buildResultText(await dispatchRun(agent, cmd.task, ctx, cmd.main, onUpdate)));
   }
   if (cmd.type === "batch") {
-    const results = await dispatchBatch(cmd.items, agents, ctx, cmd.main);
+    const results = await dispatchBatch(cmd.items, agents, ctx, cmd.main, onUpdate);
     return textResult(results.map((r) => buildResultText(r)).join("\n---\n"));
   }
-  if (cmd.type === "chain") return textResult(buildResultText(await dispatchChain(cmd.steps, agents, ctx, cmd.main)));
-  const cont = await dispatchContinue(cmd.id, cmd.task, agents, ctx);
+  if (cmd.type === "chain") return textResult(buildResultText(await dispatchChain(cmd.steps, agents, ctx, cmd.main, onUpdate)));
+  const cont = await dispatchContinue(cmd.id, cmd.task, agents, ctx, onUpdate);
   return typeof cont === "string" ? textResult(cont) : textResult(buildResultText(cont));
 }
 function buildSnippet(agents) {
@@ -635,9 +643,9 @@ function createTool(pi, agentsDir) {
     promptSnippet: buildSnippet(agents),
     promptGuidelines: buildGuidelines(agents),
     parameters: SubagentParams,
-    async execute(_id, params, _signal, _onUpdate, ctx) {
+    async execute(_id, params, _signal, onUpdate, ctx) {
       try {
-        return await dispatch(parseCommand(params.command), agents, pi, ctx);
+        return await dispatch(parseCommand(params.command), agents, pi, ctx, onUpdate);
       } catch (e) {
         return textResult(`Error: ${errorMsg(e)}`, true);
       }

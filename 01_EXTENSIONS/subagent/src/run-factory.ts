@@ -18,17 +18,28 @@ export interface DispatchCtx {
 	sessionManager: { getBranch(): unknown[] };
 }
 
-function makeOnEvent(id: number, ctx: DispatchCtx, collected: HistoryEvent[]) {
+type OnUpdate = ((partial: { content: Array<{ type: string; text: string }> }) => void) | undefined;
+
+function makeOnEvent(id: number, ctx: DispatchCtx, collected: HistoryEvent[], texts: string[], onUpdate: OnUpdate) {
 	return (evt: ParsedEvent) => {
 		collected.push({ type: evt.type, text: evt.text, toolName: evt.toolName });
-		if (evt.type === "tool_start") { setCurrentTool(id, evt.toolName); syncWidget(ctx, listRuns()); }
+		if (evt.type === "tool_start") {
+			setCurrentTool(id, evt.toolName); syncWidget(ctx, listRuns());
+			texts.push(`→ ${evt.toolName ?? ""}`);
+			onUpdate?.({ content: [{ type: "text", text: texts.join("\n") }] });
+		}
 		if (evt.type === "tool_end") { setCurrentTool(id, undefined); syncWidget(ctx, listRuns()); }
+		if (evt.type === "message" && evt.text) {
+			texts.push(evt.text);
+			onUpdate?.({ content: [{ type: "text", text: texts.join("\n") }] });
+		}
 	};
 }
 
 export function createRunner(
 	main: boolean,
 	ctx: DispatchCtx,
+	onUpdate?: OnUpdate,
 ): (agent: AgentConfig, task: string) => Promise<RunResult> {
 	return async (agent, task) => {
 		const id = nextId();
@@ -48,7 +59,8 @@ export function createRunner(
 		const ac = new AbortController();
 		addRun({ id, agent: agent.name, startedAt: Date.now(), abort: () => ac.abort() });
 		const collected: HistoryEvent[] = [];
-		const onEvent = makeOnEvent(id, ctx, collected);
+		const texts: string[] = [];
+		const onEvent = makeOnEvent(id, ctx, collected, texts, onUpdate);
 		try {
 			const result = await withRetry(() => spawnAndCollect(cmd, args, id, agent.name, ac.signal, onEvent), MAX_RETRIES, RETRY_BASE_MS);
 			addToHistory({ id, agent: agent.name, output: result.output, sessionFile: sessPath, events: collected });
@@ -60,6 +72,7 @@ export function createRunner(
 export function createSessionRunner(
 	sessFile: string,
 	ctx: DispatchCtx,
+	onUpdate?: OnUpdate,
 ): (agent: AgentConfig, task: string) => Promise<RunResult> {
 	return async (agent, task) => {
 		const id = nextId();
@@ -70,7 +83,8 @@ export function createSessionRunner(
 		const ac = new AbortController();
 		addRun({ id, agent: agent.name, startedAt: Date.now(), abort: () => ac.abort() });
 		const collected: HistoryEvent[] = [];
-		const onEvent = makeOnEvent(id, ctx, collected);
+		const texts: string[] = [];
+		const onEvent = makeOnEvent(id, ctx, collected, texts, onUpdate);
 		try {
 			const result = await withRetry(() => spawnAndCollect(cmd, args, id, agent.name, ac.signal, onEvent), MAX_RETRIES, RETRY_BASE_MS);
 			addToHistory({ id, agent: agent.name, output: result.output, sessionFile: sessFile, events: collected });
