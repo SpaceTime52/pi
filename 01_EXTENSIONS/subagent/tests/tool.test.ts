@@ -62,13 +62,12 @@ describe("createTool", () => {
 		expect(r.content[0].text).toContain("found it");
 	});
 	it("run unknown agent", async () => { expect((await exec("run unknown -- task")).content[0].text).toContain("Unknown agent"); });
-	it("run known agent", async () => {
+	it("run known agent returns result", async () => {
 		const r = await exec("run scout -- find auth");
 		expect(r.content[0].text).toContain("scout");
-		expect(r.content[0].text).toContain("started");
 	});
-	it("batch command", async () => { expect((await exec("batch --agent scout --task find")).content[0].text).toContain("batch started"); });
-	it("chain command", async () => { expect((await exec("chain --agent scout --task find")).content[0].text).toContain("chain started"); });
+	it("batch returns results", async () => { expect((await exec("batch --agent scout --task find")).content[0].text).toContain("scout"); });
+	it("chain returns result", async () => { expect((await exec("chain --agent scout --task find")).content[0].text).toContain("scout"); });
 	it("abort active run", async () => {
 		addRun({ id: 10, agent: "scout", startedAt: Date.now(), abort: vi.fn() });
 		const r = await exec("abort 10");
@@ -82,10 +81,10 @@ describe("createTool", () => {
 		const r = await exec("continue 999 -- more");
 		expect(r.content[0].text).toContain("not found");
 	});
-	it("continue existing run", async () => {
+	it("continue existing run returns result", async () => {
 		addToHistory({ id: 1, agent: "scout", output: "ok", sessionFile: "/tmp/s.json" });
 		const r = await exec("continue 1 -- more");
-		expect(r.content[0].text).toContain("continue");
+		expect(r.content[0].text).toContain("scout");
 	});
 	it("result includes details", async () => {
 		const r = await exec("runs");

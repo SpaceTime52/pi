@@ -9,8 +9,8 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 export default function (pi: ExtensionAPI) {
-	pi.on("session_start", onSessionRestore(pi));
-	pi.on("session_tree", onSessionRestore(pi));
+	pi.on("session_start", onSessionRestore());
+	pi.on("session_tree", onSessionRestore());
 	pi.on("agent_end", async (_event, ctx) => {
 		pi.appendEntry("subagent-runs", buildRunsEntry());
 		syncWidget(ctx, listRuns());

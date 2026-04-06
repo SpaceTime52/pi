@@ -121,7 +121,6 @@ function listRuns() {
 import { join } from "path";
 import { homedir } from "os";
 var history = [];
-var pendingResults = [];
 function sessionPath(id, home) {
   return join(home ?? homedir(), ".pi", "agent", "sessions", "subagents", `run-${id}.json`);
 }
@@ -131,14 +130,8 @@ function addToHistory(item) {
 function getRunHistory() {
   return [...history];
 }
-function addPending(result) {
-  pendingResults.push(result);
-}
-function drainPending() {
-  return pendingResults.splice(0);
-}
 function buildRunsEntry() {
-  return { runs: [...history], pending: [...pendingResults], updatedAt: Date.now() };
+  return { runs: [...history], updatedAt: Date.now() };
 }
 function restoreRuns(entries) {
   const relevant = entries.filter(
@@ -147,12 +140,10 @@ function restoreRuns(entries) {
   const last = relevant.at(-1);
   if (!last?.data || typeof last.data !== "object") {
     history = [];
-    pendingResults = [];
     return;
   }
   const data = last.data;
   history = "runs" in data && Array.isArray(data.runs) ? [...data.runs] : [];
-  pendingResults = "pending" in data && Array.isArray(data.pending) ? [...data.pending] : [];
 }
 function getSessionFile(id) {
   return history.find((r) => r.id === id)?.sessionFile;
@@ -223,47 +214,6 @@ function formatDuration(ms) {
   const sec = Math.floor(ms / 1e3);
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}m ${sec % 60}s`;
-}
-
-// src/render.ts
-function buildCallText(params) {
-  try {
-    const cmd = parseCommand(params.command);
-    if (cmd.type === "run") return `\u25B6 subagent run ${cmd.agent} -- ${cmd.task}`;
-    if (cmd.type === "batch") return `\u25B6 subagent batch (${cmd.items.length} tasks)`;
-    if (cmd.type === "chain") return `\u25B6 subagent chain (${cmd.steps.length} steps)`;
-    if (cmd.type === "continue") return `\u25B6 subagent continue #${cmd.id} -- ${cmd.task}`;
-    if (cmd.type === "abort") return `\u25B6 subagent abort #${cmd.id}`;
-    if (cmd.type === "detail") return `\u25B6 subagent detail #${cmd.id}`;
-    return `\u25B6 subagent ${params.command}`;
-  } catch {
-    return `\u25B6 subagent ${params.command}`;
-  }
-}
-function buildResultText(result) {
-  const header = `${result.agent} #${result.id}`;
-  if (result.error) return `\u2717 ${header} error: ${result.error}`;
-  if (result.escalation) return `\u26A0 ${header} needs your input:
-${result.escalation}
-
-Use: subagent continue ${result.id} -- <your answer>`;
-  return `\u2713 ${header}
-${result.output}
-
-${formatUsage(result.usage)}`;
-}
-function textComponent(text) {
-  const lines = text.split("\n");
-  return { render(width) {
-    return lines.map((l) => l.slice(0, width));
-  } };
-}
-function renderCall(args) {
-  return textComponent(buildCallText(args));
-}
-function renderResult(result) {
-  const text = result.content.map((c) => c.text).join("\n");
-  return textComponent(text);
 }
 
 // src/widget.ts
@@ -518,39 +468,29 @@ function createSessionRunner(sessFile, ctx) {
 }
 
 // src/dispatch.ts
-function sendFollowUp(pi, result, customType = "subagent-result") {
+async function dispatchRun(agent, task, ctx, main) {
+  const runner = createRunner(main, ctx);
   try {
-    pi.sendMessage(
-      { customType, content: buildResultText(result), display: true },
-      { deliverAs: "followUp", triggerTurn: true }
-    );
-  } catch {
-    addPending(result);
+    return await executeSingle(agent, task, { runner });
+  } finally {
+    syncWidget(ctx, listRuns());
   }
 }
-function errorResult2(agent, e) {
-  return { id: 0, agent, output: "", error: e.message, usage: { inputTokens: 0, outputTokens: 0, turns: 0 } };
-}
-function dispatchRun(agent, task, pi, ctx, main) {
+async function dispatchBatch(items, agents, ctx, main) {
   const runner = createRunner(main, ctx);
-  executeSingle(agent, task, { runner }).then((r) => sendFollowUp(pi, r)).catch((e) => sendFollowUp(pi, errorResult2(agent.name, e))).finally(() => syncWidget(ctx, listRuns()));
-  syncWidget(ctx, listRuns());
-  return { text: `${agent.name} started` };
+  try {
+    return await executeBatch(items, agents, { runner });
+  } finally {
+    syncWidget(ctx, listRuns());
+  }
 }
-function dispatchBatch(items, agents, pi, ctx, main) {
+async function dispatchChain(steps, agents, ctx, main) {
   const runner = createRunner(main, ctx);
-  executeBatch(items, agents, { runner }).then((results) => {
-    const text = results.map((r) => buildResultText(r)).join("\n---\n");
-    pi.sendMessage({ customType: "subagent-batch", content: text, display: true }, { deliverAs: "followUp", triggerTurn: true });
-  }).finally(() => syncWidget(ctx, listRuns()));
-  syncWidget(ctx, listRuns());
-  return `batch started (${items.length} tasks)`;
-}
-function dispatchChain(steps, agents, pi, ctx, main) {
-  const runner = createRunner(main, ctx);
-  executeChain(steps, agents, { runner }).then((r) => sendFollowUp(pi, r)).finally(() => syncWidget(ctx, listRuns()));
-  syncWidget(ctx, listRuns());
-  return `chain started (${steps.length} steps)`;
+  try {
+    return await executeChain(steps, agents, { runner });
+  } finally {
+    syncWidget(ctx, listRuns());
+  }
 }
 function dispatchAbort(id) {
   const run = getRun(id);
@@ -559,7 +499,7 @@ function dispatchAbort(id) {
   removeRun(id);
   return `Run #${id} (${run.agent}) aborted`;
 }
-function dispatchContinue(id, task, agents, pi, ctx) {
+async function dispatchContinue(id, task, agents, ctx) {
   const hist = getRunHistory().find((r) => r.id === id);
   if (!hist) return `Run #${id} not found in history`;
   const sessFile = getSessionFile(id);
@@ -567,21 +507,64 @@ function dispatchContinue(id, task, agents, pi, ctx) {
   const agent = getAgent(hist.agent, agents);
   if (!agent) return `Agent for run #${id} not found`;
   const runner = createSessionRunner(sessFile, ctx);
-  executeSingle(agent, task, { runner }).then((r) => sendFollowUp(pi, r)).catch((e) => sendFollowUp(pi, errorResult2(agent.name, e))).finally(() => syncWidget(ctx, listRuns()));
-  return `continue #${id} (${agent.name}) started`;
+  try {
+    return await executeSingle(agent, task, { runner });
+  } finally {
+    syncWidget(ctx, listRuns());
+  }
 }
-function onSessionRestore(pi) {
+function onSessionRestore() {
   return async (_e, ctx) => {
     restoreRuns(ctx.sessionManager.getBranch());
     syncWidget(ctx, listRuns());
-    for (const r of drainPending()) {
-      pi.sendMessage({ customType: "subagent-pending", content: buildResultText(r), display: true }, { deliverAs: "followUp", triggerTurn: true });
-    }
   };
 }
 
 // src/tool.ts
 import { readdirSync, readFileSync, existsSync as existsSync2 } from "fs";
+
+// src/render.ts
+function buildCallText(params) {
+  try {
+    const cmd = parseCommand(params.command);
+    if (cmd.type === "run") return `\u25B6 subagent run ${cmd.agent} -- ${cmd.task}`;
+    if (cmd.type === "batch") return `\u25B6 subagent batch (${cmd.items.length} tasks)`;
+    if (cmd.type === "chain") return `\u25B6 subagent chain (${cmd.steps.length} steps)`;
+    if (cmd.type === "continue") return `\u25B6 subagent continue #${cmd.id} -- ${cmd.task}`;
+    if (cmd.type === "abort") return `\u25B6 subagent abort #${cmd.id}`;
+    if (cmd.type === "detail") return `\u25B6 subagent detail #${cmd.id}`;
+    return `\u25B6 subagent ${params.command}`;
+  } catch {
+    return `\u25B6 subagent ${params.command}`;
+  }
+}
+function buildResultText(result) {
+  const header = `${result.agent} #${result.id}`;
+  if (result.error) return `\u2717 ${header} error: ${result.error}`;
+  if (result.escalation) return `\u26A0 ${header} needs your input:
+${result.escalation}
+
+Use: subagent continue ${result.id} -- <your answer>`;
+  return `\u2713 ${header}
+${result.output}
+
+${formatUsage(result.usage)}`;
+}
+function textComponent(text) {
+  const lines = text.split("\n");
+  return { render(width) {
+    return lines.map((l) => l.slice(0, width));
+  } };
+}
+function renderCall(args) {
+  return textComponent(buildCallText(args));
+}
+function renderResult(result) {
+  const text = result.content.map((c) => c.text).join("\n");
+  return textComponent(text);
+}
+
+// src/tool.ts
 function textResult(text, isError = false) {
   return { content: [{ type: "text", text }], details: { isError } };
 }
@@ -612,35 +595,35 @@ function formatDetail(id) {
   }
   return parts.join("\n");
 }
-function dispatch(cmd, agents, pi, ctx) {
+async function dispatch(cmd, agents, pi, ctx) {
   if (cmd.type === "runs") return textResult(formatRunsList());
   if (cmd.type === "detail") return textResult(formatDetail(cmd.id));
+  if (cmd.type === "abort") return textResult(dispatchAbort(cmd.id));
   if (cmd.type === "run") {
     const agent = getAgent(cmd.agent, agents);
     if (!agent) return textResult(`Unknown agent: ${cmd.agent}`);
-    const { text } = dispatchRun(agent, cmd.task, pi, ctx, cmd.main);
-    return textResult(text);
+    return textResult(buildResultText(await dispatchRun(agent, cmd.task, ctx, cmd.main)));
   }
-  if (cmd.type === "batch") return textResult(dispatchBatch(cmd.items, agents, pi, ctx, cmd.main));
-  if (cmd.type === "chain") return textResult(dispatchChain(cmd.steps, agents, pi, ctx, cmd.main));
-  if (cmd.type === "abort") return textResult(dispatchAbort(cmd.id));
-  return textResult(dispatchContinue(cmd.id, cmd.task, agents, pi, ctx));
+  if (cmd.type === "batch") {
+    const results = await dispatchBatch(cmd.items, agents, ctx, cmd.main);
+    return textResult(results.map((r) => buildResultText(r)).join("\n---\n"));
+  }
+  if (cmd.type === "chain") return textResult(buildResultText(await dispatchChain(cmd.steps, agents, ctx, cmd.main)));
+  const cont = await dispatchContinue(cmd.id, cmd.task, agents, ctx);
+  return typeof cont === "string" ? textResult(cont) : textResult(buildResultText(cont));
 }
 function buildSnippet(agents) {
-  const names = agents.map((a) => `${a.name} (${a.description})`).join(", ");
-  return `Dispatch subagents: ${names || "none loaded"}`;
+  return `Dispatch subagents: ${agents.map((a) => `${a.name} (${a.description})`).join(", ") || "none loaded"}`;
 }
 function buildGuidelines(agents) {
-  const list = agents.map((a) => `  - ${a.name}: ${a.description}`);
   return [
     "Available agents:",
-    ...list,
+    ...agents.map((a) => `  - ${a.name}: ${a.description}`),
     "Command: run <agent> [--main] -- <task>",
     "Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]",
     "Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'",
     "Manage: continue <id> -- <task>, abort <id>, detail <id>, runs",
-    "ASYNC: run/batch/chain return immediately. The result arrives as a followUp message automatically.",
-    "After starting a subagent, tell the user it's running and STOP. Do NOT poll with runs/detail."
+    "The tool blocks until the subagent completes and returns the full result."
   ];
 }
 function createTool(pi, agentsDir) {
@@ -654,7 +637,7 @@ function createTool(pi, agentsDir) {
     parameters: SubagentParams,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       try {
-        return dispatch(parseCommand(params.command), agents, pi, ctx);
+        return await dispatch(parseCommand(params.command), agents, pi, ctx);
       } catch (e) {
         return textResult(`Error: ${errorMsg(e)}`, true);
       }
@@ -702,8 +685,8 @@ function buildSubCommand(agentsDir, sendUserMessage) {
 import { dirname as dirname2, join as join3 } from "path";
 import { fileURLToPath } from "url";
 function index_default(pi) {
-  pi.on("session_start", onSessionRestore(pi));
-  pi.on("session_tree", onSessionRestore(pi));
+  pi.on("session_start", onSessionRestore());
+  pi.on("session_tree", onSessionRestore());
   pi.on("agent_end", async (_event, ctx) => {
     pi.appendEntry("subagent-runs", buildRunsEntry());
     syncWidget(ctx, listRuns());

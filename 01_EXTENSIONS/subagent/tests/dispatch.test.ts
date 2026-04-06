@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { AgentConfig, RunResult, SubagentPi } from "../src/types.js";
+import type { AgentConfig, RunResult } from "../src/types.js";
 import { resetStore } from "../src/store.js";
 import { resetSession } from "../src/session.js";
 vi.mock("fs", async (orig) => {
@@ -7,57 +7,46 @@ vi.mock("fs", async (orig) => {
 	return { ...a, writeFileSync: vi.fn(), existsSync: vi.fn(() => true), mkdirSync: vi.fn() };
 });
 vi.mock("../src/spawn.js", () => ({ spawnAndCollect: vi.fn() }));
-import { dispatchRun, dispatchBatch, dispatchChain } from "../src/dispatch.js";
+import { dispatchRun, dispatchBatch, dispatchChain, onSessionRestore } from "../src/dispatch.js";
 import { spawnAndCollect } from "../src/spawn.js";
 const agent: AgentConfig = { name: "scout", description: "", systemPrompt: "find", filePath: "/a.md" };
 const ok: RunResult = { id: 1, agent: "scout", output: "found", usage: { inputTokens: 10, outputTokens: 5, turns: 1 } };
 const mock = () => (spawnAndCollect as ReturnType<typeof vi.fn>);
-const stubPi = (): SubagentPi => ({ sendMessage: vi.fn(), appendEntry: vi.fn() });
 const stubCtx = () => ({ hasUI: false, ui: { setWidget: vi.fn() }, sessionManager: { getBranch: () => [] } });
-const wait = (ms = 50) => new Promise((r) => setTimeout(r, ms));
 describe("dispatchRun", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
-	it("returns started message", () => {
+	it("returns RunResult directly", async () => {
 		mock().mockResolvedValue(ok);
-		const { text } = dispatchRun(agent, "find", stubPi(), stubCtx(), false);
-		expect(text).toContain("scout");
+		const result = await dispatchRun(agent, "find", stubCtx(), false);
+		expect(result.output).toBe("found");
 	});
-	it("sends followUp on success", async () => {
-		mock().mockResolvedValue(ok);
-		const pi = stubPi();
-		dispatchRun(agent, "find", pi, stubCtx(), false);
-		await wait();
-		expect(pi.sendMessage).toHaveBeenCalled();
-	});
-	it("sends error followUp on failure", async () => {
+	it("throws on failure", async () => {
 		mock().mockRejectedValue(new Error("crash"));
-		const pi = stubPi();
-		dispatchRun(agent, "find", pi, stubCtx(), false);
-		await wait();
-		expect((pi.sendMessage as ReturnType<typeof vi.fn>).mock.calls[0][0].content).toContain("error");
+		await expect(dispatchRun(agent, "find", stubCtx(), false)).rejects.toThrow("crash");
 	});
 });
-describe("dispatchBatch + dispatchChain", () => {
+describe("dispatchBatch", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
-	it("batch returns started", () => {
+	it("returns array of results", async () => {
 		mock().mockResolvedValue(ok);
-		expect(dispatchBatch([{ agent: "scout", task: "a" }], [agent], stubPi(), stubCtx(), false)).toContain("batch");
+		const results = await dispatchBatch([{ agent: "scout", task: "a" }], [agent], stubCtx(), false);
+		expect(results).toHaveLength(1);
+		expect(results[0].output).toBe("found");
 	});
-	it("batch sends results", async () => {
+});
+describe("dispatchChain", () => {
+	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
+	it("returns final result", async () => {
 		mock().mockResolvedValue(ok);
-		const pi = stubPi();
-		dispatchBatch([{ agent: "scout", task: "a" }], [agent], pi, stubCtx(), false);
-		await wait();
-		expect(pi.sendMessage).toHaveBeenCalled();
+		const result = await dispatchChain([{ agent: "scout", task: "a" }], [agent], stubCtx(), false);
+		expect(result.output).toBe("found");
 	});
-	it("chain returns started", () => {
-		mock().mockResolvedValue(ok);
-		expect(dispatchChain([{ agent: "scout", task: "a" }], [agent], stubPi(), stubCtx(), false)).toContain("chain");
-	});
-	it("chain sends result", async () => {
-		mock().mockResolvedValue(ok);
-		const pi = stubPi();
-		dispatchChain([{ agent: "scout", task: "a" }], [agent], pi, stubCtx(), false);
-		await wait(); expect(pi.sendMessage).toHaveBeenCalled();
+});
+describe("onSessionRestore", () => {
+	it("returns handler that restores and syncs", async () => {
+		const handler = onSessionRestore();
+		const ctx = { ...stubCtx(), hasUI: true };
+		await handler(undefined, ctx);
+		expect(ctx.ui.setWidget).toHaveBeenCalled();
 	});
 });

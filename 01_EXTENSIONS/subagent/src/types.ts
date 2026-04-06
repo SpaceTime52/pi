@@ -39,10 +39,6 @@ export interface ActiveRun {
 }
 
 export interface SubagentPi {
-	sendMessage(
-		msg: { customType: string; content: string; display: boolean },
-		opts?: { deliverAs?: string; triggerTurn?: boolean },
-	): void;
 	appendEntry(type: string, data?: unknown): void;
 }
 

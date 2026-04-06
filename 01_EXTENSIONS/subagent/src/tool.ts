@@ -8,7 +8,8 @@ import { dispatchRun, dispatchBatch, dispatchChain, dispatchAbort, dispatchConti
 import type { DispatchCtx } from "./dispatch.js";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import type { Subcommand } from "./types.js";
-import { renderCall, renderResult } from "./render.js";
+import { renderCall, renderResult, buildResultText } from "./render.js";
+import { formatUsage } from "./format.js";
 
 function textResult(text: string, isError = false) {
 	return { content: [{ type: "text" as const, text }], details: { isError } };
@@ -33,43 +34,41 @@ function formatDetail(id: number): string {
 			if (evt.type === "tool_start") parts.push(`  → ${evt.toolName}`);
 			if (evt.type === "message" && evt.text) parts.push(`  ${evt.text}`);
 		}
-	} else {
-		parts.push(item.output ?? "(no output)");
-	}
+	} else { parts.push(item.output ?? "(no output)"); }
 	return parts.join("\n");
 }
 
-function dispatch(cmd: Subcommand, agents: AgentConfig[], pi: SubagentPi, ctx: DispatchCtx) {
+async function dispatch(cmd: Subcommand, agents: AgentConfig[], pi: SubagentPi, ctx: DispatchCtx) {
 	if (cmd.type === "runs") return textResult(formatRunsList());
 	if (cmd.type === "detail") return textResult(formatDetail(cmd.id));
+	if (cmd.type === "abort") return textResult(dispatchAbort(cmd.id));
 	if (cmd.type === "run") {
 		const agent = getAgent(cmd.agent, agents);
 		if (!agent) return textResult(`Unknown agent: ${cmd.agent}`);
-		const { text } = dispatchRun(agent, cmd.task, pi, ctx, cmd.main);
-		return textResult(text);
+		return textResult(buildResultText(await dispatchRun(agent, cmd.task, ctx, cmd.main)));
 	}
-	if (cmd.type === "batch") return textResult(dispatchBatch(cmd.items, agents, pi, ctx, cmd.main));
-	if (cmd.type === "chain") return textResult(dispatchChain(cmd.steps, agents, pi, ctx, cmd.main));
-	if (cmd.type === "abort") return textResult(dispatchAbort(cmd.id));
-	return textResult(dispatchContinue(cmd.id, cmd.task, agents, pi, ctx));
+	if (cmd.type === "batch") {
+		const results = await dispatchBatch(cmd.items, agents, ctx, cmd.main);
+		return textResult(results.map((r) => buildResultText(r)).join("\n---\n"));
+	}
+	if (cmd.type === "chain") return textResult(buildResultText(await dispatchChain(cmd.steps, agents, ctx, cmd.main)));
+	const cont = await dispatchContinue(cmd.id, cmd.task, agents, ctx);
+	return typeof cont === "string" ? textResult(cont) : textResult(buildResultText(cont));
 }
 
 function buildSnippet(agents: AgentConfig[]): string {
-	const names = agents.map((a) => `${a.name} (${a.description})`).join(", ");
-	return `Dispatch subagents: ${names || "none loaded"}`;
+	return `Dispatch subagents: ${agents.map((a) => `${a.name} (${a.description})`).join(", ") || "none loaded"}`;
 }
 
 function buildGuidelines(agents: AgentConfig[]): string[] {
-	const list = agents.map((a) => `  - ${a.name}: ${a.description}`);
 	return [
 		"Available agents:",
-		...list,
+		...agents.map((a) => `  - ${a.name}: ${a.description}`),
 		"Command: run <agent> [--main] -- <task>",
 		"Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]",
 		"Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'",
 		"Manage: continue <id> -- <task>, abort <id>, detail <id>, runs",
-		"ASYNC: run/batch/chain return immediately. The result arrives as a followUp message automatically.",
-		"After starting a subagent, tell the user it's running and STOP. Do NOT poll with runs/detail.",
+		"The tool blocks until the subagent completes and returns the full result.",
 	];
 }
 
@@ -78,14 +77,13 @@ export function createTool(pi: SubagentPi, agentsDir: string) {
 		? loadAgentsFromDir(agentsDir, (d) => readdirSync(d).map(String), readFileSync as (p: string, e: string) => string)
 		: [];
 	return {
-		name: "subagent",
-		label: "Subagent",
+		name: "subagent", label: "Subagent",
 		description: "Run isolated subagent processes in separate pi subprocesses with their own context window",
 		promptSnippet: buildSnippet(agents),
 		promptGuidelines: buildGuidelines(agents),
 		parameters: SubagentParams,
 		async execute(_id: string, params: { command: string }, _signal: unknown, _onUpdate: unknown, ctx: DispatchCtx) {
-			try { return dispatch(parseCommand(params.command), agents, pi, ctx); }
+			try { return await dispatch(parseCommand(params.command), agents, pi, ctx); }
 			catch (e) { return textResult(`Error: ${errorMsg(e)}`, true); }
 		},
 		renderCall: (args: { command: string }) => renderCall(args),
