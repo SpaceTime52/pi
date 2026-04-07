@@ -25,6 +25,7 @@ export function stubContext(overrides: Partial<StubContext> = {}): StubContext {
 		modelRegistry: { getApiKeyAndHeaders: vi.fn(async () => ({ ok: false, error: "no auth" })) },
 		ui: { setTitle: vi.fn() },
 		sessionManager: {
+			getSessionId: () => "session-1",
 			getSessionName: () => undefined,
 			getEntries: () => [],
 			getCwd: () => "/Users/me/Desktop/pi",

@@ -17,7 +17,7 @@ export interface SessionTitleModelRegistry {
 	getApiKeyAndHeaders(model: SessionTitleModel): Promise<SessionTitleAuth>;
 }
 
-function isTitleableInput(input: string): boolean {
+export function isTitleableInput(input: string): boolean {
 	const raw = input.trim();
 	return raw.length > 0 && !raw.startsWith("/") && !raw.startsWith("!");
 }
