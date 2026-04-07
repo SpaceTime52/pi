@@ -1,1 +1,64 @@
 mcp … MCP 서버 통합 (proxy tool, lazy connection, metadata caching)
+
+설정
+  ~/.pi/agent/mcp.json (글로벌)
+  .pi/mcp.json (프로젝트별, 글로벌보다 우선)
+
+  예시:
+    {
+      "mcpServers": {
+        "filesystem": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+        },
+        "github": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-github"],
+          "env": { "GITHUB_TOKEN": "${GITHUB_TOKEN}" }
+        }
+      },
+      "imports": ["claude-desktop", "cursor"],
+      "settings": {
+        "toolPrefix": "server",
+        "idleTimeout": 10
+      }
+    }
+
+서버 옵션
+  command/args/env/cwd   stdio 서버 (npx, node 등)
+  url/headers            HTTP 서버 (StreamableHTTP → SSE 폴백)
+  auth                   "oauth" | "bearer"
+  bearerToken            직접 토큰 지정
+  bearerTokenEnv         환경변수에서 토큰 읽기
+  lifecycle              "lazy" (기본) | "eager" | "keep-alive"
+  idleTimeout            유휴 타임아웃 (분, 기본 10)
+  directTools            true | ["tool1", "tool2"] (proxy 우회 직접 등록)
+  exposeResources        리소스를 get_ tool로 노출 (기본 true)
+  debug                  서버 디버그 출력
+
+imports
+  다른 도구의 MCP 설정을 가져온다:
+  "cursor", "claude-code", "claude-desktop", "codex", "windsurf", "vscode"
+
+커맨드
+  /mcp status              서버 연결 상태
+  /mcp tools [server]      사용 가능한 tool 목록
+  /mcp connect <server>    수동 연결
+  /mcp disconnect <server> 연결 해제
+  /mcp reconnect [server]  재연결 (전체 or 특정)
+  /mcp auth <server>       OAuth 인증 설정
+  /mcp search <query>      tool 검색 (substring, /regex/)
+
+proxy tool
+  LLM이 자동으로 mcp tool을 호출한다:
+    mcp({ action: "call", tool: "list_files", server: "filesystem" })
+    mcp({ action: "search", query: "github" })
+    mcp({ action: "status" })
+
+direct tools
+  directTools 설정 시 proxy 없이 개별 tool로 등록:
+    github_create_issue({ title: "bug", body: "..." })
+
+환경변수
+  MCP_DIRECT_TOOLS   direct tool 오버라이드 ("__none__"=전체 비활성화)
+  ${VAR}             서버 command args, env, headers에서 치환
