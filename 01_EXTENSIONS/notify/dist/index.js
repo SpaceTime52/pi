@@ -27,10 +27,7 @@ function notify(title, body, write = (s) => process.stdout.write(s)) {
 
 // src/index.ts
 function index_default(pi) {
-  pi.on("agent_end", async (_event, ctx) => {
-    const message = buildReadyNotification(ctx.sessionManager.getSessionName());
-    notify(message.title, message.body);
-  });
+  pi.on("agent_end", async (_event, ctx) => notify(buildReadyNotification(ctx.sessionManager.getSessionName()).title, buildReadyNotification(ctx.sessionManager.getSessionName()).body));
 }
 export {
   index_default as default

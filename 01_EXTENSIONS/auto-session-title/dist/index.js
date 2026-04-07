@@ -52,29 +52,25 @@ function deriveSessionTitle(input, maxLength = DEFAULT_MAX_TITLE_LENGTH) {
 
 // src/handlers.ts
 function hasUserMessages(ctx) {
-  return ctx.sessionManager.getEntries().some((entry) => entry.type === "message" && entry.message.role === "user");
+  return ctx.sessionManager.getEntries().some((entry) => entry.type === "message" && entry.message?.role === "user");
 }
 function buildTerminalTitle(cwd, sessionName) {
   const cwdBasename = path.basename(cwd) || cwd;
   return `\u03C0 - ${sessionName} - ${cwdBasename}`;
 }
-async function handleInput(pi, event, ctx) {
+async function handleInput(runtime, event, ctx) {
   if (event.source === "extension") return;
-  if (pi.getSessionName() || ctx.sessionManager.getSessionName()) return;
+  if (runtime.getSessionName() || ctx.sessionManager.getSessionName()) return;
   if (hasUserMessages(ctx)) return;
   const title = deriveSessionTitle(event.text);
   if (!title) return;
-  pi.setSessionName(title);
-  if (ctx.hasUI) {
-    ctx.ui.setTitle(buildTerminalTitle(ctx.cwd || ctx.sessionManager.getCwd(), title));
-  }
+  runtime.setSessionName(title);
+  if (ctx.hasUI) ctx.ui.setTitle(buildTerminalTitle(ctx.cwd || ctx.sessionManager.getCwd(), title));
 }
 
 // src/index.ts
 function index_default(pi) {
-  pi.on("input", async (event, ctx) => {
-    await handleInput(pi, event, ctx);
-  });
+  pi.on("input", async (event, ctx) => handleInput({ getSessionName: () => pi.getSessionName(), setSessionName: (name) => pi.setSessionName(name) }, event, ctx));
 }
 export {
   index_default as default
