@@ -10,15 +10,21 @@ describe("proxyCall errors", () => {
 				? { name: "tool1", originalName: "tool1", serverName: "s1", description: "d" }
 				: undefined,
 		),
+		getAllMetadata: vi.fn(() => new Map()),
+		getConfig: vi.fn(() => null),
+		connectServer: vi.fn(async () => {}),
+		getBackoffMs: vi.fn(() => 0),
+		getFailure: vi.fn(() => undefined),
 		getOrConnect: vi.fn(async () => ({
 			name: "s1",
-			client: { callTool: vi.fn(async () => ({ content: [{ type: "text", text: "ok" }] })) },
-			status: "connected" as const,
-			lastUsedAt: 0,
-			inFlight: 0,
+			client: {
+				callTool: vi.fn(async () => ({ content: [{ type: "text", text: "ok" }] })),
+				readResource: vi.fn(async () => ({ contents: [] })),
+			},
+			status: "connected" as const, lastUsedAt: 0, inFlight: 0,
 		})),
 		checkConsent: vi.fn(async () => true),
-		transform: vi.fn((c: McpContent) => ({ type: "text", text: c.text ?? "" })),
+		transform: vi.fn((c: McpContent) => ({ type: "text" as const, text: c.text ?? "" })),
 	};
 
 	it("returns error when tool not found", async () => {
@@ -41,7 +47,10 @@ describe("proxyCall errors", () => {
 	});
 
 	it("propagates callTool error", async () => {
-		const failClient = { callTool: vi.fn(async () => { throw new Error("call failed"); }) };
+		const failClient = {
+			callTool: vi.fn(async () => { throw new Error("call failed"); }),
+			readResource: vi.fn(async () => ({ contents: [] })),
+		};
 		const deps = {
 			...baseDeps,
 			getOrConnect: vi.fn(async () => ({
@@ -55,15 +64,13 @@ describe("proxyCall errors", () => {
 	it("decrements inFlight even on error", async () => {
 		const conn = {
 			name: "s1",
-			client: { callTool: vi.fn(async () => { throw new Error("boom"); }) },
-			status: "connected" as const,
-			lastUsedAt: 0,
-			inFlight: 0,
+			client: {
+				callTool: vi.fn(async () => { throw new Error("boom"); }),
+				readResource: vi.fn(async () => ({ contents: [] })),
+			},
+			status: "connected" as const, lastUsedAt: 0, inFlight: 0,
 		};
-		const deps = {
-			...baseDeps,
-			getOrConnect: vi.fn(async () => conn),
-		};
+		const deps = { ...baseDeps, getOrConnect: vi.fn(async () => conn) };
 		await expect(proxyCall("tool1", {}, deps)).rejects.toThrow("boom");
 		expect(conn.inFlight).toBe(0);
 	});
@@ -73,7 +80,10 @@ describe("proxyCall errors", () => {
 			...baseDeps,
 			getOrConnect: vi.fn(async () => ({
 				name: "s1",
-				client: { callTool: vi.fn(async () => ({ content: [] })) },
+				client: {
+					callTool: vi.fn(async () => ({ content: [] })),
+					readResource: vi.fn(async () => ({ contents: [] })),
+				},
 				status: "connected" as const, lastUsedAt: 0, inFlight: 0,
 			})),
 		};

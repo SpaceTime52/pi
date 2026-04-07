@@ -49,6 +49,7 @@ function createProxyTool(_pi, buildDesc, makeDeps) {
   return {
     name: "mcp",
     label: "MCP",
+    promptSnippet: "MCP gateway - connect to MCP servers and call their tools",
     description: FALLBACK_DESC,
     parameters: ProxySchema,
     execute: async (_toolCallId, params) => {
@@ -123,7 +124,7 @@ async function handleDisconnect(name, closeFn, notify) {
     notify(`Failed to disconnect "${name}": ${errorMsg(err)}`, "error");
   }
 }
-async function handleReconnect(name, cfg, closeFn, connectFn, notify) {
+async function handleReconnect(name, cfg, closeFn, connectFn, notify, updateFooter) {
   const targets = name ? [name] : Object.keys(cfg.mcpServers);
   if (name && !cfg.mcpServers[name]) {
     notify(`Server "${name}" not found in config.`, "error");
@@ -138,6 +139,7 @@ async function handleReconnect(name, cfg, closeFn, connectFn, notify) {
       notify(`Failed to reconnect "${n}": ${errorMsg(err)}`, "error");
     }
   }
+  if (updateFooter) updateFooter();
 }
 function errorMsg(err) {
   return err instanceof Error ? err.message : String(err);
@@ -350,8 +352,7 @@ function classifyServers(config2) {
   const lazy = [];
   for (const [name, entry] of Object.entries(config2.mcpServers)) {
     const mode = entry.lifecycle ?? "lazy";
-    if (mode === "lazy") lazy.push({ name, entry, mode });
-    else eager.push({ name, entry, mode });
+    (mode === "lazy" ? lazy : eager).push({ name, entry, mode });
   }
   return { eager, lazy };
 }
@@ -380,7 +381,7 @@ function onSessionStart(pi, deps) {
     deps.logger.info("Session start: loading config");
     let config2;
     try {
-      config2 = deps.mergeConfigs(await deps.loadConfig());
+      config2 = deps.applyDirectToolsEnv(deps.mergeConfigs(await deps.loadConfig()));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       deps.logger.error(`Config load failed: ${msg}`);
