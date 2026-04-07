@@ -1,277 +1,277 @@
 ---
 name: subagent-driven-development
-description: Use when the user asks to execute a plan using subagents with per-task review
+description: 구현 계획이 있고, 작업들이 대체로 독립적이며, 서브에이전트를 활용해 높은 신뢰도로 현재 세션에서 실행해야 할 때 사용한다.
 ---
 
-# Subagent-Driven Development
+# 서브에이전트 주도 개발
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+계획의 각 작업마다 새로운 서브에이전트를 보내 실행하고, 각 작업 뒤에는 2단계 리뷰를 수행한다. 먼저 명세 준수 리뷰를 하고, 그다음 코드 품질 리뷰를 한다.
 
-**Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
+**왜 서브에이전트를 쓰는가:** 당신은 격리된 컨텍스트를 가진 전문 에이전트에게 작업을 위임한다. 지시사항과 컨텍스트를 정확하게 구성하면, 각 에이전트가 작업에 집중한 채 성공적으로 수행하도록 만들 수 있다. 이들은 현재 세션의 컨텍스트나 이력을 그대로 물려받아서는 안 되며, 필요한 정보만 당신이 직접 구성해 전달해야 한다. 이렇게 하면 조율 작업을 위한 당신 자신의 컨텍스트도 보존할 수 있다.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**핵심 원칙:** 작업마다 새로운 서브에이전트 + 2단계 리뷰(명세 후 품질) = 높은 품질과 빠른 반복
 
-## When to Use
+## 사용 시점
 
 ```dot
 digraph when_to_use {
-    "Have implementation plan?" [shape=diamond];
-    "Tasks mostly independent?" [shape=diamond];
-    "Stay in this session?" [shape=diamond];
+    "구현 계획이 있는가?" [shape=diamond];
+    "작업들이 대체로 독립적인가?" [shape=diamond];
+    "이 세션 안에서 계속 진행할 것인가?" [shape=diamond];
     "subagent-driven-development" [shape=box];
     "executing-plans" [shape=box];
-    "Manual execution or brainstorm first" [shape=box];
+    "수동 실행 또는 먼저 브레인스토밍" [shape=box];
 
-    "Have implementation plan?" -> "Tasks mostly independent?" [label="yes"];
-    "Have implementation plan?" -> "Manual execution or brainstorm first" [label="no"];
-    "Tasks mostly independent?" -> "Stay in this session?" [label="yes"];
-    "Tasks mostly independent?" -> "Manual execution or brainstorm first" [label="no - tightly coupled"];
-    "Stay in this session?" -> "subagent-driven-development" [label="yes"];
-    "Stay in this session?" -> "executing-plans" [label="no - parallel session"];
+    "구현 계획이 있는가?" -> "작업들이 대체로 독립적인가?" [label="예"];
+    "구현 계획이 있는가?" -> "수동 실행 또는 먼저 브레인스토밍" [label="아니오"];
+    "작업들이 대체로 독립적인가?" -> "이 세션 안에서 계속 진행할 것인가?" [label="예"];
+    "작업들이 대체로 독립적인가?" -> "수동 실행 또는 먼저 브레인스토밍" [label="아니오 - 강하게 결합됨"];
+    "이 세션 안에서 계속 진행할 것인가?" -> "subagent-driven-development" [label="예"];
+    "이 세션 안에서 계속 진행할 것인가?" -> "executing-plans" [label="아니오 - 병렬 세션"];
 }
 ```
 
-**vs. Executing Plans (parallel session):**
-- Same session (no context switch)
-- Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
-- Faster iteration (no human-in-loop between tasks)
+**Executing Plans(병렬 세션)와 비교하면:**
+- 같은 세션에서 진행한다(컨텍스트 전환 없음)
+- 작업마다 새로운 서브에이전트를 쓴다(컨텍스트 오염 없음)
+- 각 작업 뒤에 2단계 리뷰를 한다: 먼저 명세 준수, 그다음 코드 품질
+- 작업 사이에 사람 확인 단계를 두지 않아 반복이 더 빠르다
 
-## The Process
+## 진행 절차
 
 ```dot
 digraph process {
     rankdir=TB;
 
     subgraph cluster_per_task {
-        label="Per Task";
-        "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
-        "Implementer subagent asks questions?" [shape=diamond];
-        "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
-        "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
-        "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
-        "Implementer subagent fixes spec gaps" [shape=box];
-        "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
-        "Code quality reviewer subagent approves?" [shape=diamond];
-        "Implementer subagent fixes quality issues" [shape=box];
-        "Mark task complete in todo" [shape=box];
+        label="작업별 절차";
+        "구현 서브에이전트 디스패치 (./implementer-prompt.md)" [shape=box];
+        "구현 서브에이전트가 질문하는가?" [shape=diamond];
+        "질문에 답하고 컨텍스트 제공" [shape=box];
+        "구현 서브에이전트가 구현, 테스트, 커밋, 셀프 리뷰 수행" [shape=box];
+        "명세 리뷰어 서브에이전트 디스패치 (./spec-reviewer-prompt.md)" [shape=box];
+        "명세 리뷰어 서브에이전트가 코드가 명세와 일치함을 확인하는가?" [shape=diamond];
+        "구현 서브에이전트가 명세 누락 수정" [shape=box];
+        "코드 품질 리뷰어 서브에이전트 디스패치 (./code-quality-reviewer-prompt.md)" [shape=box];
+        "코드 품질 리뷰어 서브에이전트가 승인하는가?" [shape=diamond];
+        "구현 서브에이전트가 품질 이슈 수정" [shape=box];
+        "todo에서 작업 완료 표시" [shape=box];
     }
 
-    "Read plan, extract all tasks with full text, note context, create todo" [shape=box];
-    "More tasks remain?" [shape=diamond];
-    "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "계획을 읽고, 모든 작업의 전체 문구를 추출하고, 컨텍스트를 메모하고, todo 생성" [shape=box];
+    "남은 작업이 더 있는가?" [shape=diamond];
+    "전체 구현에 대해 최종 코드 리뷰어 서브에이전트 디스패치" [shape=box];
+    "finishing-a-development-branch 사용" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create todo" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
-    "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
-    "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
-    "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
-    "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
-    "Spec reviewer subagent confirms code matches spec?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
-    "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
-    "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
-    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Mark task complete in todo" [label="yes"];
-    "Mark task complete in todo" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use finishing-a-development-branch";
+    "계획을 읽고, 모든 작업의 전체 문구를 추출하고, 컨텍스트를 메모하고, todo 생성" -> "구현 서브에이전트 디스패치 (./implementer-prompt.md)";
+    "구현 서브에이전트 디스패치 (./implementer-prompt.md)" -> "구현 서브에이전트가 질문하는가?";
+    "구현 서브에이전트가 질문하는가?" -> "질문에 답하고 컨텍스트 제공" [label="예"];
+    "질문에 답하고 컨텍스트 제공" -> "구현 서브에이전트 디스패치 (./implementer-prompt.md)";
+    "구현 서브에이전트가 질문하는가?" -> "구현 서브에이전트가 구현, 테스트, 커밋, 셀프 리뷰 수행" [label="아니오"];
+    "구현 서브에이전트가 구현, 테스트, 커밋, 셀프 리뷰 수행" -> "명세 리뷰어 서브에이전트 디스패치 (./spec-reviewer-prompt.md)";
+    "명세 리뷰어 서브에이전트 디스패치 (./spec-reviewer-prompt.md)" -> "명세 리뷰어 서브에이전트가 코드가 명세와 일치함을 확인하는가?";
+    "명세 리뷰어 서브에이전트가 코드가 명세와 일치함을 확인하는가?" -> "구현 서브에이전트가 명세 누락 수정" [label="아니오"];
+    "구현 서브에이전트가 명세 누락 수정" -> "명세 리뷰어 서브에이전트 디스패치 (./spec-reviewer-prompt.md)" [label="재검토"];
+    "명세 리뷰어 서브에이전트가 코드가 명세와 일치함을 확인하는가?" -> "코드 품질 리뷰어 서브에이전트 디스패치 (./code-quality-reviewer-prompt.md)" [label="예"];
+    "코드 품질 리뷰어 서브에이전트 디스패치 (./code-quality-reviewer-prompt.md)" -> "코드 품질 리뷰어 서브에이전트가 승인하는가?";
+    "코드 품질 리뷰어 서브에이전트가 승인하는가?" -> "구현 서브에이전트가 품질 이슈 수정" [label="아니오"];
+    "구현 서브에이전트가 품질 이슈 수정" -> "코드 품질 리뷰어 서브에이전트 디스패치 (./code-quality-reviewer-prompt.md)" [label="재검토"];
+    "코드 품질 리뷰어 서브에이전트가 승인하는가?" -> "todo에서 작업 완료 표시" [label="예"];
+    "todo에서 작업 완료 표시" -> "남은 작업이 더 있는가?";
+    "남은 작업이 더 있는가?" -> "구현 서브에이전트 디스패치 (./implementer-prompt.md)" [label="예"];
+    "남은 작업이 더 있는가?" -> "전체 구현에 대해 최종 코드 리뷰어 서브에이전트 디스패치" [label="아니오"];
+    "전체 구현에 대해 최종 코드 리뷰어 서브에이전트 디스패치" -> "finishing-a-development-branch 사용";
 }
 ```
 
-## Model Selection
+## 모델 선택
 
-Use the least powerful model that can handle each role to conserve cost and increase speed.
+비용을 아끼고 속도를 높이기 위해, 각 역할을 처리할 수 있는 범위 안에서 가장 약한 모델을 사용한다.
 
-**Mechanical implementation tasks** (isolated functions, clear specs, 1-2 files): use a fast, cheap model. Most implementation tasks are mechanical when the plan is well-specified.
+**기계적인 구현 작업**(격리된 함수, 명확한 명세, 1~2개 파일): 빠르고 저렴한 모델을 사용한다. 계획이 잘 구체화되어 있다면 대부분의 구현 작업은 기계적이다.
 
-**Integration and judgment tasks** (multi-file coordination, pattern matching, debugging): use a standard model.
+**통합과 판단이 필요한 작업**(여러 파일 조율, 패턴 매칭, 디버깅): 표준 모델을 사용한다.
 
-**Architecture, design, and review tasks**: use the most capable available model.
+**아키텍처, 설계, 리뷰 작업**: 가장 성능이 좋은 모델을 사용한다.
 
-**Task complexity signals:**
-- Touches 1-2 files with a complete spec → cheap model
-- Touches multiple files with integration concerns → standard model
-- Requires design judgment or broad codebase understanding → most capable model
+**작업 복잡도 신호:**
+- 완전한 명세와 함께 1~2개 파일만 건드린다 → 저렴한 모델
+- 여러 파일을 건드리고 통합 이슈가 있다 → 표준 모델
+- 설계 판단이나 넓은 코드베이스 이해가 필요하다 → 가장 성능이 좋은 모델
 
-## Handling Implementer Status
+## 구현 담당 상태 처리
 
-Implementer subagents report one of four statuses. Handle each appropriately:
+구현 서브에이전트는 네 가지 상태 중 하나를 보고한다. 각 상태에 맞게 처리한다.
 
-**DONE:** Proceed to spec compliance review.
+**DONE:** 명세 준수 리뷰로 진행한다.
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
+**DONE_WITH_CONCERNS:** 구현은 완료했지만 우려 사항을 표시했다. 다음 단계로 가기 전에 우려 내용을 읽는다. 우려가 정확성이나 범위에 관한 것이라면 리뷰 전에 먼저 해결한다. 단순 관찰(예: "이 파일이 너무 커지고 있다")이라면 메모만 남기고 리뷰로 진행한다.
 
-**NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
+**NEEDS_CONTEXT:** 제공된 정보가 부족해 구현을 진행할 수 없다. 빠진 컨텍스트를 제공하고 다시 디스패치한다.
 
-**BLOCKED:** The implementer cannot complete the task. Assess the blocker:
-1. If it's a context problem, provide more context and re-dispatch with the same model
-2. If the task requires more reasoning, re-dispatch with a more capable model
-3. If the task is too large, break it into smaller pieces
-4. If the plan itself is wrong, escalate to the human
+**BLOCKED:** 구현 서브에이전트가 작업을 완료할 수 없다. 막힌 원인을 평가한다.
+1. 컨텍스트 문제라면, 더 많은 컨텍스트를 제공하고 같은 모델로 다시 디스패치한다
+2. 더 많은 추론이 필요한 작업이라면, 더 강한 모델로 다시 디스패치한다
+3. 작업이 너무 크다면, 더 작은 단위로 나눈다
+4. 계획 자체가 잘못되었다면, 사람에게 에스컬레이션한다
 
-**Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
+구현 서브에이전트의 에스컬레이션을 **절대** 무시하거나, 아무 변경 없이 같은 모델로 재시도시키지 않는다. 구현 서브에이전트가 막혔다고 했다면, 무언가는 바뀌어야 한다.
 
-## Prompt Templates
+## 프롬프트 템플릿
 
-- `./implementer-prompt.md` - Dispatch implementer subagent
-- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
-- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+- `./implementer-prompt.md` - 구현 서브에이전트 디스패치
+- `./spec-reviewer-prompt.md` - 명세 준수 리뷰어 서브에이전트 디스패치
+- `./code-quality-reviewer-prompt.md` - 코드 품질 리뷰어 서브에이전트 디스패치
 
-## Example Workflow
+## 예시 워크플로
 
 ```
-You: I'm using Subagent-Driven Development to execute this plan.
+You: 이 계획을 실행하기 위해 Subagent-Driven Development를 사용하겠습니다.
 
-[Read plan file once: docs/plans/feature-plan.md]
-[Extract all 5 tasks with full text and context]
-[Create todo with all tasks]
+[계획 파일을 한 번 읽기: docs/plans/feature-plan.md]
+[모든 작업 5개의 전체 문구와 컨텍스트 추출]
+[모든 작업으로 todo 생성]
 
-Task 1: Hook installation script
+작업 1: Hook installation script
 
-[Get Task 1 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
+[작업 1의 문구와 컨텍스트 가져오기(이미 추출됨)]
+[전체 작업 문구 + 컨텍스트와 함께 구현 서브에이전트 디스패치]
 
-Implementer: "Before I begin - should the hook be installed at user or system level?"
+Implementer: "시작하기 전에 확인이 필요합니다 - hook을 사용자 수준에 설치해야 하나요, 시스템 수준에 설치해야 하나요?"
 
-You: "User level (~/.config/hooks/)"
+You: "사용자 수준입니다 (~/.config/hooks/)"
 
-Implementer: "Got it. Implementing now..."
-[Later] Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
-  - Committed
+Implementer: "확인했습니다. 지금 구현하겠습니다..."
+[잠시 후] Implementer:
+  - install-hook command 구현
+  - 테스트 추가, 5/5 통과
+  - 셀프 리뷰: --force 플래그를 빼먹은 것을 발견해 추가함
+  - 커밋 완료
 
-[Dispatch spec compliance reviewer]
-Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
+[명세 준수 리뷰어 디스패치]
+Spec reviewer: ✅ 명세 준수 - 모든 요구사항 충족, 불필요한 추가 없음
 
-[Get git SHAs, dispatch code quality reviewer]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
+[git SHA를 구하고 코드 품질 리뷰어 디스패치]
+Code reviewer: Strengths: 테스트 커버리지가 좋고 코드가 깔끔함. Issues: 없음. Approved.
 
-[Mark Task 1 complete]
+[작업 1 완료 표시]
 
-Task 2: Recovery modes
+작업 2: Recovery modes
 
-[Get Task 2 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
+[작업 2의 문구와 컨텍스트 가져오기(이미 추출됨)]
+[전체 작업 문구 + 컨텍스트와 함께 구현 서브에이전트 디스패치]
 
-Implementer: [No questions, proceeds]
+Implementer: [질문 없이 진행]
 Implementer:
-  - Added verify/repair modes
-  - 8/8 tests passing
-  - Self-review: All good
-  - Committed
+  - verify/repair 모드 추가
+  - 테스트 8/8 통과
+  - 셀프 리뷰: 이상 없음
+  - 커밋 완료
 
-[Dispatch spec compliance reviewer]
+[명세 준수 리뷰어 디스패치]
 Spec reviewer: ❌ Issues:
-  - Missing: Progress reporting (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
+  - 누락: 진행 상황 보고 (명세에는 "100개마다 보고"라고 되어 있음)
+  - 추가됨: --json 플래그 추가됨(요청되지 않음)
 
-[Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
+[Implementer가 이슈 수정]
+Implementer: --json 플래그 제거, 진행 상황 보고 추가
 
-[Spec reviewer reviews again]
-Spec reviewer: ✅ Spec compliant now
+[Spec reviewer가 다시 검토]
+Spec reviewer: ✅ 이제 명세 준수
 
-[Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
+[코드 품질 리뷰어 디스패치]
+Code reviewer: Strengths: 탄탄함. Issues (Important): 매직 넘버(100)
 
-[Implementer fixes]
-Implementer: Extracted PROGRESS_INTERVAL constant
+[Implementer가 수정]
+Implementer: PROGRESS_INTERVAL 상수 추출
 
-[Code reviewer reviews again]
-Code reviewer: ✅ Approved
+[Code reviewer가 다시 검토]
+Code reviewer: ✅ 승인
 
-[Mark Task 2 complete]
+[작업 2 완료 표시]
 
 ...
 
-[After all tasks]
-[Dispatch final code-reviewer]
-Final reviewer: All requirements met, ready to merge
+[모든 작업이 끝난 후]
+[최종 code-reviewer 디스패치]
+Final reviewer: 모든 요구사항 충족, 머지 준비 완료
 
-Done!
+완료!
 ```
 
-## Advantages
+## 장점
 
-**vs. Manual execution:**
-- Subagents follow TDD naturally
-- Fresh context per task (no confusion)
-- Parallel-safe (subagents don't interfere)
-- Subagent can ask questions (before AND during work)
+**수동 실행과 비교하면:**
+- 서브에이전트는 자연스럽게 TDD를 따른다
+- 작업마다 새로운 컨텍스트를 쓴다(혼란 감소)
+- 병렬 안전하다(서브에이전트끼리 간섭하지 않음)
+- 서브에이전트가 작업 전뿐 아니라 작업 중에도 질문할 수 있다
 
-**vs. Executing Plans:**
-- Same session (no handoff)
-- Continuous progress (no waiting)
-- Review checkpoints automatic
+**Executing Plans와 비교하면:**
+- 같은 세션에서 진행한다(핸드오프 없음)
+- 진행이 끊기지 않는다(대기 시간 없음)
+- 리뷰 체크포인트가 자동으로 들어간다
 
-**Efficiency gains:**
-- No file reading overhead (controller provides full text)
-- Controller curates exactly what context is needed
-- Subagent gets complete information upfront
-- Questions surfaced before work begins (not after)
+**효율성 이점:**
+- 파일을 읽는 오버헤드가 없다(컨트롤러가 전체 문구를 제공함)
+- 컨트롤러가 어떤 컨텍스트가 필요한지 정확히 선별한다
+- 서브에이전트는 시작 전에 필요한 정보를 완전하게 받는다
+- 질문이 작업 시작 후가 아니라 시작 전에 드러난다
 
-**Quality gates:**
-- Self-review catches issues before handoff
-- Two-stage review: spec compliance, then code quality
-- Review loops ensure fixes actually work
-- Spec compliance prevents over/under-building
-- Code quality ensures implementation is well-built
+**품질 게이트:**
+- 셀프 리뷰가 핸드오프 전 이슈를 먼저 잡아낸다
+- 2단계 리뷰: 명세 준수 후 코드 품질
+- 리뷰 루프가 수정이 실제로 작동하는지 확인한다
+- 명세 준수 검토가 과잉 구현과 과소 구현을 막는다
+- 코드 품질 검토가 구현의 완성도를 보장한다
 
-**Cost:**
-- More subagent invocations (implementer + 2 reviewers per task)
-- Controller does more prep work (extracting all tasks upfront)
-- Review loops add iterations
-- But catches issues early (cheaper than debugging later)
+**비용:**
+- 더 많은 서브에이전트 호출이 필요하다(작업마다 구현자 + 리뷰어 2명)
+- 컨트롤러의 사전 준비 작업이 늘어난다(모든 작업을 미리 추출해야 함)
+- 리뷰 루프 때문에 반복 횟수가 늘어난다
+- 하지만 문제를 초기에 잡아내므로, 나중에 디버깅하는 것보다 더 저렴하다
 
-## Red Flags
+## 위험 신호
 
-**Never:**
-- Start implementation on main/master branch without explicit user consent
-- Skip reviews (spec compliance OR code quality)
-- Proceed with unfixed issues
-- Dispatch multiple implementation subagents in parallel (conflicts)
-- Make subagent read plan file (provide full text instead)
-- Skip scene-setting context (subagent needs to understand where task fits)
-- Ignore subagent questions (answer before letting them proceed)
-- Accept "close enough" on spec compliance (spec reviewer found issues = not done)
-- Skip review loops (reviewer found issues = implementer fixes = review again)
-- Let implementer self-review replace actual review (both are needed)
-- **Start code quality review before spec compliance is ✅** (wrong order)
-- Move to next task while either review has open issues
+**절대 하지 말 것:**
+- 명시적인 사용자 동의 없이 main/master 브랜치에서 구현을 시작하지 않는다
+- 리뷰를 생략하지 않는다(명세 준수 또는 코드 품질)
+- 수정되지 않은 이슈를 남긴 채 진행하지 않는다
+- 여러 구현 서브에이전트를 병렬로 보내지 않는다(충돌 위험)
+- 서브에이전트에게 계획 파일을 직접 읽게 하지 않는다(대신 전체 문구를 제공한다)
+- 장면 설정용 컨텍스트를 생략하지 않는다(서브에이전트는 작업의 위치를 이해해야 한다)
+- 서브에이전트의 질문을 무시하지 않는다(진행시키기 전에 답한다)
+- 명세 준수에서 "거의 맞음"을 받아들이지 않는다(명세 리뷰어가 이슈를 찾았다면 끝난 것이 아님)
+- 리뷰 루프를 생략하지 않는다(리뷰어가 이슈를 찾으면 구현자가 수정하고 다시 리뷰받아야 함)
+- 구현자의 셀프 리뷰로 실제 리뷰를 대체하지 않는다(둘 다 필요하다)
+- **명세 준수 리뷰가 ✅ 되기 전에 코드 품질 리뷰를 시작하지 않는다** (순서가 잘못됨)
+- 둘 중 어느 리뷰라도 열린 이슈가 남아 있는데 다음 작업으로 넘어가지 않는다
 
-**If subagent asks questions:**
-- Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
+**서브에이전트가 질문하면:**
+- 명확하고 충분하게 답한다
+- 필요하면 추가 컨텍스트를 제공한다
+- 서둘러 구현부터 하게 만들지 않는다
 
-**If reviewer finds issues:**
-- Implementer (same subagent) fixes them
-- Reviewer reviews again
-- Repeat until approved
-- Don't skip the re-review
+**리뷰어가 이슈를 찾으면:**
+- 구현자(같은 서브에이전트)가 수정한다
+- 리뷰어가 다시 검토한다
+- 승인될 때까지 반복한다
+- 재검토를 건너뛰지 않는다
 
-**If subagent fails task:**
-- Dispatch fix subagent with specific instructions
-- Don't try to fix manually (context pollution)
+**서브에이전트가 작업에 실패하면:**
+- 구체적인 지시와 함께 수정용 서브에이전트를 보낸다
+- 직접 수동으로 고치려 들지 않는다(컨텍스트 오염)
 
-## Integration
+## 통합
 
-**Required workflow skills:**
-- **using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **writing-plans** - Creates the plan this skill executes
-- **requesting-code-review** - Code review template for reviewer subagents
-- **finishing-a-development-branch** - Complete development after all tasks
+**필수 워크플로 스킬:**
+- **using-git-worktrees** - 필수: 시작 전에 격리된 작업 공간을 설정한다
+- **writing-plans** - 이 스킬이 실행할 계획을 만든다
+- **requesting-code-review** - 리뷰어 서브에이전트용 코드 리뷰 템플릿을 제공한다
+- **finishing-a-development-branch** - 모든 작업 후 개발을 마무리한다
 
-**Subagents should use:**
-- **test-driven-development** - Subagents follow TDD for each task
+**서브에이전트가 사용해야 하는 것:**
+- **test-driven-development** - 서브에이전트는 각 작업마다 TDD를 따른다
 
-**Alternative workflow:**
-- **executing-plans** - Use for parallel session instead of same-session execution
+**대안 워크플로:**
+- **executing-plans** - 같은 세션 실행 대신 병렬 세션이 필요할 때 사용한다

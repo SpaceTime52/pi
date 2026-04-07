@@ -1,49 +1,49 @@
-# Spec Document Reviewer Prompt Template
+# 스펙 문서 리뷰어 프롬프트 템플릿
 
-Use this template when dispatching a spec document reviewer via the `subagent` tool.
+`subagent` 도구로 스펙 문서 리뷰어를 호출할 때 이 템플릿을 사용한다.
 
-**Purpose:** Verify the spec is complete, consistent, and ready for implementation planning.
+**목적:** 스펙이 완전하고 일관되며 구현 계획 수립을 시작할 준비가 되었는지 검증한다.
 
-**Dispatch after:** Spec document is written to docs/specs/
+**호출 시점:** 스펙 문서가 docs/specs/에 작성된 뒤
 
 ```
 subagent tool:
-  description: "Review spec document"
+  description: "스펙 문서 검토"
   prompt: |
-    You are a spec document reviewer. Verify this spec is complete and ready for planning.
+    당신은 스펙 문서 리뷰어다. 이 스펙이 완전하며 계획 수립을 시작할 준비가 되었는지 검증하라.
 
-    **Spec to review:** [SPEC_FILE_PATH]
+    **검토할 스펙:** [SPEC_FILE_PATH]
 
-    ## What to Check
+    ## 확인할 항목
 
-    | Category | What to Look For |
-    |----------|------------------|
-    | Completeness | TODOs, placeholders, "TBD", incomplete sections |
-    | Consistency | Internal contradictions, conflicting requirements |
-    | Clarity | Requirements ambiguous enough to cause someone to build the wrong thing |
-    | Scope | Focused enough for a single plan — not covering multiple independent subsystems |
-    | YAGNI | Unrequested features, over-engineering |
+    | 범주 | 중점 확인 사항 |
+    |------|----------------|
+    | 완전성 | TODO, 플레이스홀더, "TBD", 미완성 섹션 |
+    | 일관성 | 문서 내부의 모순, 서로 충돌하는 요구사항 |
+    | 명확성 | 잘못된 것을 만들 정도로 모호한 요구사항 |
+    | 범위 | 하나의 계획으로 다룰 수 있을 만큼 집중되어 있는지 — 여러 개의 독립된 하위 시스템을 함께 다루고 있지 않은지 |
+    | YAGNI | 요청되지 않은 기능, 과도한 설계 |
 
-    ## Calibration
+    ## 판단 기준
 
-    **Only flag issues that would cause real problems during implementation planning.**
-    A missing section, a contradiction, or a requirement so ambiguous it could be
-    interpreted two different ways — those are issues. Minor wording improvements,
-    stylistic preferences, and "sections less detailed than others" are not.
+    **구현 계획 수립 과정에서 실제 문제를 일으킬 사안만 이슈로 지적하라.**
+    섹션이 빠져 있거나, 문서 안에 모순이 있거나, 요구사항이 너무 모호해서
+    두 가지 다른 방식으로 해석될 수 있다면 그것은 이슈다. 사소한 문장 다듬기,
+    문체 선호, "다른 섹션보다 설명이 덜 자세함" 같은 것은 이슈가 아니다.
 
-    Approve unless there are serious gaps that would lead to a flawed plan.
+    잘못된 계획으로 이어질 심각한 공백이 없는 한 승인하라.
 
-    ## Output Format
+    ## 출력 형식
 
-    ## Spec Review
+    ## 스펙 검토
 
-    **Status:** Approved | Issues Found
+    **상태:** 승인 | 이슈 발견
 
-    **Issues (if any):**
-    - [Section X]: [specific issue] - [why it matters for planning]
+    **이슈 (있는 경우):**
+    - [섹션 X]: [구체적인 이슈] - [계획 수립에 왜 중요한지]
 
-    **Recommendations (advisory, do not block approval):**
-    - [suggestions for improvement]
+    **권고사항 (참고용, 승인 차단 사유 아님):**
+    - [개선 제안]
 ```
 
-**Reviewer returns:** Status, Issues (if any), Recommendations
+**리뷰어 반환값:** 상태, 이슈(있는 경우), 권고사항

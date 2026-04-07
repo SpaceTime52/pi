@@ -1,70 +1,70 @@
 ---
 name: executing-plans
-description: Use when the user asks to execute an existing implementation plan step by step
+description: 구현 계획이 이미 존재하고 이를 현재 세션에서 그대로 실행해야 할 때 사용한다.
 ---
 
-# Executing Plans
+# 계획 실행하기
 
-## Overview
+## 개요
 
-Load plan, review critically, execute all tasks, report when complete.
+계획을 불러오고, 비판적으로 검토한 뒤, 모든 작업을 수행하고, 완료되면 결과를 보고한다.
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+**시작할 때 이렇게 알린다:** "이 계획을 구현하기 위해 executing-plans 스킬을 사용하겠습니다."
 
-**Note:** Tell your human partner that pi works much better with access to subagents. The quality of its work will be significantly higher if run on a platform with subagent support. If subagents are available, use subagent-driven-development instead of this skill.
+**참고:** 사람 협업자에게 pi는 서브에이전트에 접근할 수 있을 때 훨씬 더 잘 동작한다고 알려라. 서브에이전트를 지원하는 플랫폼에서 실행하면 작업 품질이 크게 높아진다. 서브에이전트를 사용할 수 있다면 이 스킬 대신 subagent-driven-development를 사용하라.
 
-## The Process
+## 진행 절차
 
-### Step 1: Load and Review Plan
-1. Read plan file
-2. Review critically - identify any questions or concerns about the plan
-3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create `todo` and proceed
+### 1단계: 계획 불러오기 및 검토
+1. 계획 파일을 읽는다
+2. 계획을 비판적으로 검토하고 질문이나 우려 사항이 있는지 확인한다
+3. 우려 사항이 있으면 시작하기 전에 사람 협업자와 먼저 논의한다
+4. 우려 사항이 없으면 `todo`를 만들고 진행한다
 
-### Step 2: Execute Tasks
+### 2단계: 작업 실행
 
-For each task:
-1. Mark as in_progress
-2. Follow each step exactly (plan has bite-sized steps)
-3. Run verifications as specified
-4. Mark as completed
+각 작업마다:
+1. 상태를 in_progress로 표시한다
+2. 각 단계를 정확히 따른다 (계획은 잘게 나뉜 단계들로 구성되어 있다)
+3. 지정된 검증을 실행한다
+4. 상태를 completed로 표시한다
 
-### Step 3: Complete Development
+### 3단계: 개발 마무리
 
-After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use finishing-a-development-branch (read its SKILL.md)
-- Follow that skill to verify tests, present options, execute choice
+모든 작업이 완료되고 검증까지 끝났다면:
+- 다음과 같이 알린다: "이 작업을 마무리하기 위해 finishing-a-development-branch 스킬을 사용하겠습니다."
+- **필수 하위 스킬:** finishing-a-development-branch를 사용한다 (해당 SKILL.md를 읽어라)
+- 그 스킬을 따라 테스트를 검증하고, 선택지를 제시하고, 사용자의 선택을 실행한다
 
-## When to Stop and Ask for Help
+## 멈추고 도움을 요청해야 할 때
 
-**STOP executing immediately when:**
-- Hit a blocker (missing dependency, test fails, instruction unclear)
-- Plan has critical gaps preventing starting
-- You don't understand an instruction
-- Verification fails repeatedly
+**다음 상황에서는 즉시 실행을 멈춘다:**
+- 막히는 요소를 만났을 때 (누락된 의존성, 테스트 실패, 불명확한 지시)
+- 계획에 시작 자체를 막는 치명적인 공백이 있을 때
+- 지시를 이해하지 못했을 때
+- 검증이 반복해서 실패할 때
 
-**Ask for clarification rather than guessing.**
+**추측하지 말고 명확한 설명을 요청하라.**
 
-## When to Revisit Earlier Steps
+## 이전 단계로 돌아가야 할 때
 
-**Return to Review (Step 1) when:**
-- Partner updates the plan based on your feedback
-- Fundamental approach needs rethinking
+**다음 상황에서는 검토(1단계)로 돌아간다:**
+- 당신의 피드백을 반영해 협업자가 계획을 업데이트했을 때
+- 근본적인 접근 방식을 다시 생각해야 할 때
 
-**Don't force through blockers** - stop and ask.
+**장애물을 억지로 밀어붙이지 말고** 멈춘 뒤 질문하라.
 
-## Remember
-- Review plan critically first
-- Follow plan steps exactly
-- Don't skip verifications
-- Reference skills when plan says to (read their SKILL.md)
-- Stop when blocked, don't guess
-- Never start implementation on main/master branch without explicit user consent
+## 기억할 점
+- 먼저 계획을 비판적으로 검토한다
+- 계획의 단계를 정확히 따른다
+- 검증을 건너뛰지 않는다
+- 계획에서 스킬을 참조하라고 하면 해당 스킬을 확인한다 (그 SKILL.md를 읽어라)
+- 막히면 멈추고, 추측하지 않는다
+- 명시적인 사용자 동의 없이 main/master 브랜치에서 구현을 시작하지 않는다
 
-## Integration
+## 연계
 
-**Required workflow skills:**
-- **using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **writing-plans** - Creates the plan this skill executes
-- **finishing-a-development-branch** - Complete development after all tasks
+**필수 워크플로 스킬:**
+- **using-git-worktrees** - 필수: 시작 전에 격리된 작업 공간을 설정한다
+- **writing-plans** - 이 스킬이 실행할 계획을 작성한다
+- **finishing-a-development-branch** - 모든 작업 후 개발을 마무리한다

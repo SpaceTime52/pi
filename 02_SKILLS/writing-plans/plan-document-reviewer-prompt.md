@@ -1,49 +1,50 @@
-# Plan Document Reviewer Prompt Template
+# 계획 문서 리뷰어 프롬프트 템플릿
 
-Use this template when dispatching a plan document reviewer subagent.
+계획 문서 리뷰어 서브에이전트를 호출할 때 이 템플릿을 사용한다.
 
-**Purpose:** Verify the plan is complete, matches the spec, and has proper task decomposition.
+**목적:** 계획이 완전하고, 스펙과 일치하며, 작업 분해가 적절한지 검증한다.
 
-**Dispatch after:** The complete plan is written.
+**호출 시점:** 전체 계획 문서가 작성된 뒤.
 
 ```
 subagent tool (general-purpose):
-  description: "Review plan document"
+  description: "계획 문서 검토"
   prompt: |
-    You are a plan document reviewer. Verify this plan is complete and ready for implementation.
+    당신은 계획 문서 리뷰어다. 이 계획이 완전하며 구현을 시작할 준비가 되었는지 검증하라.
 
-    **Plan to review:** [PLAN_FILE_PATH]
-    **Spec for reference:** [SPEC_FILE_PATH]
+    **검토할 계획:** [PLAN_FILE_PATH]
+    **참고할 스펙:** [SPEC_FILE_PATH]
 
-    ## What to Check
+    ## 확인할 항목
 
-    | Category | What to Look For |
+    | 범주 | 중점 확인 사항 |
     |----------|------------------|
-    | Completeness | TODOs, placeholders, incomplete tasks, missing steps |
-    | Spec Alignment | Plan covers spec requirements, no major scope creep |
-    | Task Decomposition | Tasks have clear boundaries, steps are actionable |
-    | Buildability | Could an engineer follow this plan without getting stuck? |
+    | 완전성 | TODO, 플레이스홀더, 미완성 작업, 누락된 단계 |
+    | 스펙 정렬 | 계획이 스펙 요구사항을 다루는가, 큰 범위 확장이 없는가 |
+    | 작업 분해 | 작업 경계가 명확한가, 각 단계가 실행 가능한가 |
+    | 구현 가능성 | 엔지니어가 이 계획을 따라가며 막히지 않고 구현할 수 있는가? |
 
-    ## Calibration
+    ## 판단 기준
 
-    **Only flag issues that would cause real problems during implementation.**
-    An implementer building the wrong thing or getting stuck is an issue.
-    Minor wording, stylistic preferences, and "nice to have" suggestions are not.
+    **구현 과정에서 실제 문제를 일으킬 이슈만 지적하라.**
+    구현자가 잘못된 것을 만들거나, 진행 중 막히게 된다면 그것은 이슈다.
+    사소한 문구 수정, 스타일 선호, "있으면 좋은" 제안은 이슈가 아니다.
 
-    Approve unless there are serious gaps — missing requirements from the spec,
-    contradictory steps, placeholder content, or tasks so vague they can't be acted on.
+    스펙의 요구사항이 빠져 있거나,
+    단계끼리 서로 모순되거나, 플레이스홀더 내용이 남아 있거나,
+    작업이 너무 모호해서 실행할 수 없는 경우가 아니라면 승인하라.
 
-    ## Output Format
+    ## 출력 형식
 
-    ## Plan Review
+    ## 계획 리뷰
 
-    **Status:** Approved | Issues Found
+    **상태:** 승인 | 이슈 발견
 
-    **Issues (if any):**
-    - [Task X, Step Y]: [specific issue] - [why it matters for implementation]
+    **이슈(있다면):**
+    - [Task X, Step Y]: [구체적인 이슈] - [왜 구현에 중요하게 영향을 주는지]
 
-    **Recommendations (advisory, do not block approval):**
-    - [suggestions for improvement]
+    **권장 사항(자문용, 승인 차단 안 함):**
+    - [개선 제안]
 ```
 
-**Reviewer returns:** Status, Issues (if any), Recommendations
+**리뷰어 반환 항목:** 상태, 이슈(있다면), 권장 사항

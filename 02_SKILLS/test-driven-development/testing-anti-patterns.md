@@ -1,16 +1,16 @@
-# Testing Anti-Patterns
+# 테스트 안티패턴
 
-**Load this reference when:** writing or changing tests, adding mocks, or tempted to add test-only methods to production code.
+**이 참고 문서를 불러올 때:** 테스트를 작성하거나 수정할 때, mock을 추가할 때, 혹은 프로덕션 코드에 테스트 전용 메서드를 넣고 싶어질 때.
 
-## Overview
+## 개요
 
-Tests must verify real behavior, not mock behavior. Mocks are a means to isolate, not the thing being tested.
+테스트는 mock의 동작이 아니라 실제 동작을 검증해야 한다. Mock은 격리를 위한 수단이지, 테스트 대상 그 자체가 아니다.
 
-**Core principle:** Test what the code does, not what the mocks do.
+**핵심 원칙:** mock이 무엇을 하는지가 아니라, 코드가 무엇을 하는지 테스트한다.
 
-**Following strict TDD prevents these anti-patterns.**
+**엄격한 TDD를 따르면 이런 안티패턴을 예방할 수 있다.**
 
-## The Iron Laws
+## 철칙
 
 ```
 1. NEVER test mock behavior
@@ -18,9 +18,9 @@ Tests must verify real behavior, not mock behavior. Mocks are a means to isolate
 3. NEVER mock without understanding dependencies
 ```
 
-## Anti-Pattern 1: Testing Mock Behavior
+## 안티패턴 1: Mock 동작 테스트하기
 
-**The violation:**
+**문제가 되는 예:**
 ```typescript
 // ❌ BAD: Testing that the mock exists
 test('renders sidebar', () => {
@@ -29,40 +29,40 @@ test('renders sidebar', () => {
 });
 ```
 
-**Why this is wrong:**
-- You're verifying the mock works, not that the component works
-- Test passes when mock is present, fails when it's not
-- Tells you nothing about real behavior
+**왜 잘못됐는가:**
+- 컴포넌트가 제대로 동작하는지가 아니라 mock이 동작하는지를 검증하고 있다
+- mock이 있으면 테스트가 통과하고, 없으면 실패한다
+- 실제 동작에 대해서는 아무것도 알려주지 못한다
 
-**your human partner's correction:** "Are we testing the behavior of a mock?"
+**사람 파트너의 지적:** "지금 우리가 테스트하는 게 mock의 동작 아닌가요?"
 
-**The fix:**
+**올바른 방법:**
 ```typescript
-// ✅ GOOD: Test real component or don't mock it
+// ✅ GOOD: 실제 컴포넌트를 테스트하거나 mock하지 않는다
 test('renders sidebar', () => {
-  render(<Page />);  // Don't mock sidebar
+  render(<Page />);  // sidebar를 mock하지 않는다
   expect(screen.getByRole('navigation')).toBeInTheDocument();
 });
 
-// OR if sidebar must be mocked for isolation:
-// Don't assert on the mock - test Page's behavior with sidebar present
+// 또는 격리를 위해 sidebar를 반드시 mock해야 한다면:
+// mock 자체를 단언하지 말고, sidebar가 있을 때 Page의 동작을 테스트한다
 ```
 
-### Gate Function
+### 게이트 함수
 
 ```
-BEFORE asserting on any mock element:
-  Ask: "Am I testing real component behavior or just mock existence?"
+어떤 mock 요소에 대해 단언하기 전에:
+  질문한다: "지금 내가 테스트하는 것이 실제 컴포넌트 동작인가, 아니면 mock의 존재 자체인가?"
 
-  IF testing mock existence:
-    STOP - Delete the assertion or unmock the component
+  mock의 존재 자체를 테스트하고 있다면:
+    중단한다 - 그 단언을 지우거나 컴포넌트를 unmock한다
 
-  Test real behavior instead
+  대신 실제 동작을 테스트한다
 ```
 
-## Anti-Pattern 2: Test-Only Methods in Production
+## 안티패턴 2: 프로덕션 코드에 테스트 전용 메서드 넣기
 
-**The violation:**
+**문제가 되는 예:**
 ```typescript
 // ❌ BAD: destroy() only used in tests
 class Session {
@@ -76,13 +76,13 @@ class Session {
 afterEach(() => session.destroy());
 ```
 
-**Why this is wrong:**
-- Production class polluted with test-only code
-- Dangerous if accidentally called in production
-- Violates YAGNI and separation of concerns
-- Confuses object lifecycle with entity lifecycle
+**왜 잘못됐는가:**
+- 프로덕션 클래스가 테스트 전용 코드로 오염된다
+- 실수로 프로덕션에서 호출되면 위험할 수 있다
+- YAGNI와 관심사 분리에 어긋난다
+- 객체 생명주기와 엔티티 생명주기를 혼동하게 만든다
 
-**The fix:**
+**올바른 방법:**
 ```typescript
 // ✅ GOOD: Test utilities handle test cleanup
 // Session has no destroy() - it's stateless in production
@@ -99,7 +99,7 @@ export async function cleanupSession(session: Session) {
 afterEach(() => cleanupSession(session));
 ```
 
-### Gate Function
+### 게이트 함수
 
 ```
 BEFORE adding any method to production class:
@@ -115,9 +115,9 @@ BEFORE adding any method to production class:
     STOP - Wrong class for this method
 ```
 
-## Anti-Pattern 3: Mocking Without Understanding
+## 안티패턴 3: 이해 없이 Mocking하기
 
-**The violation:**
+**문제가 되는 예:**
 ```typescript
 // ❌ BAD: Mock breaks test logic
 test('detects duplicate server', () => {
@@ -131,12 +131,12 @@ test('detects duplicate server', () => {
 });
 ```
 
-**Why this is wrong:**
-- Mocked method had side effect test depended on (writing config)
-- Over-mocking to "be safe" breaks actual behavior
-- Test passes for wrong reason or fails mysteriously
+**왜 잘못됐는가:**
+- 테스트가 의존하던 부수 효과(config 쓰기)를 mock한 메서드가 없애 버렸다
+- "안전하게" 하려는 과도한 mocking이 실제 동작을 깨뜨린다
+- 테스트가 잘못된 이유로 통과하거나, 원인 모르게 실패한다
 
-**The fix:**
+**올바른 방법:**
 ```typescript
 // ✅ GOOD: Mock at correct level
 test('detects duplicate server', () => {
@@ -148,7 +148,7 @@ test('detects duplicate server', () => {
 });
 ```
 
-### Gate Function
+### 게이트 함수
 
 ```
 BEFORE mocking any method:
@@ -174,9 +174,9 @@ BEFORE mocking any method:
     - Mocking without understanding the dependency chain
 ```
 
-## Anti-Pattern 4: Incomplete Mocks
+## 안티패턴 4: 불완전한 Mock
 
-**The violation:**
+**문제가 되는 예:**
 ```typescript
 // ❌ BAD: Partial mock - only fields you think you need
 const mockResponse = {
@@ -188,15 +188,15 @@ const mockResponse = {
 // Later: breaks when code accesses response.metadata.requestId
 ```
 
-**Why this is wrong:**
-- **Partial mocks hide structural assumptions** - You only mocked fields you know about
-- **Downstream code may depend on fields you didn't include** - Silent failures
-- **Tests pass but integration fails** - Mock incomplete, real API complete
-- **False confidence** - Test proves nothing about real behavior
+**왜 잘못됐는가:**
+- **부분적인 mock은 구조적 가정을 숨긴다** - 내가 알고 있는 필드만 mock했다
+- **하위 코드가 포함하지 않은 필드에 의존할 수 있다** - 조용히 실패한다
+- **테스트는 통과하지만 통합은 실패한다** - mock은 불완전하고 실제 API는 완전하다
+- **거짓된 자신감** - 이 테스트는 실제 동작에 대해 아무것도 증명하지 못한다
 
-**The Iron Rule:** Mock the COMPLETE data structure as it exists in reality, not just fields your immediate test uses.
+**철칙:** mock은 현재 테스트에서 바로 쓰는 필드만이 아니라, 현실의 COMPLETE data structure 그대로 만들어야 한다.
 
-**The fix:**
+**올바른 방법:**
 ```typescript
 // ✅ GOOD: Mirror real API completeness
 const mockResponse = {
@@ -207,7 +207,7 @@ const mockResponse = {
 };
 ```
 
-### Gate Function
+### 게이트 함수
 
 ```
 BEFORE creating mock responses:
@@ -225,21 +225,21 @@ BEFORE creating mock responses:
   If uncertain: Include all documented fields
 ```
 
-## Anti-Pattern 5: Integration Tests as Afterthought
+## 안티패턴 5: 통합 테스트를 나중 일로 미루기
 
-**The violation:**
+**문제가 되는 예:**
 ```
 ✅ Implementation complete
 ❌ No tests written
 "Ready for testing"
 ```
 
-**Why this is wrong:**
-- Testing is part of implementation, not optional follow-up
-- TDD would have caught this
-- Can't claim complete without tests
+**왜 잘못됐는가:**
+- 테스트는 구현의 일부이지, 선택적인 후속 작업이 아니다
+- TDD를 했다면 이런 상황을 더 일찍 잡아냈을 것이다
+- 테스트 없이 완료됐다고 주장할 수 없다
 
-**The fix:**
+**올바른 방법:**
 ```
 TDD cycle:
 1. Write failing test
@@ -248,52 +248,52 @@ TDD cycle:
 4. THEN claim complete
 ```
 
-## When Mocks Become Too Complex
+## Mock이 지나치게 복잡해질 때
 
-**Warning signs:**
-- Mock setup longer than test logic
-- Mocking everything to make test pass
-- Mocks missing methods real components have
-- Test breaks when mock changes
+**경고 신호:**
+- mock 설정이 테스트 로직보다 길다
+- 테스트를 통과시키려고 모든 것을 mock하고 있다
+- 실제 컴포넌트에는 있는 메서드가 mock에는 없다
+- mock이 바뀌면 테스트가 깨진다
 
-**your human partner's question:** "Do we need to be using a mock here?"
+**사람 파트너의 질문:** "여기서 정말 mock을 써야 하나요?"
 
-**Consider:** Integration tests with real components often simpler than complex mocks
+**생각해 볼 점:** 복잡한 mock보다 실제 컴포넌트를 쓰는 통합 테스트가 더 단순한 경우가 많다
 
-## TDD Prevents These Anti-Patterns
+## TDD는 이런 안티패턴을 막아준다
 
-**Why TDD helps:**
-1. **Write test first** → Forces you to think about what you're actually testing
-2. **Watch it fail** → Confirms test tests real behavior, not mocks
-3. **Minimal implementation** → No test-only methods creep in
-4. **Real dependencies** → You see what the test actually needs before mocking
+**TDD가 도움이 되는 이유:**
+1. **먼저 테스트를 쓴다** → 지금 무엇을 테스트하는지 강제로 생각하게 만든다
+2. **실패하는 것을 본다** → mock이 아니라 실제 동작을 테스트하고 있음을 확인하게 해준다
+3. **최소한으로 구현한다** → 테스트 전용 메서드가 끼어들 틈이 없다
+4. **실제 의존성을 본다** → mock하기 전에 테스트에 정말 필요한 것이 무엇인지 알 수 있다
 
-**If you're testing mock behavior, you violated TDD** - you added mocks without watching test fail against real code first.
+**mock의 동작을 테스트하고 있다면, TDD를 위반한 것이다** - 실제 코드에 대해 먼저 실패하는 테스트를 보지도 않고 mock부터 넣은 것이다.
 
-## Quick Reference
+## 빠른 참고표
 
-| Anti-Pattern | Fix |
+| 안티패턴 | 해결 방법 |
 |--------------|-----|
-| Assert on mock elements | Test real component or unmock it |
-| Test-only methods in production | Move to test utilities |
-| Mock without understanding | Understand dependencies first, mock minimally |
-| Incomplete mocks | Mirror real API completely |
-| Tests as afterthought | TDD - tests first |
-| Over-complex mocks | Consider integration tests |
+| Assert on mock elements | 실제 컴포넌트를 테스트하거나 unmock한다 |
+| Test-only methods in production | test utilities로 옮긴다 |
+| Mock without understanding | 먼저 의존성을 이해하고, 최소한으로 mock한다 |
+| Incomplete mocks | 실제 API를 완전하게 반영한다 |
+| Tests as afterthought | TDD - 먼저 테스트를 쓴다 |
+| Over-complex mocks | 통합 테스트를 고려한다 |
 
-## Red Flags
+## 위험 신호
 
-- Assertion checks for `*-mock` test IDs
-- Methods only called in test files
-- Mock setup is >50% of test
-- Test fails when you remove mock
-- Can't explain why mock is needed
-- Mocking "just to be safe"
+- assertion이 `*-mock` test ID를 검사한다
+- 테스트 파일에서만 호출되는 메서드가 있다
+- mock 설정이 테스트의 50%를 넘는다
+- mock을 제거하면 테스트가 실패한다
+- 왜 이 mock이 필요한지 설명할 수 없다
+- "안전하게 하려고" mock한다
 
-## The Bottom Line
+## 핵심 요약
 
-**Mocks are tools to isolate, not things to test.**
+**Mock은 격리를 위한 도구이지, 테스트 대상이 아니다.**
 
-If TDD reveals you're testing mock behavior, you've gone wrong.
+TDD를 따라가다가 mock의 동작을 테스트하고 있다는 사실이 드러났다면, 이미 잘못된 방향으로 간 것이다.
 
-Fix: Test real behavior or question why you're mocking at all.
+해결책: 실제 동작을 테스트하거나, 애초에 왜 mock을 쓰고 있는지 다시 점검한다.

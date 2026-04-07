@@ -1,18 +1,18 @@
 ---
 name: self-healing
-description: stress-interview로 문제를 모은 뒤 worker 수정 → 재검토를 2사이클 반복하는 자가 치유 스킬.
-argument-hint: "이 변경사항 자동으로 두 번 고쳐가며 안정화해줘 | 방금 만든 코드 self-healing 돌려줘"
+description: 최근 변경사항을 인계나 머지 전에 짧은 검토·수정 루프로 자동 안정화해야 할 때 사용한다.
+argument-hint: "이 변경사항을 두 번 자동으로 고쳐가며 안정화해줘 | 방금 만든 코드에 self-healing 돌려줘"
 disable-model-invocation: false
 ---
 
-# self-healing
+# self-healing 자동 안정화
 
 `$ARGUMENTS`에 대해 아래 루프를 수행한다:
 
-- **Cycle 1**: `stress-interview` 실행 → `worker` 수정
-- **Cycle 2**: 다시 `stress-interview` 실행 → `worker` 수정
+- **1차 사이클**: `stress-interview` 실행 → `worker` 수정
+- **2차 사이클**: 다시 `stress-interview` 실행 → `worker` 수정
 
-총 **2 사이클**만 수행한다. 무한 반복하지 않는다.
+총 **2개 사이클**만 수행한다. 무한 반복하지 않는다.
 
 ## 목적
 
@@ -23,13 +23,13 @@ disable-model-invocation: false
 ## 실행 순서
 
 1. 대상 범위를 1~2문장으로 고정한다.
-2. **Cycle 1**
+2. **1차 사이클**
    - `/skill:stress-interview $ARGUMENTS`
-   - 결과에서 수정이 필요한 actionable item만 추린다.
-   - `worker`에게 **해당 actionable item만** 수정하도록 요청한다.
-3. **Cycle 2**
+   - 결과에서 수정이 필요한 실행 가능한 항목만 추린다.
+   - `worker`에게 **해당 실행 가능한 항목만** 수정하도록 요청한다.
+3. **2차 사이클**
    - 다시 `/skill:stress-interview $ARGUMENTS`
-   - 남은 actionable item만 추린다.
+   - 남은 실행 가능한 항목만 추린다.
    - `worker`에게 다시 수정 요청한다.
 4. 2사이클 후 종료하고, 남은 리스크와 미해결 항목을 명시한다.
 
@@ -43,35 +43,35 @@ disable-model-invocation: false
 ## 사이클별 체크리스트
 
 stress-interview 결과 중 **reviewer 출력**의 `fix_class`와 `priority` 필드를 활용하여 분류한다.
-verifier(PASS/FAIL/PARTIAL)와 challenger(질문/시나리오) 결과는 이 분류와 별도로, actionable 여부를 직접 판단한다:
+verifier(PASS/FAIL/PARTIAL)와 challenger(질문/시나리오) 결과는 이 분류와 별도로, 실행 가능한지 여부를 직접 판단한다:
 
-- `Must fix now (auto)`: P0/P1 + fix_class `AUTO_FIX` (blocker / correctness / reproducible failures → worker가 즉시 수정)
-- `Must fix now (escalate)`: P0/P1 + fix_class `ASK` (판단이 필요한 심각 이슈 → **자동 수정하지 않고** 사용자에게 에스컬레이션)
-- `Good to fix`: P2/P3 + fix_class `AUTO_FIX` (maintainability / clarity / low-risk cleanup)
-- `Report as remaining risk`: P2/P3 + fix_class `ASK` (판단 필요하지만 긴급하지 않음 → Remaining Risks에 기록)
-- `Do not auto-fix`: fix_class `INFO`, 또는 근거 부족, 제품 의도 불명, 대규모 설계 변경 필요
+- `지금 반드시 수정(자동)`: P0/P1 + fix_class `AUTO_FIX` (차단 이슈 / 정합성 문제 / 재현 가능한 실패 → worker가 즉시 수정)
+- `지금 반드시 수정(에스컬레이션)`: P0/P1 + fix_class `ASK` (판단이 필요한 심각 이슈 → **자동 수정하지 않고** 사용자에게 에스컬레이션)
+- `수정하면 좋음`: P2/P3 + fix_class `AUTO_FIX` (유지보수성 / 명확성 / 저위험 정리)
+- `남은 리스크로 보고`: P2/P3 + fix_class `ASK` (판단이 필요하지만 긴급하지 않음 → `남은 리스크`에 기록)
+- `자동 수정 금지`: fix_class `INFO`, 또는 근거 부족, 제품 의도 불명, 대규모 설계 변경 필요
 
-reviewer가 `fix_class`를 제공하지 않는 경우 기존 심각도 언어(Critical/Important/Minor)로 폴백한다.
+reviewer가 `fix_class`를 제공하지 않는 경우 기존 심각도 표현(`Critical`/`Important`/`Minor`)으로 폴백한다.
 
 ## 종료 조건
 
 다음 중 하나면 종료한다.
 
 - 2사이클 완료
-- 수정할 actionable item이 더 이상 없음
+- 수정할 실행 가능한 항목이 더 이상 없음
 - worker가 범위 초과/불명확성으로 중단함
 
 ## 최종 응답 형식
 
-1. `Cycle 1`
+1. `1차 사이클`
    - stress-interview 핵심 결과
    - worker가 반영한 수정
-2. `Cycle 2`
+2. `2차 사이클`
    - stress-interview 핵심 결과
    - worker가 반영한 수정
-3. `Remaining Risks`
+3. `남은 리스크`
    - 여전히 남은 문제
-4. `Recommendation`
+4. `권장 사항`
    - 추가 수동 작업 필요 여부
 
 ## 주의

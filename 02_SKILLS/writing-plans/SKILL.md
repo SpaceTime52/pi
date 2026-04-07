@@ -1,76 +1,76 @@
 ---
 name: writing-plans
-description: Use when the user asks to write an implementation plan or break down a task into steps
+description: 작업이 크거나 모호하거나 여러 단계로 이루어져 있고, 코딩 전에 구현 계획을 먼저 정리해야 할 때 사용한다.
 ---
 
-# Writing Plans
+# 구현 계획 작성하기
 
-## Overview
+## 개요
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+엔지니어가 우리 코드베이스에 대한 맥락이 전혀 없고, 판단도 썩 좋지 않을 수 있다고 가정한 상태에서 포괄적인 구현 계획을 작성한다. 각 작업에서 어떤 파일을 건드려야 하는지, 어떤 코드를 작성해야 하는지, 어떤 테스트를 해야 하는지, 어떤 문서를 확인해야 하는지, 그리고 어떻게 검증할지를 모두 문서화한다. 전체 계획은 잘게 나뉜 작업 단위로 제공한다. DRY. YAGNI. TDD. 자주 커밋한다.
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+상대가 숙련된 개발자라고 가정하되, 우리의 도구 체계나 문제 도메인에 대해서는 거의 모른다고 본다. 또한 좋은 테스트 설계에 익숙하지 않을 가능성도 염두에 둔다.
 
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+**시작할 때 이렇게 알린다:** "구현 계획을 작성하기 위해 writing-plans 스킬을 사용하겠습니다."
 
-**Context:** This should be run in a dedicated worktree (created by brainstorming skill).
+**컨텍스트:** 이 작업은 전용 worktree에서 수행해야 한다(브레인스토밍 스킬이 생성한 worktree).
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
-- (User preferences for plan location override this default)
+**계획 저장 위치:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
+- (계획 저장 위치에 대한 사용자 선호가 있으면 이 기본값보다 우선한다)
 
-## Scope Check
+## 범위 점검
 
-If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+명세가 서로 독립적인 여러 서브시스템을 함께 다루고 있다면, 브레인스토밍 단계에서 서브프로젝트 명세로 나뉘어 있었어야 한다. 그렇게 되어 있지 않았다면, 서브시스템마다 별도의 계획으로 나누자고 제안한다. 각 계획은 그 자체만으로도 동작 가능하고 테스트 가능한 소프트웨어를 만들어낼 수 있어야 한다.
 
-## File Structure
+## 파일 구조
 
-Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
+작업을 정의하기 전에, 어떤 파일이 새로 만들어지거나 수정될지와 각 파일의 책임이 무엇인지 먼저 정리한다. 분해 방식에 대한 결정은 이 단계에서 사실상 굳어진다.
 
-- Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
-- You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
-- Files that change together should live together. Split by responsibility, not by technical layer.
-- In existing codebases, follow established patterns. If the codebase uses large files, don't unilaterally restructure - but if a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
+- 경계가 분명하고 인터페이스가 명확한 설계 단위를 만든다. 각 파일은 하나의 분명한 책임만 가져야 한다.
+- 한 번에 컨텍스트에 담아둘 수 있는 코드일수록 더 잘 추론할 수 있고, 파일이 집중되어 있을수록 수정의 신뢰도도 높아진다. 너무 많은 일을 하는 큰 파일보다, 작고 집중된 파일을 선호한다.
+- 함께 바뀌는 파일은 가까이 둔다. 기술 레이어가 아니라 책임을 기준으로 나눈다.
+- 기존 코드베이스에서는 이미 자리 잡은 패턴을 따른다. 코드베이스가 큰 파일 위주라면 일방적으로 재구성하지 않는다. 다만 수정 대상 파일이 지나치게 비대해졌다면, 계획에 분리를 포함하는 것은 타당하다.
 
-This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
+이 구조가 작업 분해 방식에 영향을 준다. 각 작업은 독립적으로 보아도 의미가 통하는 자기완결적 변경이어야 한다.
 
-## Bite-Sized Task Granularity
+## 한입 크기 작업 단위
 
-**Each step is one action (2-5 minutes):**
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
+**각 단계는 하나의 행동만 담고, 2~5분 안에 끝날 수 있어야 한다:**
+- "실패하는 테스트를 작성한다" - 1단계
+- "실제로 실패하는지 실행해 확인한다" - 1단계
+- "테스트를 통과시키는 최소 구현을 작성한다" - 1단계
+- "테스트를 실행해 통과를 확인한다" - 1단계
+- "커밋한다" - 1단계
 
-## Plan Document Header
+## 계획 문서 헤더
 
-**Every plan MUST start with this header:**
+**모든 계획은 반드시 이 헤더로 시작해야 한다:**
 
 ```markdown
-# [Feature Name] Implementation Plan
+# [기능 이름] 구현 계획
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **에이전트 워커용:** REQUIRED SUB-SKILL: 이 계획은 `- [ ]` 체크박스 문법으로 진행 상황을 추적하므로, 작업별로 구현할 때는 subagent-driven-development(권장) 또는 executing-plans를 사용한다.
 
-**Goal:** [One sentence describing what this builds]
+**목표:** [이 계획이 무엇을 만드는지 한 문장으로 설명]
 
-**Architecture:** [2-3 sentences about approach]
+**아키텍처:** [접근 방식 설명 2~3문장]
 
-**Tech Stack:** [Key technologies/libraries]
+**기술 스택:** [핵심 기술/라이브러리]
 
 ---
 ```
 
-## Task Structure
+## 작업 구조
 
 ````markdown
-### Task N: [Component Name]
+### 작업 N: [컴포넌트 이름]
 
-**Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
+**파일:**
+- 생성: `exact/path/to/file.py`
+- 수정: `exact/path/to/existing.py:123-145`
+- 테스트: `tests/exact/path/to/test.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **1단계: 실패하는 테스트 작성**
 
 ```python
 def test_specific_behavior():
@@ -78,24 +78,24 @@ def test_specific_behavior():
     assert result == expected
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **2단계: 테스트를 실행해 실제로 실패하는지 확인**
 
 Run: `pytest tests/path/test.py::test_name -v`
 Expected: FAIL with "function not defined"
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **3단계: 최소 구현 작성**
 
 ```python
 def function(input):
     return expected
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **4단계: 테스트를 실행해 통과하는지 확인**
 
 Run: `pytest tests/path/test.py::test_name -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **5단계: 커밋**
 
 ```bash
 git add tests/path/test.py src/path/file.py
@@ -103,50 +103,50 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
-## No Placeholders
+## 플레이스홀더 금지
 
-Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
+모든 단계에는 엔지니어가 실제로 필요로 하는 내용이 들어 있어야 한다. 아래와 같은 표현은 **계획 실패**다. 절대 쓰지 않는다.
 - "TBD", "TODO", "implement later", "fill in details"
-- "Add appropriate error handling" / "add validation" / "handle edge cases"
-- "Write tests for the above" (without actual test code)
-- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
-- Steps that describe what to do without showing how (code blocks required for code steps)
-- References to types, functions, or methods not defined in any task
+- "적절한 에러 처리 추가" / "검증 추가" / "엣지 케이스 처리"
+- "위 내용을 위한 테스트 작성"(실제 테스트 코드 없이)
+- "Task N과 유사"(작업은 순서대로 읽지 않을 수 있으므로 코드는 반복해서라도 써야 한다)
+- 무엇을 할지만 설명하고 어떻게 할지는 보여주지 않는 단계(코드 관련 단계에는 코드 블록이 필요하다)
+- 어떤 작업에서도 정의되지 않은 타입, 함수, 메서드를 참조하는 내용
 
-## Remember
-- Exact file paths always
-- Complete code in every step — if a step changes code, show the code
-- Exact commands with expected output
-- DRY, YAGNI, TDD, frequent commits
+## 기억할 점
+- 파일 경로는 항상 정확하게 쓴다
+- 모든 단계에 완전한 코드를 넣는다. 단계에서 코드를 바꾼다면, 그 코드 자체를 보여준다
+- 명령어는 정확하게 쓰고 기대 결과도 함께 적는다
+- DRY, YAGNI, TDD, 자주 커밋
 
-## Self-Review
+## 자체 검토
 
-After writing the complete plan, look at the spec with fresh eyes and check the plan against it. This is a checklist you run yourself — not a subagent dispatch.
+계획 전체를 작성한 뒤에는 명세를 새 눈으로 다시 보고, 계획이 명세를 제대로 반영하는지 점검한다. 이것은 스스로 수행하는 체크리스트이며, 서브에이전트를 호출하는 단계가 아니다.
 
-**1. Spec coverage:** Skim each section/requirement in the spec. Can you point to a task that implements it? List any gaps.
+**1. 명세 커버리지:** 명세의 각 섹션과 요구사항을 훑어본다. 이를 구현하는 작업을 짚어낼 수 있는가? 빠진 항목이 있다면 적는다.
 
-**2. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
+**2. 플레이스홀더 점검:** 계획에서 위험 신호를 검색한다. 위의 "플레이스홀더 금지" 섹션에 있는 패턴이 있으면 수정한다.
 
-**3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+**3. 타입 일관성:** 뒤쪽 작업에서 사용한 타입, 메서드 시그니처, 속성 이름이 앞쪽 작업에서 정의한 내용과 일치하는가? 예를 들어 Task 3에서는 `clearLayers()`인데 Task 7에서는 `clearFullLayers()`라면 그것은 버그다.
 
-If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
+문제를 발견하면 그 자리에서 바로 고친다. 다시 검토를 돌릴 필요는 없다. 수정하고 계속 진행하면 된다. 명세 요구사항인데 대응하는 작업이 없다면, 그 작업을 추가한다.
 
-## Execution Handoff
+## 실행 인계
 
-After saving the plan, offer execution choice:
+계획을 저장한 뒤에는 실행 방식을 선택할 수 있게 제안한다.
 
-**"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
+**"계획을 완료했고 `docs/plans/<filename>.md`에 저장했습니다. 실행 방식은 두 가지입니다:**
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
+**1. 서브에이전트 방식(권장)** - 작업마다 새로운 서브에이전트를 보내고, 작업 사이마다 리뷰를 수행하며, 빠르게 반복합니다
 
-**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+**2. 인라인 실행** - 이 세션에서 executing-plans를 사용해 작업을 수행하고, 중간 점검 지점을 두고 배치 실행합니다
 
-**Which approach?"**
+**어떤 방식을 원하시나요?"**
 
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use subagent-driven-development
-- Fresh subagent per task + two-stage review
+**서브에이전트 방식을 선택했다면:**
+- **REQUIRED SUB-SKILL:** subagent-driven-development를 사용한다
+- 작업마다 새로운 서브에이전트 + 2단계 리뷰
 
-**If Inline Execution chosen:**
-- **REQUIRED SUB-SKILL:** Use executing-plans
-- Batch execution with checkpoints for review
+**인라인 실행을 선택했다면:**
+- **REQUIRED SUB-SKILL:** executing-plans를 사용한다
+- 리뷰를 위한 체크포인트를 두고 배치 실행

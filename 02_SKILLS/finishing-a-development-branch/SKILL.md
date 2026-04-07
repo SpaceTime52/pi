@@ -1,200 +1,200 @@
 ---
 name: finishing-a-development-branch
-description: Use when the user asks how to finish, merge, or integrate a development branch
+description: 개발 작업이 마무리 단계에 있고, 브랜치 검증·병합·정리 방법에 대한 도움이 필요할 때 사용한다.
 ---
 
-# Finishing a Development Branch
+# 개발 브랜치 마무리하기
 
-## Overview
+## 개요
 
-Guide completion of development work by presenting clear options and handling chosen workflow.
+명확한 선택지를 제시하고, 사용자가 고른 워크플로를 처리하면서 개발 작업의 마무리를 돕는다.
 
-**Core principle:** Verify tests -> Present options -> Execute choice -> Clean up.
+**핵심 원칙:** 테스트 검증 -> 선택지 제시 -> 선택 실행 -> 정리.
 
-**Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
+**시작할 때 알리기:** "이 작업을 마무리하기 위해 finishing-a-development-branch 스킬을 사용하겠습니다."
 
-## The Process
+## 절차
 
-### Step 1: Verify Tests
+### 1단계: 테스트 검증
 
-**Before presenting options, verify tests pass:**
+**선택지를 제시하기 전에, 반드시 테스트가 통과하는지 확인한다:**
 
 ```bash
-# Run project's test suite
+# 프로젝트 테스트 스위트 실행
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If tests fail:**
+**테스트가 실패하면:**
 ```
-Tests failing (<N> failures). Must fix before completing:
+테스트 실패 (<N> failures). 완료 처리 전에 먼저 수정해야 합니다:
 
 [Show failures]
 
-Cannot proceed with merge/PR until tests pass.
+테스트가 통과하기 전에는 merge/PR을 진행할 수 없습니다.
 ```
 
-Stop. Don't proceed to Step 2.
+중단한다. 2단계로 진행하지 않는다.
 
-**If tests pass:** Continue to Step 2.
+**테스트가 통과하면:** 2단계로 진행한다.
 
-### Step 2: Determine Base Branch
+### 2단계: 기준 브랜치 확인
 
 ```bash
-# Try common base branches
+# 일반적인 기준 브랜치 확인 시도
 git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 ```
 
-Or ask: "This branch split from main - is that correct?"
+또는 이렇게 묻는다: "이 브랜치는 main에서 갈라졌나요? 맞나요?"
 
-### Step 3: Present Options
+### 3단계: 선택지 제시
 
-Present exactly these 4 options:
+정확히 다음 4가지 선택지를 제시한다:
 
 ```
-Implementation complete. What would you like to do?
+구현이 완료되었습니다. 어떻게 진행할까요?
 
-1. Merge back to <base-branch> locally
-2. Push and create a Pull Request
-3. Keep the branch as-is (I'll handle it later)
-4. Discard this work
+1. <base-branch>에 로컬로 병합
+2. 푸시하고 Pull Request 생성
+3. 브랜치를 현재 상태로 유지 (나중에 직접 처리)
+4. 이 작업 폐기
 
-Which option?
+어떤 옵션을 원하시나요?
 ```
 
-**Don't add explanation** - keep options concise.
+**설명을 덧붙이지 말 것** - 선택지는 간결하게 유지한다.
 
-### Step 4: Execute Choice
+### 4단계: 선택 실행
 
-#### Option 1: Merge Locally
+#### 옵션 1: 로컬 병합
 
 ```bash
-# Switch to base branch
+# 기준 브랜치로 전환
 git checkout <base-branch>
 
-# Pull latest
+# 최신 내용 가져오기
 git pull
 
-# Merge feature branch
+# 기능 브랜치 병합
 git merge <feature-branch>
 
-# Verify tests on merged result
+# 병합 결과에서 테스트 검증
 <test command>
 
-# If tests pass
+# 테스트가 통과하면
 git branch -d <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+그다음: 워크트리 정리 (5단계)
 
-#### Option 2: Push and Create PR
+#### 옵션 2: 푸시하고 PR 생성
 
 ```bash
-# Push branch
+# 브랜치 푸시
 git push -u origin <feature-branch>
 
-# Create PR
+# PR 생성
 gh pr create --title "<title>" --body "$(cat <<'EOF'
-## Summary
+## 요약
 <2-3 bullets of what changed>
 
-## Test Plan
+## 테스트 계획
 - [ ] <verification steps>
 EOF
 )"
 ```
 
-Then: Cleanup worktree (Step 5)
+그다음: 워크트리 정리 (5단계)
 
-#### Option 3: Keep As-Is
+#### 옵션 3: 현재 상태 유지
 
-Report: "Keeping branch <name>. Worktree preserved at <path>."
+보고: "브랜치 <name>을(를) 유지합니다. 워크트리는 <path>에 보존됩니다."
 
-**Don't cleanup worktree.**
+**워크트리를 정리하지 않는다.**
 
-#### Option 4: Discard
+#### 옵션 4: 폐기
 
-**Confirm first:**
+**먼저 확인한다:**
 ```
-This will permanently delete:
-- Branch <name>
-- All commits: <commit-list>
-- Worktree at <path>
+다음 항목이 영구적으로 삭제됩니다:
+- 브랜치 <name>
+- 모든 커밋: <commit-list>
+- <path>의 워크트리
 
-Type 'discard' to confirm.
+확인하려면 'discard'를 입력하세요.
 ```
 
-Wait for exact confirmation.
+정확한 확인 입력을 기다린다.
 
-If confirmed:
+확인되면:
 ```bash
 git checkout <base-branch>
 git branch -D <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+그다음: 워크트리 정리 (5단계)
 
-### Step 5: Cleanup Worktree
+### 5단계: 워크트리 정리
 
-**For Options 1, 2, 4:**
+**옵션 1, 2, 4의 경우:**
 
-Check if in worktree:
+워크트리 안에 있는지 확인:
 ```bash
 git worktree list | grep $(git branch --show-current)
 ```
 
-If yes:
+해당하면:
 ```bash
 git worktree remove <worktree-path>
 ```
 
-**For Option 3:** Keep worktree.
+**옵션 3의 경우:** 워크트리를 유지한다.
 
-## Quick Reference
+## 빠른 참고표
 
-| Option | Merge | Push | Keep Worktree | Cleanup Branch |
+| 옵션 | 병합 | 푸시 | 워크트리 유지 | 브랜치 정리 |
 |--------|-------|------|---------------|----------------|
-| 1. Merge locally | ✓ | - | - | ✓ |
-| 2. Create PR | - | ✓ | ✓ | - |
-| 3. Keep as-is | - | - | ✓ | - |
-| 4. Discard | - | - | - | ✓ (force) |
+| 1. 로컬 병합 | ✓ | - | - | ✓ |
+| 2. PR 생성 | - | ✓ | ✓ | - |
+| 3. 현재 상태 유지 | - | - | ✓ | - |
+| 4. 폐기 | - | - | - | ✓ (강제) |
 
-## Common Mistakes
+## 자주 하는 실수
 
-**Skipping test verification**
-- **Problem:** Merge broken code, create failing PR
-- **Fix:** Always verify tests before offering options
+**테스트 검증 건너뛰기**
+- **문제:** 깨진 코드를 병합하거나, 실패하는 PR을 만들게 됨
+- **해결:** 선택지를 제시하기 전에 항상 테스트를 검증한다
 
-**Open-ended questions**
-- **Problem:** "What should I do next?" -> ambiguous
-- **Fix:** Present exactly 4 structured options
+**열린 질문으로 묻기**
+- **문제:** "다음엔 뭘 해야 할까요?" -> 모호함
+- **해결:** 구조화된 4가지 선택지를 정확히 제시한다
 
-**Automatic worktree cleanup**
-- **Problem:** Remove worktree when might need it (Option 2, 3)
-- **Fix:** Only cleanup for Options 1 and 4
+**자동 워크트리 정리**
+- **문제:** 아직 필요할 수 있는 워크트리까지 제거함 (옵션 2, 3)
+- **해결:** 옵션 1과 4에서만 정리한다
 
-**No confirmation for discard**
-- **Problem:** Accidentally delete work
-- **Fix:** Require typed "discard" confirmation
+**폐기 시 확인 없음**
+- **문제:** 작업을 실수로 삭제할 수 있음
+- **해결:** 반드시 "discard"를 직접 입력해 확인받는다
 
-## Red Flags
+## 위험 신호
 
-**Never:**
-- Proceed with failing tests
-- Merge without verifying tests on result
-- Delete work without confirmation
-- Force-push without explicit request
+**절대 하지 말 것:**
+- 테스트가 실패하는데 진행하기
+- 병합 결과의 테스트를 검증하지 않고 병합하기
+- 확인 없이 작업 삭제하기
+- 명시적 요청 없이 강제 푸시하기
 
-**Always:**
-- Verify tests before offering options
-- Present exactly 4 options
-- Get typed confirmation for Option 4
-- Clean up worktree for Options 1 & 4 only
+**항상 할 것:**
+- 선택지를 제시하기 전에 테스트 검증하기
+- 정확히 4가지 선택지 제시하기
+- 옵션 4에서는 직접 입력한 확인 받기
+- 옵션 1과 4에서만 워크트리 정리하기
 
-## Integration
+## 연계
 
-**Called by:**
-- **subagent-driven-development** (Step 7) - After all tasks complete
-- **executing-plans** (Step 5) - After all batches complete
+**다음에서 호출됨:**
+- **subagent-driven-development** (7단계) - 모든 작업이 끝난 뒤
+- **executing-plans** (5단계) - 모든 배치가 끝난 뒤
 
-**Pairs with:**
-- **using-git-worktrees** - Cleans up worktree created by that skill
+**함께 쓰는 스킬:**
+- **using-git-worktrees** - 해당 스킬이 만든 워크트리를 정리함

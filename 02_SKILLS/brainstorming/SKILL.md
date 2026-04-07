@@ -1,161 +1,161 @@
 ---
 name: brainstorming
-description: Use when the user wants to explore design options — asks to brainstorm, compare approaches, or design a feature before building
+description: 요구사항이 아직 구체화되지 않았고, 구현 전에 옵션·트레이드오프·설계를 함께 탐색해야 할 때 사용한다.
 ---
 
-# Brainstorming Ideas Into Designs
+# 아이디어를 설계로 구체화하기
 
-Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
+자연스럽고 협업적인 대화를 통해 아이디어를 충분히 다듬어진 설계와 스펙으로 발전시키도록 돕는다.
 
-Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
+먼저 현재 프로젝트의 맥락을 이해한 다음, 질문을 한 번에 하나씩 하며 아이디어를 정교하게 만든다. 무엇을 만들려는지 이해하게 되면 설계를 제시하고 사용자 승인을 받는다.
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it.
+설계를 제시하고 사용자가 승인하기 전까지는 어떤 구현 스킬도 호출하지 말고, 코드를 작성하지 말고, 프로젝트를 스캐폴딩하지 말고, 그 어떤 구현 행동도 하지 마라.
 </HARD-GATE>
 
-The design's depth should match the task's complexity. A config change may need a one-liner; a new feature needs a full spec. But always present the design and get approval before implementing.
+설계의 깊이는 작업의 복잡도에 맞아야 한다. 설정 변경은 한 줄 설명이면 충분할 수 있고, 새로운 기능은 전체 스펙이 필요하다. 하지만 언제나 구현 전에 설계를 제시하고 승인을 받아야 한다.
 
-## Checklist
+## 체크리스트
 
-You MUST create a todo item for each of these and complete them in order:
+다음 각 항목에 대해 반드시 todo를 만들고, 순서대로 완료해야 한다:
 
-1. **Explore project context** — check files, docs, recent commits
-2. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
-3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-4. **Propose 2-3 approaches** — with trade-offs and your recommendation
-5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/specs/YYYY-MM-DD-<topic>-design.md` and commit
-7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
-8. **User reviews written spec** — ask user to review the spec file before proceeding
-9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
+1. **프로젝트 맥락 탐색** — 파일, 문서, 최근 커밋 확인
+2. **비주얼 컴패니언 제안** (주제가 시각적 질문을 포함할 경우) — 이것은 별도 메시지여야 하며, 명확화 질문과 합치면 안 된다. 아래 Visual Companion 섹션을 참고한다.
+3. **명확화 질문하기** — 한 번에 하나씩, 목적/제약/성공 기준을 이해한다
+4. **2~3개의 접근 방식 제안** — 트레이드오프와 추천안 포함
+5. **설계 제시** — 복잡도에 맞는 섹션 단위로 제시하고, 각 섹션 뒤에 사용자 승인을 받는다
+6. **설계 문서 작성** — `docs/specs/YYYY-MM-DD-<topic>-design.md`에 저장하고 커밋한다
+7. **스펙 셀프 리뷰** — 플레이스홀더, 모순, 모호함, 범위를 빠르게 점검한다(아래 참고)
+8. **사용자가 작성된 스펙 검토** — 다음 단계로 진행하기 전에 사용자가 스펙 파일을 검토하도록 요청한다
+9. **구현 단계로 전환** — 구현 계획을 만들기 위해 writing-plans 스킬을 호출한다
 
-## Process Flow
+## 진행 흐름
 
 ```dot
 digraph brainstorming {
-    "Explore project context" [shape=box];
-    "Visual questions ahead?" [shape=diamond];
-    "Offer Visual Companion\n(own message, no other content)" [shape=box];
-    "Ask clarifying questions" [shape=box];
-    "Propose 2-3 approaches" [shape=box];
-    "Present design sections" [shape=box];
-    "User approves design?" [shape=diamond];
-    "Write design doc" [shape=box];
-    "Spec self-review\n(fix inline)" [shape=box];
-    "User reviews spec?" [shape=diamond];
-    "Invoke writing-plans skill" [shape=doublecircle];
+    "프로젝트 맥락 탐색" [shape=box];
+    "앞으로 시각적 질문이 있는가?" [shape=diamond];
+    "비주얼 컴패니언 제안\n(별도 메시지, 다른 내용 없음)" [shape=box];
+    "명확화 질문하기" [shape=box];
+    "2~3개 접근 방식 제안" [shape=box];
+    "설계 섹션 제시" [shape=box];
+    "사용자가 설계를 승인했는가?" [shape=diamond];
+    "설계 문서 작성" [shape=box];
+    "스펙 셀프 리뷰\n(바로 수정)" [shape=box];
+    "사용자가 스펙을 검토했는가?" [shape=diamond];
+    "writing-plans 스킬 호출" [shape=doublecircle];
 
-    "Explore project context" -> "Visual questions ahead?";
-    "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
-    "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
-    "Offer Visual Companion\n(own message, no other content)" -> "Ask clarifying questions";
-    "Ask clarifying questions" -> "Propose 2-3 approaches";
-    "Propose 2-3 approaches" -> "Present design sections";
-    "Present design sections" -> "User approves design?";
-    "User approves design?" -> "Present design sections" [label="no, revise"];
-    "User approves design?" -> "Write design doc" [label="yes"];
-    "Write design doc" -> "Spec self-review\n(fix inline)";
-    "Spec self-review\n(fix inline)" -> "User reviews spec?";
-    "User reviews spec?" -> "Write design doc" [label="changes requested"];
-    "User reviews spec?" -> "Invoke writing-plans skill" [label="approved"];
+    "프로젝트 맥락 탐색" -> "앞으로 시각적 질문이 있는가?";
+    "앞으로 시각적 질문이 있는가?" -> "비주얼 컴패니언 제안\n(별도 메시지, 다른 내용 없음)" [label="예"];
+    "앞으로 시각적 질문이 있는가?" -> "명확화 질문하기" [label="아니오"];
+    "비주얼 컴패니언 제안\n(별도 메시지, 다른 내용 없음)" -> "명확화 질문하기";
+    "명확화 질문하기" -> "2~3개 접근 방식 제안";
+    "2~3개 접근 방식 제안" -> "설계 섹션 제시";
+    "설계 섹션 제시" -> "사용자가 설계를 승인했는가?";
+    "사용자가 설계를 승인했는가?" -> "설계 섹션 제시" [label="아니오, 수정"];
+    "사용자가 설계를 승인했는가?" -> "설계 문서 작성" [label="예"];
+    "설계 문서 작성" -> "스펙 셀프 리뷰\n(바로 수정)";
+    "스펙 셀프 리뷰\n(바로 수정)" -> "사용자가 스펙을 검토했는가?";
+    "사용자가 스펙을 검토했는가?" -> "설계 문서 작성" [label="변경 요청"];
+    "사용자가 스펙을 검토했는가?" -> "writing-plans 스킬 호출" [label="승인"];
 }
 ```
 
-**The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
+**최종 상태는 writing-plans 호출이다.** frontend-design, mcp-builder, 또는 다른 구현 스킬을 호출하지 마라. brainstorming 다음에 호출할 수 있는 유일한 스킬은 writing-plans이다.
 
-## The Process
+## 진행 방식
 
-**Understanding the idea:**
+**아이디어 이해하기:**
 
-- Check out the current project state first (files, docs, recent commits)
-- Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
-- If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec -> plan -> implementation cycle.
-- For appropriately-scoped projects, ask questions one at a time to refine the idea
-- Prefer multiple choice questions when possible, but open-ended is fine too
-- Only one question per message - if a topic needs more exploration, break it into multiple questions
-- Focus on understanding: purpose, constraints, success criteria
+- 먼저 현재 프로젝트 상태를 확인한다(파일, 문서, 최근 커밋)
+- 자세한 질문을 하기 전에 범위를 판단한다. 요청이 여러 개의 독립적인 서브시스템을 설명한다면(예: "채팅, 파일 저장, 결제, 분석이 포함된 플랫폼 만들기"), 이를 즉시 지적한다. 먼저 분해가 필요한 프로젝트의 세부사항을 질문으로 다듬는 데 시간을 쓰지 마라.
+- 프로젝트가 하나의 스펙으로 담기엔 너무 크다면, 사용자가 이를 하위 프로젝트로 분해하도록 돕는다. 독립적인 구성요소가 무엇인지, 서로 어떻게 연결되는지, 어떤 순서로 만들어야 하는지 정리한다. 그 다음 첫 번째 하위 프로젝트에 대해 일반적인 설계 흐름으로 brainstorming을 진행한다. 각 하위 프로젝트는 각자의 스펙 -> 계획 -> 구현 사이클을 가져야 한다.
+- 범위가 적절한 프로젝트라면, 질문을 한 번에 하나씩 하며 아이디어를 정교하게 만든다
+- 가능하면 객관식 질문을 선호하되, 개방형 질문도 괜찮다
+- 메시지당 질문은 하나만 한다. 더 탐색이 필요한 주제라면 여러 질문으로 나눈다
+- 목적, 제약 조건, 성공 기준을 이해하는 데 집중한다
 
-**Exploring approaches:**
+**접근 방식 탐색:**
 
-- Propose 2-3 different approaches with trade-offs
-- Present options conversationally with your recommendation and reasoning
-- Lead with your recommended option and explain why
+- 트레이드오프와 함께 2~3개의 서로 다른 접근 방식을 제안한다
+- 대화체로 옵션을 제시하되, 추천안과 그 이유를 함께 설명한다
+- 먼저 가장 추천하는 옵션을 제시하고, 왜 그것을 추천하는지 설명한다
 
-**Presenting the design:**
+**설계 제시:**
 
-- Once you believe you understand what you're building, present the design
-- Scale each section to its complexity: a few sentences if straightforward, up to 200-300 words if nuanced
-- Ask after each section whether it looks right so far
-- Cover: architecture, components, data flow, error handling, testing
-- Be ready to go back and clarify if something doesn't make sense
+- 무엇을 만들려는지 이해했다고 판단되면 설계를 제시한다
+- 각 섹션은 복잡도에 맞게 조절한다. 단순하면 몇 문장으로, 섬세한 논의가 필요하면 200~300단어 정도까지 쓸 수 있다
+- 각 섹션 뒤에 지금까지 맞는지 사용자에게 확인한다
+- 다음 내용을 다룬다: 아키텍처, 구성요소, 데이터 흐름, 에러 처리, 테스트
+- 무언가 말이 되지 않는다면 다시 돌아가 명확히 할 준비를 한다
 
-**Design for isolation and clarity:**
+**격리와 명확성을 위한 설계:**
 
-- Break the system into smaller units that each have one clear purpose, communicate through well-defined interfaces, and can be understood and tested independently
-- For each unit, you should be able to answer: what does it do, how do you use it, and what does it depend on?
-- Can someone understand what a unit does without reading its internals? Can you change the internals without breaking consumers? If not, the boundaries need work.
-- Smaller, well-bounded units are also easier for you to work with - you reason better about code you can hold in context at once, and your edits are more reliable when files are focused. When a file grows large, that's often a signal that it's doing too much.
+- 시스템을, 각각 하나의 명확한 목적을 가지고, 잘 정의된 인터페이스를 통해 통신하며, 독립적으로 이해하고 테스트할 수 있는 더 작은 단위들로 나눈다
+- 각 단위마다 다음 질문에 답할 수 있어야 한다: 무엇을 하는가, 어떻게 사용하는가, 무엇에 의존하는가?
+- 어떤 단위가 내부 구현을 읽지 않고도 이해 가능한가? 내부를 바꿔도 소비자 코드가 깨지지 않는가? 그렇지 않다면 경계를 더 다듬어야 한다.
+- 더 작고 경계가 분명한 단위는 작업하기도 쉽다. 한 번에 컨텍스트 안에 담을 수 있는 코드일수록 더 잘 추론할 수 있고, 파일이 집중되어 있을수록 수정의 신뢰성도 높아진다. 파일이 너무 커진다면 대개 너무 많은 일을 하고 있다는 신호다.
 
-**Working in existing codebases:**
+**기존 코드베이스에서 작업할 때:**
 
-- Explore the current structure before proposing changes. Follow existing patterns.
-- Where existing code has problems that affect the work (e.g., a file that's grown too large, unclear boundaries, tangled responsibilities), include targeted improvements as part of the design - the way a good developer improves code they're working in.
-- Don't propose unrelated refactoring. Stay focused on what serves the current goal.
+- 변경을 제안하기 전에 현재 구조를 탐색한다. 기존 패턴을 따른다.
+- 기존 코드에 이 작업에 영향을 주는 문제가 있다면(예: 지나치게 커진 파일, 불명확한 경계, 얽힌 책임), 현재 목표를 수행하는 좋은 개발자처럼 설계의 일부로서 국소적인 개선을 포함한다.
+- 관련 없는 리팩터링은 제안하지 마라. 현재 목표에 도움이 되는 범위에만 집중한다.
 
-## After the Design
+## 설계 이후
 
-**Documentation:**
+**문서화:**
 
-- Write the validated design (spec) to `docs/specs/YYYY-MM-DD-<topic>-design.md`
-  - (User preferences for spec location override this default)
-- Commit the design document to git
+- 검증된 설계(스펙)를 `docs/specs/YYYY-MM-DD-<topic>-design.md`에 작성한다
+  - (스펙 위치에 대한 사용자 선호가 있다면 이 기본값보다 우선한다)
+- 설계 문서를 git에 커밋한다
 
-**Spec Self-Review:**
-After writing the spec document, look at it with fresh eyes:
+**스펙 셀프 리뷰:**
+설계 문서를 작성한 뒤에는, 새로운 눈으로 다시 본다:
 
-1. **Placeholder scan:** Any "TBD", "TODO", incomplete sections, or vague requirements? Fix them.
-2. **Internal consistency:** Do any sections contradict each other? Does the architecture match the feature descriptions?
-3. **Scope check:** Is this focused enough for a single implementation plan, or does it need decomposition?
-4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
+1. **플레이스홀더 점검:** "TBD", "TODO", 미완성 섹션, 모호한 요구사항이 있는가? 있으면 수정한다.
+2. **내부 일관성:** 서로 모순되는 섹션이 있는가? 아키텍처가 기능 설명과 일치하는가?
+3. **범위 점검:** 이것이 하나의 구현 계획으로 다루기에 충분히 집중된 범위인가, 아니면 분해가 필요한가?
+4. **모호성 점검:** 어떤 요구사항이 두 가지 방식으로 해석될 수 있는가? 그렇다면 하나를 선택해 명시적으로 적는다.
 
-Fix any issues inline. No need to re-review — just fix and move on.
+문제가 있다면 바로 수정한다. 다시 검토할 필요는 없다. 고치고 계속 진행하면 된다.
 
-**User Review Gate:**
-After the spec review loop passes, ask the user to review the written spec before proceeding:
+**사용자 리뷰 게이트:**
+스펙 리뷰 루프를 통과한 뒤에는, 다음 단계로 진행하기 전에 사용자가 작성된 스펙을 검토하도록 요청한다:
 
-> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
+> "스펙을 작성하고 `<path>`에 커밋했습니다. 구현 계획 작성을 시작하기 전에 변경하고 싶은 점이 있는지 검토해 주세요."
 
-Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
+사용자 응답을 기다린다. 변경 요청이 있다면 반영하고, 스펙 리뷰 루프를 다시 수행한다. 사용자가 승인한 뒤에만 다음으로 진행한다.
 
-**Implementation:**
+**구현:**
 
-- Use `read` to load the writing-plans SKILL.md and follow it to create a detailed implementation plan
-- Do NOT invoke any other skill. writing-plans is the next step.
+- `read`로 writing-plans SKILL.md를 불러오고, 이를 따라 상세한 구현 계획을 만든다
+- 다른 스킬은 호출하지 마라. 다음 단계는 writing-plans이다.
 
-## Key Principles
+## 핵심 원칙
 
-- **One question at a time** - Don't overwhelm with multiple questions
-- **Multiple choice preferred** - Easier to answer than open-ended when possible
-- **YAGNI ruthlessly** - Remove unnecessary features from all designs
-- **Explore alternatives** - Always propose 2-3 approaches before settling
-- **Incremental validation** - Present design, get approval before moving on
-- **Be flexible** - Go back and clarify when something doesn't make sense
+- **질문은 한 번에 하나씩** - 여러 질문으로 압도하지 마라
+- **객관식 선호** - 가능하다면 개방형 질문보다 답하기 쉽다
+- **YAGNI를 철저히 적용** - 모든 설계에서 불필요한 기능을 제거한다
+- **대안 탐색** - 결론을 내리기 전에 항상 2~3개의 접근 방식을 제안한다
+- **점진적 검증** - 설계를 제시하고, 승인을 받은 뒤 다음으로 넘어간다
+- **유연하게 대응** - 말이 되지 않는 부분이 있으면 다시 돌아가 명확히 한다
 
-## Visual Companion
+## 시각 보조 도구
 
-A browser-based companion for showing mockups, diagrams, and visual options during brainstorming. Available as a tool — not a mode. Accepting the companion means it's available for questions that benefit from visual treatment; it does NOT mean every question goes through the browser.
+브레인스토밍 중에 목업, 다이어그램, 시각적 옵션을 보여주기 위한 브라우저 기반 컴패니언이다. 하나의 모드가 아니라 도구로 제공된다. 컴패니언을 수락한다는 것은 시각적 표현이 도움이 되는 질문에서 사용할 수 있다는 뜻이지, 모든 질문을 브라우저로 처리한다는 뜻은 아니다.
 
-**Offering the companion:** When you anticipate that upcoming questions will involve visual content (mockups, layouts, diagrams), offer it once for consent:
-> "Some of what we're working on might be easier to explain if I can show it to you in a web browser. I can put together mockups, diagrams, comparisons, and other visuals as we go. This feature is still new and can be token-intensive. Want to try it? (Requires opening a local URL)"
+**컴패니언 제안하기:** 앞으로의 질문에 시각적 콘텐츠(목업, 레이아웃, 다이어그램)가 포함될 것 같다면, 한 번만 동의를 구한다:
+> "지금 함께 작업하는 내용 중 일부는 웹 브라우저에서 직접 보여드리면 더 설명하기 쉬울 수 있습니다. 진행하면서 목업, 다이어그램, 비교안, 그 밖의 시각 자료를 만들어 보여드릴 수 있어요. 이 기능은 아직 새롭고 토큰을 많이 사용할 수 있습니다. 사용해보시겠어요? (로컬 URL을 열어야 합니다)"
 
-**This offer MUST be its own message.** Do not combine it with clarifying questions, context summaries, or any other content. The message should contain ONLY the offer above and nothing else. Wait for the user's response before continuing. If they decline, proceed with text-only brainstorming.
+**이 제안은 반드시 별도 메시지여야 한다.** 명확화 질문, 컨텍스트 요약, 다른 어떤 내용과도 합치지 마라. 메시지에는 위 제안 문구만 들어 있어야 하며 그 외 내용은 없어야 한다. 계속 진행하기 전에 사용자 응답을 기다린다. 사용자가 거절하면 텍스트만으로 brainstorming을 진행한다.
 
-**Per-question decision:** Even after the user accepts, decide FOR EACH QUESTION whether to use the browser or the terminal. The test: **would the user understand this better by seeing it than reading it?**
+**질문별 판단:** 사용자가 수락한 뒤에도, 각 질문마다 브라우저를 쓸지 터미널을 쓸지 결정해야 한다. 기준은 이것이다: **사용자가 읽는 것보다 보는 것이 더 이해하기 쉬운가?**
 
-- **Use the browser** for content that IS visual — mockups, wireframes, layout comparisons, architecture diagrams, side-by-side visual designs
-- **Use the terminal** for content that is text — requirements questions, conceptual choices, tradeoff lists, A/B/C/D text options, scope decisions
+- **브라우저 사용** — 시각적인 콘텐츠일 때: 목업, 와이어프레임, 레이아웃 비교, 아키텍처 다이어그램, 나란히 비교하는 시각적 디자인
+- **터미널 사용** — 텍스트성 콘텐츠일 때: 요구사항 질문, 개념적 선택, 트레이드오프 목록, A/B/C/D 텍스트 옵션, 범위 결정
 
-A question about a UI topic is not automatically a visual question. "What does personality mean in this context?" is a conceptual question — use the terminal. "Which wizard layout works better?" is a visual question — use the browser.
+UI 관련 주제라고 해서 자동으로 시각적 질문이 되는 것은 아니다. "이 맥락에서 personality는 무슨 뜻인가요?"는 개념적 질문이므로 터미널을 사용한다. "어떤 위저드 레이아웃이 더 잘 맞을까요?"는 시각적 질문이므로 브라우저를 사용한다.
 
-If they agree to the companion, read the detailed guide before proceeding:
+사용자가 컴패니언 사용에 동의했다면, 진행 전에 자세한 가이드를 읽는다:
 `skills/brainstorming/visual-companion.md`

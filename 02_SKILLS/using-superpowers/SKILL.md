@@ -1,39 +1,39 @@
 ---
 name: using-superpowers
-description: Use when the user asks about available skills, how to use them, or references a specific skill by name
+description: 사용자가 사용할 수 있는 스킬을 묻거나, 스킬 이름을 직접 언급하거나, 어떤 상황에서 어떤 스킬을 써야 하는지 안내가 필요할 때 사용한다.
 ---
 
 <SUBAGENT-STOP>
-If you were dispatched as a subagent to execute a specific task, skip this skill.
+특정 작업을 수행하는 서브에이전트로 호출되었다면, 이 스킬은 건너뛴다.
 </SUBAGENT-STOP>
 
-## When to load a skill
+## 스킬을 불러와야 하는 시점
 
-- The user explicitly requests it (e.g. `/skill:<name>`, "TDD로 해줘", "brainstorming 해줘")
-- The task is an obvious, direct match for a skill's description
+- 사용자가 명시적으로 요청할 때 (예: `/skill:<name>`, "TDD로 해줘", "brainstorming 해줘")
+- 현재 작업이 어떤 스킬의 `description`과 명확하고 직접적으로 맞아떨어질 때
 
-**Do not load skills speculatively.** If unsure, don't load — the user can always request one.
+**추측해서 스킬을 불러오지 마라.** 확신이 없으면 불러오지 않는다. 사용자는 언제든 직접 요청할 수 있다.
 
-## When NOT to load a skill
+## 스킬을 불러오면 안 되는 시점
 
-- Simple questions, file edits, quick fixes
-- "Just in case" or "might be useful" — this is speculative loading
-- The task only loosely relates to a skill's topic
+- 단순한 질문, 파일 편집, 빠른 수정
+- "혹시 모르니" 또는 "도움이 될 수도 있으니" 같은 경우 — 이는 추측성 로딩이다
+- 작업이 스킬 주제와 느슨하게만 관련되어 있을 때
 
-## How to access skills
+## 스킬에 접근하는 방법
 
-pi injects skill names and descriptions into the system prompt. When a skill matches, use `read` to load `02_SKILLS/<skill-name>/SKILL.md` and follow it.
+pi는 시스템 프롬프트에 스킬 이름과 설명을 주입한다. 맞는 스킬이 보이면 `read`를 사용해 `02_SKILLS/<skill-name>/SKILL.md`를 읽고 그 지침을 따른다.
 
-Users can also invoke skills explicitly via `/skill:<name>`.
+사용자는 `/skill:<name>`으로도 스킬을 명시적으로 호출할 수 있다.
 
-## Instruction priority
+## 지시 우선순위
 
-1. **User's explicit instructions** (CLAUDE.md, direct requests) — highest priority
-2. **Skills** — override default system behavior where they conflict
-3. **Default system prompt** — lowest priority
+1. **사용자의 명시적 지시** (`CLAUDE.md`, 직접 요청) — 가장 높은 우선순위
+2. **스킬** — 기본 시스템 동작과 충돌할 때 이를 우선한다
+3. **기본 시스템 프롬프트** — 가장 낮은 우선순위
 
-## Skill types
+## 스킬 유형
 
-**Rigid** (TDD, debugging): Follow exactly once loaded.
+**엄격형** (TDD, 디버깅): 한 번 불러왔다면 그대로 정확히 따른다.
 
-**Flexible** (patterns): Adapt principles to context.
+**유연형** (패턴): 원칙을 현재 맥락에 맞게 적용한다.

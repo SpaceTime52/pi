@@ -1,182 +1,182 @@
 ---
 name: dispatching-parallel-agents
-description: Use when the user asks to run multiple independent tasks in parallel
+description: 여러 독립적인 작업이나 조사 과제가 컨텍스트를 공유하지 않고 병렬로 진행될 수 있을 때 사용한다.
 ---
 
-# Dispatching Parallel Agents
+# 병렬 에이전트 디스패치
 
-## Overview
+## 개요
 
-You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
+당신은 격리된 컨텍스트를 가진 전문 에이전트들에게 작업을 위임한다. 지시사항과 컨텍스트를 정확하게 구성하면, 각 에이전트가 집중력을 유지한 채 자신의 작업을 성공적으로 수행하게 할 수 있다. 이 에이전트들은 현재 세션의 컨텍스트나 이력을 그대로 물려받아서는 안 되며, 필요한 정보만 당신이 직접 구성해 전달해야 한다. 이렇게 하면 조율 작업을 위한 당신 자신의 컨텍스트도 보존할 수 있다.
 
-When you have multiple unrelated failures (different test files, different subsystems, different bugs), investigating them sequentially wastes time. Each investigation is independent and can happen in parallel.
+서로 무관한 실패가 여러 개 있을 때(서로 다른 테스트 파일, 서로 다른 서브시스템, 서로 다른 버그), 이를 순차적으로 조사하는 것은 시간을 낭비하게 된다. 각 조사는 서로 독립적이며 병렬로 진행할 수 있다.
 
-**Core principle:** Dispatch one agent per independent problem domain. Let them work concurrently.
+**핵심 원칙:** 독립적인 문제 영역마다 에이전트를 하나씩 배정하라. 동시에 작업하게 하라.
 
-## When to Use
+## 사용 시점
 
 ```dot
 digraph when_to_use {
-    "Multiple failures?" [shape=diamond];
-    "Are they independent?" [shape=diamond];
-    "Single agent investigates all" [shape=box];
-    "One agent per problem domain" [shape=box];
-    "Can they work in parallel?" [shape=diamond];
-    "Sequential agents" [shape=box];
-    "Parallel dispatch" [shape=box];
+    "실패가 여러 개인가?" [shape=diamond];
+    "서로 독립적인가?" [shape=diamond];
+    "하나의 에이전트가 모두 조사" [shape=box];
+    "문제 영역마다 에이전트 하나" [shape=box];
+    "병렬로 작업할 수 있는가?" [shape=diamond];
+    "순차적으로 에이전트 실행" [shape=box];
+    "병렬 디스패치" [shape=box];
 
-    "Multiple failures?" -> "Are they independent?" [label="yes"];
-    "Are they independent?" -> "Single agent investigates all" [label="no - related"];
-    "Are they independent?" -> "Can they work in parallel?" [label="yes"];
-    "Can they work in parallel?" -> "Parallel dispatch" [label="yes"];
-    "Can they work in parallel?" -> "Sequential agents" [label="no - shared state"];
+    "실패가 여러 개인가?" -> "서로 독립적인가?" [label="예"];
+    "서로 독립적인가?" -> "하나의 에이전트가 모두 조사" [label="아니오 - 서로 연관됨"];
+    "서로 독립적인가?" -> "병렬로 작업할 수 있는가?" [label="예"];
+    "병렬로 작업할 수 있는가?" -> "병렬 디스패치" [label="예"];
+    "병렬로 작업할 수 있는가?" -> "순차적으로 에이전트 실행" [label="아니오 - 공유 상태 있음"];
 }
 ```
 
-**Use when:**
-- 3+ test files failing with different root causes
-- Multiple subsystems broken independently
-- Each problem can be understood without context from others
-- No shared state between investigations
+**다음과 같은 경우 사용:**
+- 서로 다른 근본 원인으로 3개 이상의 테스트 파일이 실패할 때
+- 여러 서브시스템이 서로 독립적으로 망가졌을 때
+- 각 문제를 다른 문제의 컨텍스트 없이도 이해할 수 있을 때
+- 조사들 사이에 공유 상태가 없을 때
 
-**Don't use when:**
-- Failures are related (fix one might fix others)
-- Need to understand full system state
-- Agents would interfere with each other
+**다음과 같은 경우에는 사용하지 말 것:**
+- 실패들이 서로 연관되어 있어 하나를 고치면 다른 것도 해결될 수 있을 때
+- 전체 시스템 상태를 함께 이해해야 할 때
+- 에이전트들이 서로 간섭하게 될 때
 
-## The Pattern
+## 패턴
 
-### 1. Identify Independent Domains
+### 1. 독립적인 영역 식별
 
-Group failures by what's broken:
-- File A tests: Tool approval flow
-- File B tests: Batch completion behavior
-- File C tests: Abort functionality
+무엇이 망가졌는지 기준으로 실패를 묶어라:
+- 파일 A 테스트: 도구 승인 흐름
+- 파일 B 테스트: 배치 완료 동작
+- 파일 C 테스트: 중단 기능
 
-Each domain is independent - fixing tool approval doesn't affect abort tests.
+각 영역은 서로 독립적이다. 도구 승인 문제를 고쳐도 중단 테스트에는 영향을 주지 않는다.
 
-### 2. Create Focused Agent Tasks
+### 2. 집중된 에이전트 작업 만들기
 
-Each agent gets:
-- **Specific scope:** One test file or subsystem
-- **Clear goal:** Make these tests pass
-- **Constraints:** Don't change other code
-- **Expected output:** Summary of what you found and fixed
+각 에이전트에는 다음이 주어진다:
+- **구체적인 범위:** 하나의 테스트 파일 또는 하나의 서브시스템
+- **명확한 목표:** 해당 테스트들을 통과시키기
+- **제약사항:** 다른 코드는 변경하지 않기
+- **기대 출력:** 무엇을 발견했고 무엇을 수정했는지에 대한 요약
 
-### 3. Dispatch in Parallel
+### 3. 병렬로 디스패치
 
 ```typescript
-// In pi / AI environment
-todo("Fix agent-tool-abort.test.ts failures")
-todo("Fix batch-completion-behavior.test.ts failures")
-todo("Fix tool-approval-race-conditions.test.ts failures")
-// All three run concurrently via subagent
+// pi / AI 환경에서
+todo("agent-tool-abort.test.ts 실패 수정")
+todo("batch-completion-behavior.test.ts 실패 수정")
+todo("tool-approval-race-conditions.test.ts 실패 수정")
+// 세 작업 모두 subagent를 통해 동시에 실행됨
 ```
 
-### 4. Review and Integrate
+### 4. 검토 및 통합
 
-When agents return:
-- Read each summary
-- Verify fixes don't conflict
-- Run full test suite
-- Integrate all changes
+에이전트들이 반환되면:
+- 각 요약을 읽는다
+- 수정 사항이 충돌하지 않는지 검증한다
+- 전체 테스트 스위트를 실행한다
+- 모든 변경을 통합한다
 
-## Agent Prompt Structure
+## 에이전트 프롬프트 구조
 
-Good agent prompts are:
-1. **Focused** - One clear problem domain
-2. **Self-contained** - All context needed to understand the problem
-3. **Specific about output** - What should the agent return?
+좋은 에이전트 프롬프트의 조건:
+1. **집중됨** - 하나의 명확한 문제 영역만 다룬다
+2. **자급자족 가능함** - 문제를 이해하는 데 필요한 모든 컨텍스트가 들어 있다
+3. **출력이 구체적임** - 에이전트가 무엇을 반환해야 하는지 명확하다
 
 ```markdown
-Fix the 3 failing tests in src/agents/agent-tool-abort.test.ts:
+src/agents/agent-tool-abort.test.ts 에서 실패하는 3개의 테스트를 수정하라:
 
-1. "should abort tool with partial output capture" - expects 'interrupted at' in message
-2. "should handle mixed completed and aborted tools" - fast tool aborted instead of completed
-3. "should properly track pendingToolCount" - expects 3 results but gets 0
+1. "partial output capture가 있는 tool abort를 처리해야 함" - 메시지에 'interrupted at'이 들어가야 함
+2. "completed와 aborted tool이 섞인 경우를 처리해야 함" - 빠른 툴이 완료되지 않고 중단됨
+3. "pendingToolCount를 올바르게 추적해야 함" - 결과 3개를 기대하지만 0개가 나옴
 
-These are timing/race condition issues. Your task:
+이 문제들은 타이밍/레이스 컨디션 이슈다. 작업은 다음과 같다:
 
-1. Read the test file and understand what each test verifies
-2. Identify root cause - timing issues or actual bugs?
-3. Fix by:
-   - Replacing arbitrary timeouts with event-based waiting
-   - Fixing bugs in abort implementation if found
-   - Adjusting test expectations if testing changed behavior
+1. 테스트 파일을 읽고 각 테스트가 무엇을 검증하는지 이해한다
+2. 근본 원인을 식별한다 - 타이밍 문제인가, 실제 버그인가?
+3. 다음 방식으로 수정한다:
+   - 임의의 timeout을 이벤트 기반 대기로 교체한다
+   - 발견된 경우 abort 구현의 버그를 수정한다
+   - 동작이 바뀌었다면 테스트 기대값을 조정한다
 
-Do NOT just increase timeouts - find the real issue.
+timeout만 늘리지 말고, 실제 원인을 찾아라.
 
-Return: Summary of what you found and what you fixed.
+반환: 무엇을 발견했고 무엇을 수정했는지 요약.
 ```
 
-## Common Mistakes
+## 흔한 실수
 
-**X Too broad:** "Fix all the tests" - agent gets lost
-**V Specific:** "Fix agent-tool-abort.test.ts" - focused scope
+**X 너무 광범위함:** "모든 테스트를 고쳐라" - 에이전트가 길을 잃는다
+**V 구체적임:** "agent-tool-abort.test.ts를 고쳐라" - 범위가 집중되어 있다
 
-**X No context:** "Fix the race condition" - agent doesn't know where
-**V Context:** Paste the error messages and test names
+**X 컨텍스트가 없음:** "레이스 컨디션을 고쳐라" - 어디를 봐야 하는지 모른다
+**V 컨텍스트 제공:** 오류 메시지와 테스트 이름을 붙여 넣는다
 
-**X No constraints:** Agent might refactor everything
-**V Constraints:** "Do NOT change production code" or "Fix tests only"
+**X 제약이 없음:** 에이전트가 모든 것을 리팩터링할 수 있다
+**V 제약 명시:** "프로덕션 코드는 변경하지 마라" 또는 "테스트만 고쳐라"
 
-**X Vague output:** "Fix it" - you don't know what changed
-**V Specific:** "Return summary of root cause and changes"
+**X 출력이 모호함:** "고쳐라" - 무엇이 바뀌었는지 알 수 없다
+**V 구체적임:** "근본 원인과 변경 사항 요약을 반환하라"
 
-## When NOT to Use
+## 사용하지 말아야 할 때
 
-**Related failures:** Fixing one might fix others - investigate together first
-**Need full context:** Understanding requires seeing entire system
-**Exploratory debugging:** You don't know what's broken yet
-**Shared state:** Agents would interfere (editing same files, using same resources)
+**연관된 실패들:** 하나를 고치면 다른 것도 해결될 수 있으므로 먼저 함께 조사하라
+**전체 컨텍스트 필요:** 이해를 위해 시스템 전체를 봐야 한다
+**탐색적 디버깅:** 무엇이 망가졌는지 아직 모른다
+**공유 상태:** 에이전트들이 서로 간섭하게 된다(같은 파일 편집, 같은 리소스 사용 등)
 
-## Real Example from Session
+## 실제 세션 예시
 
-**Scenario:** 6 test failures across 3 files after major refactoring
+**상황:** 대규모 리팩터링 후 3개 파일에서 테스트 6개 실패
 
-**Failures:**
-- agent-tool-abort.test.ts: 3 failures (timing issues)
-- batch-completion-behavior.test.ts: 2 failures (tools not executing)
-- tool-approval-race-conditions.test.ts: 1 failure (execution count = 0)
+**실패 내용:**
+- agent-tool-abort.test.ts: 3개 실패 (타이밍 이슈)
+- batch-completion-behavior.test.ts: 2개 실패 (툴이 실행되지 않음)
+- tool-approval-race-conditions.test.ts: 1개 실패 (execution count = 0)
 
-**Decision:** Independent domains - abort logic separate from batch completion separate from race conditions
+**판단:** abort 로직, batch completion, race condition은 서로 다른 독립 영역이다
 
-**Dispatch:**
+**디스패치:**
 ```
-subagent 1 -> Fix agent-tool-abort.test.ts
-subagent 2 -> Fix batch-completion-behavior.test.ts
-subagent 3 -> Fix tool-approval-race-conditions.test.ts
+subagent 1 -> agent-tool-abort.test.ts 수정
+subagent 2 -> batch-completion-behavior.test.ts 수정
+subagent 3 -> tool-approval-race-conditions.test.ts 수정
 ```
 
-**Results:**
-- subagent 1: Replaced timeouts with event-based waiting
-- subagent 2: Fixed event structure bug (threadId in wrong place)
-- subagent 3: Added wait for async tool execution to complete
+**결과:**
+- subagent 1: timeout을 이벤트 기반 대기로 교체
+- subagent 2: 이벤트 구조 버그 수정 (threadId 위치가 잘못됨)
+- subagent 3: 비동기 툴 실행 완료를 기다리는 대기 추가
 
-**Integration:** All fixes independent, no conflicts, full suite green
+**통합:** 모든 수정이 서로 독립적이었고, 충돌이 없었으며, 전체 스위트가 녹색이 되었다
 
-**Time saved:** 3 problems solved in parallel vs sequentially
+**절약된 시간:** 순차 처리 대비 3개의 문제를 1개의 시간에 해결
 
-## Key Benefits
+## 핵심 이점
 
-1. **Parallelization** - Multiple investigations happen simultaneously
-2. **Focus** - Each agent has narrow scope, less context to track
-3. **Independence** - Agents don't interfere with each other
-4. **Speed** - 3 problems solved in time of 1
+1. **병렬화** - 여러 조사가 동시에 진행된다
+2. **집중도** - 각 에이전트가 좁은 범위를 맡아 추적할 컨텍스트가 적다
+3. **독립성** - 에이전트들이 서로 간섭하지 않는다
+4. **속도** - 1개의 시간에 3개의 문제를 해결한다
 
-## Verification
+## 검증
 
-After agents return:
-1. **Review each summary** - Understand what changed
-2. **Check for conflicts** - Did agents edit same code?
-3. **Run full suite** - Verify all fixes work together
-4. **Spot check** - Agents can make systematic errors
+에이전트가 반환된 후:
+1. **각 요약 검토** - 무엇이 바뀌었는지 이해한다
+2. **충돌 확인** - 에이전트들이 같은 코드를 수정했는가?
+3. **전체 스위트 실행** - 모든 수정이 함께 잘 동작하는지 검증한다
+4. **스팟 체크** - 에이전트가 체계적인 오류를 만들었을 수 있다
 
-## Real-World Impact
+## 실제 효과
 
-From debugging session (2025-10-03):
-- 6 failures across 3 files
-- 3 agents dispatched in parallel
-- All investigations completed concurrently
-- All fixes integrated successfully
-- Zero conflicts between agent changes
+디버깅 세션(2025-10-03) 기준:
+- 3개 파일에서 6개 실패
+- 3개의 에이전트를 병렬로 디스패치
+- 모든 조사가 동시에 완료됨
+- 모든 수정이 성공적으로 통합됨
+- 에이전트 변경 사항 간 충돌 0건

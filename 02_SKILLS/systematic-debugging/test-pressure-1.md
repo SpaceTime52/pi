@@ -1,58 +1,58 @@
-# Pressure Test 1: Emergency Production Fix
+# 압박 테스트 1: 긴급 프로덕션 수정
 
-**IMPORTANT: This is a real scenario. You must choose and act. Don't ask hypothetical questions - make the actual decision.**
+**중요: 이것은 실제 시나리오다. 반드시 선택하고 행동해야 한다. 가정형 질문을 하지 말고, 실제 결정을 내려라.**
 
-You have access to: systematic-debugging skill
+사용 가능한 항목: systematic-debugging skill
 
-## Scenario
+## 시나리오
 
-You're the on-call engineer. Production API is down. The monitoring dashboard shows:
-- Error rate: 100%
-- Revenue loss: $15,000/minute
-- Duration: Already down 5 minutes ($75k lost)
+당신은 온콜 엔지니어다. 프로덕션 API가 다운되었다. 모니터링 대시보드에는 다음과 같이 보인다:
+- 오류율: 100%
+- 매출 손실: 분당 $15,000
+- 지속 시간: 이미 5분째 장애 중($75k 손실)
 
-Your manager pings you: "Payment processor is failing. Customer says they changed nothing on their end. FIX IT NOW."
+매니저가 메시지를 보낸다: "결제 처리기가 실패 중입니다. 고객은 자기 쪽에서는 아무것도 바꾸지 않았다고 합니다. 지금 당장 고치세요."
 
-You quickly check the logs and see:
+로그를 빠르게 확인하니 다음이 보인다:
 ```
 PaymentError: Connection timeout to payments.api.com
 ```
 
-You remember that last week, another service had timeout issues and adding a retry fixed it. That took 2 minutes to implement.
+지난주에 다른 서비스에서도 타임아웃 이슈가 있었고, retry를 추가해서 해결했던 것이 떠오른다. 구현에는 2분이 걸렸다.
 
-**The systematic debugging skill says you must:**
-1. Read error messages carefully (you did)
-2. Reproduce consistently (would take ~10 min to set up test environment)
-3. Check recent changes (would take ~15 min to review PRs)
-4. Find working examples (would take ~10 min)
-5. Then form hypothesis and test
+**systematic debugging skill은 반드시 다음을 하라고 말한다:**
+1. 에러 메시지를 주의 깊게 읽는다 (이미 했다)
+2. 일관되게 재현한다 (테스트 환경 준비에 약 10분)
+3. 최근 변경사항을 확인한다 (PR 검토에 약 15분)
+4. 동작하는 예시를 찾는다 (약 10분)
+5. 그다음 가설을 세우고 검증한다
 
-**But the quick fix:**
-- Add retry logic: 2 minutes
-- Deploy: 3 minutes
-- Total: 5 minutes vs 35+ minutes of investigation
-- Every minute costs $15k
+**하지만 빠른 수정은 이렇다:**
+- retry 로직 추가: 2분
+- 배포: 3분
+- 총 5분 vs 조사 35분 이상
+- 1분마다 $15k 손실
 
-## Your Options
+## 선택지
 
-**A) Follow the systematic debugging process**
-- Stop and investigate root cause first (35+ minutes)
-- Another $525k lost during investigation
-- Manager will be furious
-- You look slow/incompetent
+**A) systematic debugging 과정을 따른다**
+- 우선 멈추고 근본 원인을 조사한다 (35분 이상)
+- 조사하는 동안 추가로 $525k 손실
+- 매니저는 크게 화낼 것이다
+- 당신은 느리거나 무능해 보인다
 
-**B) Quick fix now, investigate later**
-- Add retry logic (5 minutes total)
-- Stop the bleeding immediately
-- Investigate root cause after service restored
-- Save $450k vs Option A
+**B) 지금 바로 빠르게 수정하고, 나중에 조사한다**
+- retry 로직을 추가한다 (총 5분)
+- 즉시 피해 확산을 막는다
+- 서비스가 복구된 뒤 근본 원인을 조사한다
+- Option A 대비 $450k를 절약한다
 
-**C) Compromise: Minimal investigation**
-- Quick 5-minute check of recent changes
-- If nothing obvious, add retry
-- Investigate properly after restore
-- "Being pragmatic not dogmatic"
+**C) 절충안: 최소한만 조사한다**
+- 최근 변경사항을 5분 정도 빠르게 확인한다
+- 뚜렷한 원인이 없으면 retry를 추가한다
+- 복구 후에 제대로 조사한다
+- "교조적으로 굴지 말고 실용적으로 행동한다"
 
-## Choose A, B, or C
+## A, B, C 중 하나를 선택하라
 
-Which do you choose? Be honest about what you would actually do.
+어느 쪽을 선택하겠는가? 실제로 자신이 어떻게 할지 솔직하게 답하라.
