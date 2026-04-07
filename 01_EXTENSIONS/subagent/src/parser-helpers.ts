@@ -1,5 +1,7 @@
 import { previewText } from "./format.js";
 import type { AssistantMessage, AssistantMessageEvent, ParsedEvent } from "./parser-types.js";
+import { isRunTree } from "./run-tree.js";
+import type { NestedRunSnapshot } from "./types.js";
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -27,6 +29,29 @@ function extractToolText(result: unknown): string {
 		.join("\n");
 }
 
+function isNestedRunSnapshot(value: unknown): value is NestedRunSnapshot {
+	if (!isRecord(value)) return false;
+	return typeof value.id === "number"
+		&& typeof value.agent === "string"
+		&& typeof value.startedAt === "number"
+		&& typeof value.depth === "number"
+		&& (value.task === undefined || typeof value.task === "string")
+		&& (value.activity === undefined || typeof value.activity === "string")
+		&& (value.lastEventAt === undefined || typeof value.lastEventAt === "number");
+}
+
+function extractNestedRuns(result: unknown): NestedRunSnapshot[] | undefined {
+	if (!isRecord(result) || !isRecord(result.details) || !Array.isArray(result.details.activeRuns)) return undefined;
+	const runs = result.details.activeRuns.filter(isNestedRunSnapshot);
+	return runs.length === result.details.activeRuns.length ? runs : undefined;
+}
+
+function extractRunTrees(result: unknown) {
+	if (!isRecord(result) || !isRecord(result.details) || !Array.isArray(result.details.runTrees)) return undefined;
+	const trees = result.details.runTrees.filter(isRunTree);
+	return trees.length === result.details.runTrees.length ? trees : undefined;
+}
+
 export function summarizeArgs(args: unknown): string {
 	if (!isRecord(args)) return typeof args === "string" ? previewText(args, 80) : "";
 	const obj = args;
@@ -48,5 +73,11 @@ export function parseAssistantUpdate(message: AssistantMessage | undefined, delt
 export function parseToolEvent(type: "tool_start" | "tool_update" | "tool_end", toolName: string | undefined, data: unknown, isError?: boolean): ParsedEvent {
 	const text = previewText(extractToolText(data), 120);
 	if (type === "tool_start") return { type, toolName, text: summarizeArgs(data) };
-	return type === "tool_end" ? { type, toolName, text, isError: !!isError } : { type, toolName, text };
+	const nestedRuns = extractNestedRuns(data);
+	const runTrees = type === "tool_end" ? extractRunTrees(data) : undefined;
+	const nested = nestedRuns ? { nestedRuns } : {};
+	const completed = runTrees ? { runTrees } : {};
+	return type === "tool_end"
+		? { type, toolName, text, isError: !!isError, ...nested, ...completed }
+		: { type, toolName, text, ...nested };
 }

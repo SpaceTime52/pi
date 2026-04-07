@@ -1,4 +1,5 @@
 import { previewText } from "./format.js";
+import { formatRunTrees } from "./run-tree.js";
 import { listRuns } from "./store.js";
 import { getRunHistory } from "./session.js";
 
@@ -6,13 +7,21 @@ export function formatRunsList(): string {
 	const active = listRuns();
 	const history = getRunHistory();
 	const parts: string[] = [];
-	if (active.length) parts.push(`Active (${active.length}):\n${active.map(formatRun).join("\n")}`);
-	if (history.length) parts.push(`History (${history.length}):\n${history.map(formatRun).join("\n")}`);
+	if (active.length) parts.push(`Active (${active.length}):\n${active.map(formatRunSummary).join("\n")}`);
+	if (history.length) parts.push(`History (${history.length}):\n${history.map(formatHistoryRun).join("\n")}`);
 	return parts.join("\n\n") || "No runs";
 }
 
-function formatRun(r: { id: number; agent: string; task?: string; error?: string }) {
+function formatRunSummary(r: { id: number; agent: string; task?: string; error?: string }) {
 	return `  #${r.id} ${r.agent}${r.task ? ` — ${previewText(r.task, 80)}` : ""}${r.error ? " [error]" : ""}`;
+}
+
+function formatHistoryRun(r: { id: number; agent: string; task?: string; error?: string; runTrees?: unknown[] }) {
+	const lines = [formatRunSummary(r)];
+	if (Array.isArray(r.runTrees) && r.runTrees.length > 0) {
+		lines.push(...formatRunTrees(r.runTrees).map((line) => `    ${line}`));
+	}
+	return lines.join("\n");
 }
 
 export function formatDetail(id: number): string {
@@ -23,6 +32,7 @@ export function formatDetail(id: number): string {
 	if (item.sessionFile) parts.push(`session: ${item.sessionFile}`);
 	parts.push(item.error ? `status: error — ${item.error}` : "status: ok");
 	if (item.events?.length) parts.push("events:", ...item.events.flatMap(formatEvent));
+	if (item.runTrees?.length) parts.push("nested runs:", ...formatRunTrees(item.runTrees).map((line) => `  ${line}`));
 	if (item.output) parts.push("", "output:", item.output);
 	else if (!item.events?.length) parts.push("(no output)");
 	return parts.join("\n");

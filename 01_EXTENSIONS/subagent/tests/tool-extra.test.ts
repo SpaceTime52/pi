@@ -27,13 +27,15 @@ const exec = async (cmd: string) => createTool(stubPi(), "/agents").execute("", 
 describe("tool extra coverage", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
 
-	it("includes task snippets in active and history runs", async () => {
+	it("includes task snippets and nested tree summaries in runs", async () => {
 		addRun({ id: 1, agent: "scout", task: "find auth code in the repo", startedAt: Date.now(), abort: () => {} });
-		addToHistory({ id: 2, agent: "scout", task: "review patch", error: "boom" });
+		addToHistory({ id: 2, agent: "scout", task: "review patch", error: "boom", runTrees: [{ id: 3, agent: "reviewer", status: "ok", children: [{ id: 4, agent: "verifier", status: "error", error: "bad" }] }] });
 		const r = await exec("runs");
 		expect(r.content[0].text).toContain("find auth code in the repo");
 		expect(r.content[0].text).toContain("review patch");
 		expect(r.content[0].text).toContain("[error]");
+		expect(r.content[0].text).toContain("reviewer #3");
+		expect(r.content[0].text).toContain("verifier #4");
 	});
 
 	it("renders detailed history with task, session, error, and event variants", async () => {
@@ -44,6 +46,7 @@ describe("tool extra coverage", () => {
 			sessionFile: "/tmp/subagent.json",
 			error: "failed",
 			output: "final output",
+			runTrees: [{ id: 8, agent: "worker", status: "ok", children: [{ id: 9, agent: "verifier", status: "error", error: "failed" }] }],
 			events: [
 				{ type: "tool_start", toolName: "Bash", text: "git status" },
 				{ type: "tool_update", toolName: "Bash", text: "partial" },
@@ -65,6 +68,9 @@ describe("tool extra coverage", () => {
 		expect(r.content[0].text).toContain("✓ tool");
 		expect(r.content[0].text).toContain("… draft");
 		expect(r.content[0].text).toContain("done: error");
+		expect(r.content[0].text).toContain("nested runs:");
+		expect(r.content[0].text).toContain("worker #8");
+		expect(r.content[0].text).toContain("verifier #9");
 		expect(r.content[0].text).toContain("output:\nfinal output");
 	});
 });

@@ -1,7 +1,7 @@
 import { ESCALATION_MARKER } from "./constants.js";
 import { previewText } from "./format.js";
 import type { ParsedEvent } from "./parser.js";
-import type { UsageStats } from "./types.js";
+import type { RunTree, UsageStats } from "./types.js";
 
 export interface CollectedOutput {
 	output: string;
@@ -11,12 +11,14 @@ export interface CollectedOutput {
 	source: "message" | "agent_end" | "stream" | "empty";
 	lastToolName?: string;
 	lastToolText?: string;
+	runTrees?: RunTree[];
 }
 
 export function collectOutput(events: ParsedEvent[]): CollectedOutput {
 	const finalTexts: string[] = [];
 	const streamedTexts: string[] = [];
 	const usage: UsageStats = { inputTokens: 0, outputTokens: 0, turns: 0 };
+	const runTrees: RunTree[] = [];
 	let agentEndText = "", stopReason: string | undefined, lastToolName: string | undefined, lastToolText: string | undefined;
 	for (const evt of events) {
 		if (evt.type === "message" && evt.text !== undefined) {
@@ -31,6 +33,7 @@ export function collectOutput(events: ParsedEvent[]): CollectedOutput {
 			lastToolName = evt.toolName;
 			lastToolText = evt.text || lastToolText;
 		}
+		if (evt.type === "tool_end" && evt.runTrees?.length) runTrees.push(...evt.runTrees);
 		if (evt.type === "agent_end") {
 			agentEndText = evt.text || agentEndText;
 			stopReason = evt.stopReason ?? stopReason;
@@ -46,7 +49,7 @@ export function collectOutput(events: ParsedEvent[]): CollectedOutput {
 	const output = finalOutput || agentEndText || streamOutput;
 	const source = finalOutput ? "message" : agentEndText ? "agent_end" : streamOutput ? "stream" : "empty";
 	const escalation = output.includes(ESCALATION_MARKER) ? output.split(ESCALATION_MARKER)[1]?.trim() : undefined;
-	return { output, usage, escalation, stopReason, source, lastToolName, lastToolText };
+	return { output, usage, escalation, stopReason, source, lastToolName, lastToolText, runTrees };
 }
 
 export function buildMissingOutputDiagnostic(data: Pick<CollectedOutput, "stopReason" | "source" | "lastToolName" | "lastToolText"> & { stderr?: string; exitCode: number | null }): string {

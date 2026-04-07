@@ -6,11 +6,15 @@ import { dispatchAbort, dispatchBatch, dispatchChain, dispatchContinue, dispatch
 import type { DispatchCtx } from "./dispatch.js";
 import { loadAgentsFromDir, getAgent } from "./agents.js";
 import { renderCall, renderResult, buildResultText } from "./render.js";
+import { resultToRunTree } from "./run-tree.js";
 import { formatDetail, formatRunsList } from "./tool-report.js";
 import type { AgentConfig, SubagentPi, SubagentToolDetails, Subcommand } from "./types.js";
 import { SubagentParams } from "./types.js";
 
-const result = (text: string, isError = false): AgentToolResult<SubagentToolDetails> => ({ content: [{ type: "text", text }], details: { isError } });
+const result = (text: string, isError = false, details?: Omit<SubagentToolDetails, "isError">): AgentToolResult<SubagentToolDetails> => ({
+	content: [{ type: "text", text }],
+	details: { isError, ...details },
+});
 export const errorMsg = (e: unknown) => e instanceof Error ? e.message : String(e);
 type UpdateFn = AgentToolUpdateCallback<SubagentToolDetails> | undefined;
 
@@ -22,7 +26,9 @@ async function dispatch(cmd: Subcommand, agents: AgentConfig[], ctx: DispatchCtx
 	if (cmd.type === "batch") return runBatch(cmd, agents, ctx, onUpdate, signal);
 	if (cmd.type === "chain") return runChain(cmd, agents, ctx, onUpdate, signal);
 	const cont = await dispatchContinue(cmd.id, cmd.task, agents, ctx, onUpdate, signal);
-	return typeof cont === "string" ? result(cont, cont.includes("not found")) : result(buildResultText(cont), !!cont.error);
+	return typeof cont === "string"
+		? result(cont, cont.includes("not found"))
+		: result(buildResultText(cont), !!cont.error, { runTrees: [resultToRunTree(cont)] });
 }
 
 async function runSingle(
@@ -31,21 +37,21 @@ async function runSingle(
 	const agent = getAgent(cmd.agent, agents);
 	if (!agent) return result(`Unknown agent: ${cmd.agent}`, true);
 	const out = await dispatchRun(agent, cmd.task, ctx, cmd.main, onUpdate, signal);
-	return result(buildResultText(out), !!out.error);
+	return result(buildResultText(out), !!out.error, { runTrees: [resultToRunTree(out)] });
 }
 
 const runBatch = async (
 	cmd: Extract<Subcommand, { type: "batch" }>, agents: AgentConfig[], ctx: DispatchCtx, onUpdate: UpdateFn, signal?: AbortSignal,
 ) => {
 	const out = await dispatchBatch(cmd.items, agents, ctx, cmd.main, onUpdate, signal);
-	return result(out.map((r) => buildResultText(r)).join("\n---\n"), out.some((r) => !!r.error));
+	return result(out.map((r) => buildResultText(r)).join("\n---\n"), out.some((r) => !!r.error), { runTrees: out.map(resultToRunTree) });
 };
 
 const runChain = async (
 	cmd: Extract<Subcommand, { type: "chain" }>, agents: AgentConfig[], ctx: DispatchCtx, onUpdate: UpdateFn, signal?: AbortSignal,
 ) => {
 	const out = await dispatchChain(cmd.steps, agents, ctx, cmd.main, onUpdate, signal);
-	return result(buildResultText(out), !!out.error);
+	return result(buildResultText(out), !!out.error, { runTrees: [resultToRunTree(out)] });
 };
 
 const snippet = (agents: AgentConfig[]) => `Dispatch subagents: ${agents.map((a) => `${a.name} (${a.description})`).join(", ") || "none loaded"}`;

@@ -30,13 +30,13 @@ export function ensureSessionDir(file: string) {
 }
 
 export function finishRun(result: RunResult, sessionFile: string, events: NonNullable<Parameters<typeof addToHistory>[0]["events"]>) {
-	addToHistory({ id: result.id, agent: result.agent, task: result.task, output: result.output, error: result.error, sessionFile, events });
+	addToHistory({ id: result.id, agent: result.agent, task: result.task, output: result.output, error: result.error, sessionFile, events, runTrees: result.runTrees });
 	unregisterRun(result.id);
 	return result;
 }
 
 export function failRun(e: unknown, id: number, agent: string, task: string, sessionFile: string, events: NonNullable<Parameters<typeof addToHistory>[0]["events"]>): never {
-	addToHistory({ id, agent, task, output: "", error: errorMsg(e), sessionFile, events });
+	addToHistory({ id, agent, task, output: "", error: errorMsg(e), sessionFile, events, runTrees: undefined });
 	unregisterRun(id);
 	throw e;
 }

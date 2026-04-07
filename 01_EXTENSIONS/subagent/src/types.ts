@@ -16,6 +16,19 @@ export interface AgentConfig {
 	filePath: string;
 }
 
+export type RunStatus = "ok" | "error" | "escalation";
+
+export interface RunTree {
+	id: number;
+	agent: string;
+	task?: string;
+	status: RunStatus;
+	stopReason?: string;
+	error?: string;
+	outputPreview?: string;
+	children?: RunTree[];
+}
+
 export interface RunResult {
 	id: number;
 	agent: string;
@@ -25,10 +38,23 @@ export interface RunResult {
 	escalation?: string;
 	error?: string;
 	stopReason?: string;
+	runTrees?: RunTree[];
+}
+
+export interface NestedRunSnapshot {
+	id: number;
+	agent: string;
+	task?: string;
+	startedAt: number;
+	depth: number;
+	activity?: string;
+	lastEventAt?: number;
 }
 
 export interface SubagentToolDetails {
 	isError: boolean;
+	activeRuns?: NestedRunSnapshot[];
+	runTrees?: RunTree[];
 }
 
 export interface UsageStats {

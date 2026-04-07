@@ -15,16 +15,18 @@ describe("runner extra coverage", () => {
 		expect(result.source).toBe("stream");
 	});
 
-	it("tracks last tool preview and diagnostic fields", () => {
+	it("tracks last tool preview, nested trees, and diagnostic fields", () => {
 		const result = collectOutput([
 			{ type: "tool_update", toolName: "bash", text: "git status" },
 			{ type: "tool_end", toolName: "bash", text: "On branch main", isError: false },
+			{ type: "tool_end", toolName: "subagent", text: "done", runTrees: [{ id: 2, agent: "worker", status: "ok" }] },
 		]);
-		expect(result.lastToolName).toBe("bash");
-		expect(result.lastToolText).toBe("On branch main");
+		expect(result.lastToolName).toBe("subagent");
+		expect(result.lastToolText).toBe("done");
+		expect(result.runTrees).toEqual([{ id: 2, agent: "worker", status: "ok" }]);
 		const diagnostic = buildMissingOutputDiagnostic({ ...result, stopReason: "error", stderr: "stderr text", exitCode: 0 });
 		expect(diagnostic).toContain("stop reason: error");
-		expect(diagnostic).toContain("last tool: bash");
+		expect(diagnostic).toContain("last tool: subagent");
 		expect(diagnostic).toContain("stderr: stderr text");
 	});
 });

@@ -2,6 +2,7 @@ import { truncateToWidth } from "@mariozechner/pi-tui";
 import type { RunResult } from "./types.js";
 import { formatUsage, previewText } from "./format.js";
 import { parseCommand } from "./cli.js";
+import { formatRunTrees } from "./run-tree.js";
 
 export function buildCallText(params: { command: string }): string {
 	try {
@@ -19,11 +20,13 @@ export function buildCallText(params: { command: string }): string {
 export function buildResultText(result: RunResult): string {
 	const header = `${result.agent} #${result.id}${result.task ? ` — ${previewText(result.task, 72)}` : ""}`;
 	const footer = `${formatUsage(result.usage)}${result.stopReason ? ` / stop: ${result.stopReason}` : ""}`;
+	const tree = formatRunTrees(result.runTrees);
+	const treeSection = tree.length > 0 ? `\n\nnested runs:\n${tree.join("\n")}` : "";
 	if (result.error) {
-		return `✗ ${header}\nerror: ${result.error}${result.output ? `\n\n${result.output}` : ""}\n\n${footer}`;
+		return `✗ ${header}\nerror: ${result.error}${result.output ? `\n\n${result.output}` : ""}${treeSection}\n\n${footer}`;
 	}
-	if (result.escalation) return `⚠ ${header} needs your input:\n${result.escalation}\n\nUse: subagent continue ${result.id} -- <your answer>`;
-	return `✓ ${header}\n${result.output || "(no output)"}\n\n${footer}`;
+	if (result.escalation) return `⚠ ${header} needs your input:\n${result.escalation}${treeSection}\n\nUse: subagent continue ${result.id} -- <your answer>`;
+	return `✓ ${header}\n${result.output || "(no output)"}${treeSection}\n\n${footer}`;
 }
 
 function textComponent(text: string) {

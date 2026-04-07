@@ -31,4 +31,18 @@ describe("buildResultText extra coverage", () => {
 		expect(text).toContain("error: boom");
 		expect(text).toContain("diagnostic");
 	});
+
+	it("renders nested run trees for completed descendants", () => {
+		const text = buildResultText({
+			id: 13,
+			agent: "worker",
+			output: "done",
+			usage: { inputTokens: 1, outputTokens: 1, turns: 1 },
+			runTrees: [{ id: 14, agent: "reviewer", status: "ok", children: [{ id: 15, agent: "verifier", status: "error", error: "failed check" }] }],
+		});
+		expect(text).toContain("nested runs:");
+		expect(text).toContain("reviewer #14");
+		expect(text).toContain("verifier #15");
+		expect(text).toContain("failed check");
+	});
 });

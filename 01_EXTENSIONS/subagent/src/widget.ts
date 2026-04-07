@@ -1,76 +1,46 @@
-import { formatDuration, previewText } from "./format.js";
+import { previewText } from "./format.js";
+import { buildNestedRunSnapshots, buildNestedRunSnapshotsForRun, buildWidgetComponent, buildWidgetLinesWithFrame, type MinimalRun } from "./widget-view.js";
+import { clearNestedRunsState, clearToolStateState, resetWidgetStore, setActivity, setNestedRunsState } from "./widget-state.js";
+import type { NestedRunSnapshot } from "./types.js";
 
-const MAX_VISIBLE = 3;
-const SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
-const IDLE_THRESHOLD_MS = 120_000;
-
-interface MinimalRun { id: number; agent: string; task?: string; startedAt: number }
 interface MinimalCtx { hasUI: boolean; ui: { setWidget(key: string, content: unknown, opts?: unknown): void } }
-
-const currentActivity = new Map<number, string>();
-const lastEventTime = new Map<number, number>();
-let frame = 0;
-let timerCtx: MinimalCtx | undefined;
-let timerRuns: (() => MinimalRun[]) | undefined;
-let timerId: ReturnType<typeof setInterval> | undefined;
-
-function setActivity(runId: number, activity: string | undefined): void {
-	lastEventTime.set(runId, Date.now());
-	if (activity) currentActivity.set(runId, activity);
-	else currentActivity.delete(runId);
-}
+let frame = 0, timerCtx: MinimalCtx | undefined, timerRuns: (() => MinimalRun[]) | undefined, timerId: ReturnType<typeof setInterval> | undefined;
 
 export function setCurrentTool(runId: number, toolName: string | undefined, preview?: string): void {
 	if (!toolName) { setActivity(runId, undefined); return; }
-	const detail = preview ? `${toolName}: ${previewText(preview, 30)}` : toolName;
-	setActivity(runId, detail);
+	setActivity(runId, preview ? `${toolName}: ${previewText(preview, 30)}` : toolName);
 }
 
-export function setCurrentMessage(runId: number, preview: string | undefined): void {
-	setActivity(runId, preview ? `reply: ${previewText(preview, 30)}` : undefined);
-}
-
-export function advanceFrame(): void { frame++; }
-
-export function buildWidgetLines(runs: MinimalRun[], now: number): string[] {
-	const spin = SPINNER[frame % SPINNER.length];
-	const visible = runs.slice(0, MAX_VISIBLE).map((r) => {
-		const elapsed = formatDuration(now - r.startedAt);
-		const lastEvt = lastEventTime.get(r.id) ?? r.startedAt;
-		const idle = now - lastEvt;
-		const activity = currentActivity.get(r.id);
-		const task = r.task ? ` — ${previewText(r.task, 28)}` : "";
-		if (idle > IDLE_THRESHOLD_MS) {
-			return `⏸ ${r.agent} #${r.id}${task} (${elapsed}) idle ${formatDuration(idle)}`;
-		}
-		const suffix = activity ? ` → ${activity}` : "";
-		return `${spin} ${r.agent} #${r.id}${task} (${elapsed})${suffix}`;
-	});
-	const hidden = runs.length - visible.length;
-	return hidden > 0 ? [...visible, `... +${hidden} more`] : visible;
-}
+export const setCurrentMessage = (runId: number, preview: string | undefined) => setActivity(runId, preview ? `reply: ${previewText(preview, 30)}` : undefined);
+export const setNestedRuns = (runId: number, runs: NestedRunSnapshot[] | undefined) => setNestedRunsState(runId, runs);
+export const clearNestedRuns = (runId: number) => clearNestedRunsState(runId);
+export const buildNestedRunSnapshotsForRunId = buildNestedRunSnapshotsForRun;
+export const buildNestedRunSnapshotsFromRuns = buildNestedRunSnapshots;
+export const advanceFrame = () => void frame++;
+export const buildWidgetLines = (runs: MinimalRun[], now: number) => buildWidgetLinesWithFrame(runs, now, frame);
 
 export function syncWidget(ctx: MinimalCtx, runs: MinimalRun[]): void {
 	if (!ctx.hasUI) return;
 	if (runs.length === 0) { ctx.ui.setWidget("subagent-status", undefined); return; }
-	ctx.ui.setWidget("subagent-status", buildWidgetLines(runs, Date.now()), { placement: "belowEditor" });
+	ctx.ui.setWidget("subagent-status", buildWidgetComponent(runs, Date.now(), frame), { placement: "belowEditor" });
 }
 
 export function startWidgetTimer(ctx: MinimalCtx, getRuns: () => MinimalRun[]): void {
 	stopWidgetTimer();
-	timerCtx = ctx; timerRuns = getRuns;
-	timerId = setInterval(() => { frame++; if (timerCtx && timerRuns) syncWidget(timerCtx, timerRuns()); }, 150);
+	timerCtx = ctx;
+	timerRuns = getRuns;
+	timerId = setInterval(() => {
+		frame++;
+		if (timerCtx && timerRuns) syncWidget(timerCtx, timerRuns());
+	}, 150);
 }
 
 export function stopWidgetTimer(): void {
 	if (timerId) { clearInterval(timerId); timerId = undefined; }
-	timerCtx = undefined; timerRuns = undefined;
+	timerCtx = undefined;
+	timerRuns = undefined;
 }
 
-export function clearToolState(runId: number): void {
-	currentActivity.delete(runId); lastEventTime.delete(runId);
-}
-
-export function resetWidgetState(): void {
-	currentActivity.clear(); lastEventTime.clear(); frame = 0; stopWidgetTimer();
-}
+export function clearToolState(runId: number): void { clearToolStateState(runId); }
+export function resetWidgetState(): void { resetWidgetStore(); frame = 0; stopWidgetTimer(); }
+export { buildNestedRunSnapshotsFromRuns as buildNestedRunSnapshots, buildNestedRunSnapshotsForRunId as buildNestedRunSnapshotsForRun };

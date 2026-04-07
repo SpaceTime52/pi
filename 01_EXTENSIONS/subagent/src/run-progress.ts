@@ -1,13 +1,24 @@
 import type { AgentToolUpdateCallback } from "@mariozechner/pi-coding-agent";
 import { previewText } from "./format.js";
 import type { ParsedEvent } from "./parser.js";
+import { formatRunTrees } from "./run-tree.js";
 import { type HistoryEvent } from "./session.js";
 import { addRun, listRuns, removeRun } from "./store.js";
-import type { SubagentToolDetails } from "./types.js";
-import { clearToolState, setCurrentMessage, setCurrentTool, startWidgetTimer, stopWidgetTimer, syncWidget } from "./widget.js";
+import type { NestedRunSnapshot, SubagentToolDetails } from "./types.js";
+import {
+	buildNestedRunSnapshotsForRun,
+	clearNestedRuns,
+	clearToolState,
+	setCurrentMessage,
+	setCurrentTool,
+	setNestedRuns,
+	startWidgetTimer,
+	stopWidgetTimer,
+	syncWidget,
+} from "./widget.js";
 import type { DispatchCtx } from "./run-factory.js";
 
-const MAX_RECENT_LINES = 6;
+const MAX_RECENT_LINES = 8;
 type OnUpdate = AgentToolUpdateCallback<SubagentToolDetails> | undefined;
 
 export function registerRun(id: number, agent: string, task: string, ctx: DispatchCtx, ac: AbortController) {
@@ -16,6 +27,7 @@ export function registerRun(id: number, agent: string, task: string, ctx: Dispat
 }
 
 export function unregisterRun(id: number) {
+	clearNestedRuns(id);
 	clearToolState(id);
 	removeRun(id);
 	if (listRuns().length === 0) stopWidgetTimer();
@@ -24,7 +36,14 @@ export function unregisterRun(id: number) {
 export function makeOnEvent(id: number, agent: string, task: string, ctx: DispatchCtx, collected: HistoryEvent[], onUpdate: OnUpdate) {
 	const recent: string[] = [];
 	let current = "starting", draft = "";
-	const emit = () => onUpdate?.({ content: [{ type: "text", text: progressText(agent, id, task, current, recent) }], details: { isError: false } });
+	const emit = () => {
+		const currentRun = listRuns().find((run) => run.id === id);
+		const activeRuns = buildNestedRunSnapshotsForRun(currentRun);
+		onUpdate?.({
+			content: [{ type: "text", text: progressText(agent, id, task, current, recent, activeRuns) }],
+			details: { isError: false, activeRuns },
+		});
+	};
 	const pushRecent = (line: string) => { recent.push(line); if (recent.length > MAX_RECENT_LINES) recent.shift(); };
 	return (evt: ParsedEvent) => {
 		collected.push({ type: evt.type, text: evt.text, toolName: evt.toolName, isError: evt.isError, stopReason: evt.stopReason });
@@ -41,11 +60,34 @@ export function makeOnEvent(id: number, agent: string, task: string, ctx: Dispat
 		if (evt.type === "tool_start" || evt.type === "tool_update") setCurrentTool(id, evt.toolName, evt.text);
 		if (evt.type === "tool_end") setCurrentTool(id, undefined);
 		if (["message_delta", "message", "agent_end"].includes(evt.type)) setCurrentMessage(id, evt.type === "message_delta" ? draft : evt.text);
+		if (evt.toolName === "subagent") {
+			if (evt.type === "tool_update") setNestedRuns(id, evt.nestedRuns);
+			if (evt.type === "tool_end") {
+				clearNestedRuns(id);
+				for (const line of formatRunTrees(evt.runTrees).slice(0, 4)) pushRecent(`nested ${line}`);
+			}
+		}
 		syncWidget(ctx, listRuns());
 		emit();
 	};
 }
 
-function progressText(agent: string, id: number, task: string, current: string, recent: string[]) {
-	return [`⏳ ${agent} #${id} — ${previewText(task, 72)}`, `current: ${current}`, ...recent.map((line) => `  ${line}`)].join("\n");
+function progressText(agent: string, id: number, task: string, current: string, recent: string[], activeRuns: NestedRunSnapshot[]) {
+	return [
+		`⏳ ${agent} #${id} — ${previewText(task, 72)}`,
+		`current: ${current}`,
+		...recent.map((line) => `  ${line}`),
+		...nestedProgress(activeRuns, id),
+	].join("\n");
+}
+
+function nestedProgress(activeRuns: NestedRunSnapshot[], currentRunId: number): string[] {
+	return activeRuns
+		.filter((run) => run.id !== currentRunId)
+		.map((run) => {
+		const indent = `${"  ".repeat(Math.max(0, run.depth - 1))}↳ `;
+		const task = run.task ? ` — ${previewText(run.task, 36)}` : "";
+		const activity = run.activity ? ` → ${previewText(run.activity, 30)}` : "";
+			return `nested: ${indent}${run.agent} #${run.id}${task}${activity}`;
+		});
 }

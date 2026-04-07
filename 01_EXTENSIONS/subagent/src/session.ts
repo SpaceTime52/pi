@@ -1,5 +1,6 @@
 import { join } from "path";
 import { homedir } from "os";
+import type { RunTree } from "./types.js";
 
 export interface HistoryEvent {
 	type: string;
@@ -17,6 +18,7 @@ interface RunHistoryItem {
 	error?: string;
 	sessionFile?: string;
 	events?: HistoryEvent[];
+	runTrees?: RunTree[];
 }
 
 let history: RunHistoryItem[] = [];

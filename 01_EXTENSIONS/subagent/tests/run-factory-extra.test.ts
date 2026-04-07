@@ -14,7 +14,7 @@ const agent: AgentConfig = { name: "scout", description: "", systemPrompt: "find
 const ok: RunResult = { id: 1, agent: "scout", output: "done", usage: { inputTokens: 10, outputTokens: 5, turns: 1 } };
 const mock = () => (spawnAndCollect as ReturnType<typeof vi.fn>);
 const ctx = () => ({ hasUI: false, ui: { setWidget: vi.fn() }, sessionManager: { getBranch: () => [] } });
-type EvtFn = (e: Record<string, string | undefined>) => void;
+type EvtFn = (e: Record<string, unknown>) => void;
 
 describe("onEvent integration", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); resetWidgetState(); });
@@ -45,8 +45,9 @@ describe("onEvent integration", () => {
 		await createRunner(false, c)(agent, "task");
 		expect(c.ui.setWidget).toHaveBeenCalled();
 		const widgetSnapshots = (c.ui.setWidget as ReturnType<typeof vi.fn>).mock.calls
-			.filter((call) => Array.isArray(call[1]))
-			.map((call) => String(call[1][0] ?? ""));
+			.map((call) => call[1])
+			.filter((factory): factory is (tui: unknown, theme: { fg(color: string, text: string): string }) => { render(width: number): string[] } => typeof factory === "function")
+			.map((factory) => factory(undefined, { fg: (_color: string, text: string) => text }).render(80)[0] ?? "");
 		expect(widgetSnapshots.some((line) => line.includes("→ Bash"))).toBe(true);
 		expect(widgetSnapshots.some((line) => line.includes("task") && !line.includes("→ Bash"))).toBe(true);
 	});

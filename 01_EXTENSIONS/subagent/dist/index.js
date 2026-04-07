@@ -186,8 +186,8 @@ function getRunHistory() {
 function buildRunsEntry() {
   return { runs: [...history], updatedAt: Date.now() };
 }
-function restoreRuns(entries) {
-  const relevant = entries.filter(
+function restoreRuns(entries2) {
+  const relevant = entries2.filter(
     (e) => e.type === "custom" && "customType" in e && e.customType === "subagent-runs"
   );
   const last = relevant.at(-1);
@@ -226,56 +226,100 @@ function previewText(text, max = 80) {
   return `${normalized.slice(0, Math.max(1, max - 1))}\u2026`;
 }
 
-// src/widget.ts
-var MAX_VISIBLE = 3;
+// src/widget-view.ts
+import { truncateToWidth } from "@mariozechner/pi-tui";
+
+// src/widget-state.ts
+var activity = /* @__PURE__ */ new Map();
+var lastEvent = /* @__PURE__ */ new Map();
+var nested = /* @__PURE__ */ new Map();
+var getActivity = (runId) => activity.get(runId);
+var getLastEventTime = (runId) => lastEvent.get(runId);
+var getNestedRuns = (runId) => nested.get(runId) ?? [];
+function setActivity(runId, value) {
+  lastEvent.set(runId, Date.now());
+  if (value) activity.set(runId, value);
+  else activity.delete(runId);
+}
+function setNestedRunsState(runId, runs) {
+  if (!runs?.length) {
+    nested.delete(runId);
+    return;
+  }
+  nested.set(runId, runs.map((run) => ({ ...run })));
+}
+var clearNestedRunsState = (runId) => void nested.delete(runId);
+function clearToolStateState(runId) {
+  activity.delete(runId);
+  lastEvent.delete(runId);
+}
+
+// src/widget-view.ts
+var VISIBLE_ROOTS = 3;
+var SCROLL_FRAMES_PER_STEP = 10;
+var IDLE_MS = 12e4;
 var SPINNER = "\u280B\u2819\u2839\u2838\u283C\u2834\u2826\u2827\u2807\u280F";
-var IDLE_THRESHOLD_MS = 12e4;
-var currentActivity = /* @__PURE__ */ new Map();
-var lastEventTime = /* @__PURE__ */ new Map();
+var offset = (runs, depth) => runs.map((run) => ({ ...run, depth: run.depth + depth }));
+var snapshots = (run) => [{
+  id: run.id,
+  agent: run.agent,
+  task: run.task,
+  startedAt: run.startedAt,
+  depth: 1,
+  activity: getActivity(run.id),
+  lastEventAt: getLastEventTime(run.id)
+}, ...offset(getNestedRuns(run.id), 1)];
+var visibleRoots = (runs, frame2) => runs.length <= VISIBLE_ROOTS ? runs : Array.from({ length: VISIBLE_ROOTS }, (_, i) => runs[(Math.floor(frame2 / SCROLL_FRAMES_PER_STEP) + i) % runs.length]).filter(Boolean);
+function display(run, now, spin) {
+  const last = run.depth > 0 ? run.lastEventAt ?? run.startedAt : run.lastEventAt ?? getLastEventTime(run.id) ?? run.startedAt;
+  const idle = now - last > IDLE_MS, branch = run.depth > 0 ? `${"  ".repeat(run.depth - 1)}\u21B3 ` : "";
+  const activity2 = run.depth > 0 ? run.activity : run.activity ?? getActivity(run.id);
+  const task = run.task ? ` \u2014 ${previewText(run.task, 28)}` : "", prefix = idle ? "\u23F8" : spin;
+  const suffix = idle ? ` idle ${formatDuration(now - last)}` : activity2 ? ` \u2192 ${activity2}` : "";
+  return { text: `${branch}${prefix} ${run.agent} #${run.id}${task} (${formatDuration(now - run.startedAt)})${suffix}`, depth: run.depth, idle };
+}
+function entries(runs, now, frame2) {
+  const roots = visibleRoots(runs, frame2), spin = SPINNER[frame2 % SPINNER.length];
+  const shown = roots.flatMap((run) => [{ ...run, depth: 0, activity: getActivity(run.id), lastEventAt: getLastEventTime(run.id) }, ...getNestedRuns(run.id)]);
+  const info = runs.length <= VISIBLE_ROOTS || roots.length === 0 ? void 0 : { text: `\u21C5 roots ${roots.map((_, i) => (runs.findIndex((run) => run.id === roots[0]?.id) + i) % runs.length + 1).join(",")} / ${runs.length}`, depth: 0, idle: false, meta: true };
+  return [...shown.map((run) => display(run, now, spin)), ...info ? [info] : []];
+}
+var tone = (entry) => entry.meta ? "dim" : entry.idle ? entry.depth === 0 ? "warning" : "dim" : entry.depth === 0 ? "accent" : entry.depth === 1 ? "muted" : "dim";
+var buildNestedRunSnapshotsForRun = (run) => run ? snapshots(run) : [];
+function buildWidgetComponent(runs, now, frame2) {
+  const rendered = entries(runs, now, frame2);
+  return (_tui, theme) => ({
+    render(width) {
+      return rendered.map((entry) => truncateToWidth(theme.fg(tone(entry), entry.text), Math.max(0, width)));
+    },
+    invalidate() {
+    }
+  });
+}
+
+// src/widget.ts
 var frame = 0;
 var timerCtx;
 var timerRuns;
 var timerId;
-function setActivity(runId, activity) {
-  lastEventTime.set(runId, Date.now());
-  if (activity) currentActivity.set(runId, activity);
-  else currentActivity.delete(runId);
-}
 function setCurrentTool(runId, toolName2, preview) {
   if (!toolName2) {
     setActivity(runId, void 0);
     return;
   }
-  const detail = preview ? `${toolName2}: ${previewText(preview, 30)}` : toolName2;
-  setActivity(runId, detail);
+  setActivity(runId, preview ? `${toolName2}: ${previewText(preview, 30)}` : toolName2);
 }
-function setCurrentMessage(runId, preview) {
-  setActivity(runId, preview ? `reply: ${previewText(preview, 30)}` : void 0);
-}
-function buildWidgetLines(runs, now) {
-  const spin = SPINNER[frame % SPINNER.length];
-  const visible = runs.slice(0, MAX_VISIBLE).map((r) => {
-    const elapsed = formatDuration(now - r.startedAt);
-    const lastEvt = lastEventTime.get(r.id) ?? r.startedAt;
-    const idle = now - lastEvt;
-    const activity = currentActivity.get(r.id);
-    const task = r.task ? ` \u2014 ${previewText(r.task, 28)}` : "";
-    if (idle > IDLE_THRESHOLD_MS) {
-      return `\u23F8 ${r.agent} #${r.id}${task} (${elapsed}) idle ${formatDuration(idle)}`;
-    }
-    const suffix = activity ? ` \u2192 ${activity}` : "";
-    return `${spin} ${r.agent} #${r.id}${task} (${elapsed})${suffix}`;
-  });
-  const hidden = runs.length - visible.length;
-  return hidden > 0 ? [...visible, `... +${hidden} more`] : visible;
-}
+var setCurrentMessage = (runId, preview) => setActivity(runId, preview ? `reply: ${previewText(preview, 30)}` : void 0);
+var setNestedRuns = (runId, runs) => setNestedRunsState(runId, runs);
+var clearNestedRuns = (runId) => clearNestedRunsState(runId);
+var buildNestedRunSnapshotsForRunId = buildNestedRunSnapshotsForRun;
 function syncWidget(ctx, runs) {
   if (!ctx.hasUI) return;
   if (runs.length === 0) {
     ctx.ui.setWidget("subagent-status", void 0);
     return;
   }
-  ctx.ui.setWidget("subagent-status", buildWidgetLines(runs, Date.now()), { placement: "belowEditor" });
+  ctx.ui.setWidget("subagent-status", buildWidgetComponent(runs, Date.now(), frame), { placement: "belowEditor" });
 }
 function startWidgetTimer(ctx, getRuns) {
   stopWidgetTimer();
@@ -295,8 +339,7 @@ function stopWidgetTimer() {
   timerRuns = void 0;
 }
 function clearToolState(runId) {
-  currentActivity.delete(runId);
-  lastEventTime.delete(runId);
+  clearToolStateState(runId);
 }
 
 // src/run-factory.ts
@@ -304,13 +347,77 @@ import { writeFileSync } from "fs";
 import { tmpdir as tmpdir2 } from "os";
 import { join as join3 } from "path";
 
+// src/run-tree.ts
+function statusForResult(result2) {
+  if (result2.error) return "error";
+  if (result2.escalation) return "escalation";
+  return "ok";
+}
+function resultToRunTree(result2) {
+  return {
+    id: result2.id,
+    agent: result2.agent,
+    task: result2.task,
+    status: statusForResult(result2),
+    stopReason: result2.stopReason,
+    error: result2.error,
+    outputPreview: previewText(result2.escalation ?? result2.output, 120),
+    children: result2.runTrees?.map((child) => ({ ...child }))
+  };
+}
+function treeIcon(status) {
+  if (status === "error") return "\u2717";
+  if (status === "escalation") return "\u26A0";
+  return "\u2713";
+}
+function treeSuffix(tree) {
+  if (tree.status === "error" && tree.error) return ` \u2014 ${previewText(tree.error, 80)}`;
+  if (tree.status === "escalation" && tree.outputPreview) return ` \u2014 ${previewText(tree.outputPreview, 80)}`;
+  if (tree.stopReason) return ` (${tree.stopReason})`;
+  return "";
+}
+function formatTreeLabel(tree) {
+  const task = tree.task ? ` \u2014 ${previewText(tree.task, 60)}` : "";
+  return `${treeIcon(tree.status)} ${tree.agent} #${tree.id}${task}${treeSuffix(tree)}`;
+}
+function formatRunTree(tree, prefix, isLast) {
+  const branch = `${prefix}${isLast ? "\u2514\u2500" : "\u251C\u2500"}`;
+  const childPrefix = `${prefix}${isLast ? "  " : "\u2502 "}`;
+  const children = tree.children ?? [];
+  const lines = [`${branch}${formatTreeLabel(tree)}`];
+  for (const [index, child] of children.entries()) {
+    lines.push(...formatRunTree(child, childPrefix, index === children.length - 1));
+  }
+  return lines;
+}
+function formatRunTrees(trees) {
+  if (!trees || trees.length === 0) return [];
+  return trees.flatMap((tree, index) => formatRunTree(tree, "", index === trees.length - 1));
+}
+function isRunTree(value) {
+  if (typeof value !== "object" || value === null) return false;
+  const tree = value;
+  if (typeof tree.id !== "number" || typeof tree.agent !== "string") return false;
+  if (tree.task !== void 0 && typeof tree.task !== "string") return false;
+  if (tree.status !== "ok" && tree.status !== "error" && tree.status !== "escalation") return false;
+  if (tree.stopReason !== void 0 && typeof tree.stopReason !== "string") return false;
+  if (tree.error !== void 0 && typeof tree.error !== "string") return false;
+  if (tree.outputPreview !== void 0 && typeof tree.outputPreview !== "string") return false;
+  if (tree.children !== void 0) {
+    if (!Array.isArray(tree.children)) return false;
+    if (!tree.children.every(isRunTree)) return false;
+  }
+  return true;
+}
+
 // src/run-progress.ts
-var MAX_RECENT_LINES = 6;
+var MAX_RECENT_LINES = 8;
 function registerRun(id, agent, task, ctx, ac) {
   addRun({ id, agent, task, startedAt: Date.now(), abort: () => ac.abort() });
   if (listRuns().length === 1) startWidgetTimer(ctx, listRuns);
 }
 function unregisterRun(id) {
+  clearNestedRuns(id);
   clearToolState(id);
   removeRun(id);
   if (listRuns().length === 0) stopWidgetTimer();
@@ -318,7 +425,14 @@ function unregisterRun(id) {
 function makeOnEvent(id, agent, task, ctx, collected, onUpdate) {
   const recent = [];
   let current = "starting", draft = "";
-  const emit = () => onUpdate?.({ content: [{ type: "text", text: progressText(agent, id, task, current, recent) }], details: { isError: false } });
+  const emit = () => {
+    const currentRun = listRuns().find((run) => run.id === id);
+    const activeRuns = buildNestedRunSnapshotsForRunId(currentRun);
+    onUpdate?.({
+      content: [{ type: "text", text: progressText(agent, id, task, current, recent, activeRuns) }],
+      details: { isError: false, activeRuns }
+    });
+  };
   const pushRecent = (line) => {
     recent.push(line);
     if (recent.length > MAX_RECENT_LINES) recent.shift();
@@ -341,12 +455,32 @@ function makeOnEvent(id, agent, task, ctx, collected, onUpdate) {
     if (evt.type === "tool_start" || evt.type === "tool_update") setCurrentTool(id, evt.toolName, evt.text);
     if (evt.type === "tool_end") setCurrentTool(id, void 0);
     if (["message_delta", "message", "agent_end"].includes(evt.type)) setCurrentMessage(id, evt.type === "message_delta" ? draft : evt.text);
+    if (evt.toolName === "subagent") {
+      if (evt.type === "tool_update") setNestedRuns(id, evt.nestedRuns);
+      if (evt.type === "tool_end") {
+        clearNestedRuns(id);
+        for (const line of formatRunTrees(evt.runTrees).slice(0, 4)) pushRecent(`nested ${line}`);
+      }
+    }
     syncWidget(ctx, listRuns());
     emit();
   };
 }
-function progressText(agent, id, task, current, recent) {
-  return [`\u23F3 ${agent} #${id} \u2014 ${previewText(task, 72)}`, `current: ${current}`, ...recent.map((line) => `  ${line}`)].join("\n");
+function progressText(agent, id, task, current, recent, activeRuns) {
+  return [
+    `\u23F3 ${agent} #${id} \u2014 ${previewText(task, 72)}`,
+    `current: ${current}`,
+    ...recent.map((line) => `  ${line}`),
+    ...nestedProgress(activeRuns, id)
+  ].join("\n");
+}
+function nestedProgress(activeRuns, currentRunId) {
+  return activeRuns.filter((run) => run.id !== currentRunId).map((run) => {
+    const indent = `${"  ".repeat(Math.max(0, run.depth - 1))}\u21B3 `;
+    const task = run.task ? ` \u2014 ${previewText(run.task, 36)}` : "";
+    const activity2 = run.activity ? ` \u2192 ${previewText(run.activity, 30)}` : "";
+    return `nested: ${indent}${run.agent} #${run.id}${task}${activity2}`;
+  });
 }
 
 // src/retry.ts
@@ -391,6 +525,20 @@ function extractToolText(result2) {
   if (!("content" in result2) || !Array.isArray(result2.content)) return "";
   return result2.content.filter((c) => typeof c === "object" && c !== null).filter((c) => c.type === "text" && typeof c.text === "string").map((c) => c.text).join("\n");
 }
+function isNestedRunSnapshot(value) {
+  if (!isRecord(value)) return false;
+  return typeof value.id === "number" && typeof value.agent === "string" && typeof value.startedAt === "number" && typeof value.depth === "number" && (value.task === void 0 || typeof value.task === "string") && (value.activity === void 0 || typeof value.activity === "string") && (value.lastEventAt === void 0 || typeof value.lastEventAt === "number");
+}
+function extractNestedRuns(result2) {
+  if (!isRecord(result2) || !isRecord(result2.details) || !Array.isArray(result2.details.activeRuns)) return void 0;
+  const runs = result2.details.activeRuns.filter(isNestedRunSnapshot);
+  return runs.length === result2.details.activeRuns.length ? runs : void 0;
+}
+function extractRunTrees(result2) {
+  if (!isRecord(result2) || !isRecord(result2.details) || !Array.isArray(result2.details.runTrees)) return void 0;
+  const trees = result2.details.runTrees.filter(isRunTree);
+  return trees.length === result2.details.runTrees.length ? trees : void 0;
+}
 function summarizeArgs(args) {
   if (!isRecord(args)) return typeof args === "string" ? previewText(args, 80) : "";
   const obj = args;
@@ -410,7 +558,11 @@ function parseAssistantUpdate(message, delta) {
 function parseToolEvent(type, toolName2, data, isError) {
   const text = previewText(extractToolText(data), 120);
   if (type === "tool_start") return { type, toolName: toolName2, text: summarizeArgs(data) };
-  return type === "tool_end" ? { type, toolName: toolName2, text, isError: !!isError } : { type, toolName: toolName2, text };
+  const nestedRuns = extractNestedRuns(data);
+  const runTrees = type === "tool_end" ? extractRunTrees(data) : void 0;
+  const nested2 = nestedRuns ? { nestedRuns } : {};
+  const completed = runTrees ? { runTrees } : {};
+  return type === "tool_end" ? { type, toolName: toolName2, text, isError: !!isError, ...nested2, ...completed } : { type, toolName: toolName2, text, ...nested2 };
 }
 
 // src/parser-types.ts
@@ -463,6 +615,7 @@ function collectOutput(events) {
   const finalTexts = [];
   const streamedTexts = [];
   const usage = { inputTokens: 0, outputTokens: 0, turns: 0 };
+  const runTrees = [];
   let agentEndText = "", stopReason, lastToolName, lastToolText;
   for (const evt of events) {
     if (evt.type === "message" && evt.text !== void 0) {
@@ -477,6 +630,7 @@ function collectOutput(events) {
       lastToolName = evt.toolName;
       lastToolText = evt.text || lastToolText;
     }
+    if (evt.type === "tool_end" && evt.runTrees?.length) runTrees.push(...evt.runTrees);
     if (evt.type === "agent_end") {
       agentEndText = evt.text || agentEndText;
       stopReason = evt.stopReason ?? stopReason;
@@ -492,7 +646,7 @@ function collectOutput(events) {
   const output = finalOutput || agentEndText || streamOutput;
   const source = finalOutput ? "message" : agentEndText ? "agent_end" : streamOutput ? "stream" : "empty";
   const escalation = output.includes(ESCALATION_MARKER) ? output.split(ESCALATION_MARKER)[1]?.trim() : void 0;
-  return { output, usage, escalation, stopReason, source, lastToolName, lastToolText };
+  return { output, usage, escalation, stopReason, source, lastToolName, lastToolText, runTrees };
 }
 function buildMissingOutputDiagnostic(data) {
   const lines = ["Subagent finished without a visible assistant response.", `- source: ${data.source}`];
@@ -536,7 +690,8 @@ function buildResult(id, agentName, events, stderrChunks, code) {
     output: summary.output,
     usage: summary.usage,
     escalation: summary.escalation,
-    stopReason: summary.stopReason
+    stopReason: summary.stopReason,
+    runTrees: summary.runTrees
   };
   if (code !== 0) {
     result2.error = stderr || `Process exited with code ${code}`;
@@ -641,8 +796,8 @@ function extractText(entry) {
   if (!entry.message?.content) return "";
   return entry.message.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
 }
-function extractMainContext(entries, maxMessages) {
-  const typed = entries;
+function extractMainContext(entries2, maxMessages) {
+  const typed = entries2;
   const parts = [];
   const compaction = typed.find((e) => e.type === "compaction");
   if (compaction?.summary) parts.push(`[Context Summary]
@@ -679,12 +834,12 @@ function ensureSessionDir(file) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 function finishRun(result2, sessionFile, events) {
-  addToHistory({ id: result2.id, agent: result2.agent, task: result2.task, output: result2.output, error: result2.error, sessionFile, events });
+  addToHistory({ id: result2.id, agent: result2.agent, task: result2.task, output: result2.output, error: result2.error, sessionFile, events, runTrees: result2.runTrees });
   unregisterRun(result2.id);
   return result2;
 }
 function failRun(e, id, agent, task, sessionFile, events) {
-  addToHistory({ id, agent, task, output: "", error: errorMsg(e), sessionFile, events });
+  addToHistory({ id, agent, task, output: "", error: errorMsg(e), sessionFile, events, runTrees: void 0 });
   unregisterRun(id);
   throw e;
 }
@@ -791,7 +946,7 @@ function onSessionRestore() {
 }
 
 // src/render.ts
-import { truncateToWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth as truncateToWidth2 } from "@mariozechner/pi-tui";
 function buildCallText(params) {
   try {
     const cmd = parseCommand(params.command);
@@ -809,20 +964,25 @@ function buildCallText(params) {
 function buildResultText(result2) {
   const header = `${result2.agent} #${result2.id}${result2.task ? ` \u2014 ${previewText(result2.task, 72)}` : ""}`;
   const footer = `${formatUsage(result2.usage)}${result2.stopReason ? ` / stop: ${result2.stopReason}` : ""}`;
+  const tree = formatRunTrees(result2.runTrees);
+  const treeSection = tree.length > 0 ? `
+
+nested runs:
+${tree.join("\n")}` : "";
   if (result2.error) {
     return `\u2717 ${header}
 error: ${result2.error}${result2.output ? `
 
-${result2.output}` : ""}
+${result2.output}` : ""}${treeSection}
 
 ${footer}`;
   }
   if (result2.escalation) return `\u26A0 ${header} needs your input:
-${result2.escalation}
+${result2.escalation}${treeSection}
 
 Use: subagent continue ${result2.id} -- <your answer>`;
   return `\u2713 ${header}
-${result2.output || "(no output)"}
+${result2.output || "(no output)"}${treeSection}
 
 ${footer}`;
 }
@@ -831,7 +991,7 @@ function textComponent(text) {
   return {
     render(width) {
       const safeWidth = Math.max(0, width);
-      return lines.map((line) => truncateToWidth(line, safeWidth));
+      return lines.map((line) => truncateToWidth2(line, safeWidth));
     },
     invalidate() {
     }
@@ -851,13 +1011,20 @@ function formatRunsList() {
   const history2 = getRunHistory();
   const parts = [];
   if (active2.length) parts.push(`Active (${active2.length}):
-${active2.map(formatRun).join("\n")}`);
+${active2.map(formatRunSummary).join("\n")}`);
   if (history2.length) parts.push(`History (${history2.length}):
-${history2.map(formatRun).join("\n")}`);
+${history2.map(formatHistoryRun).join("\n")}`);
   return parts.join("\n\n") || "No runs";
 }
-function formatRun(r) {
+function formatRunSummary(r) {
   return `  #${r.id} ${r.agent}${r.task ? ` \u2014 ${previewText(r.task, 80)}` : ""}${r.error ? " [error]" : ""}`;
+}
+function formatHistoryRun(r) {
+  const lines = [formatRunSummary(r)];
+  if (Array.isArray(r.runTrees) && r.runTrees.length > 0) {
+    lines.push(...formatRunTrees(r.runTrees).map((line) => `    ${line}`));
+  }
+  return lines.join("\n");
 }
 function formatDetail(id) {
   const item = getRunHistory().find((r) => r.id === id);
@@ -867,6 +1034,7 @@ function formatDetail(id) {
   if (item.sessionFile) parts.push(`session: ${item.sessionFile}`);
   parts.push(item.error ? `status: error \u2014 ${item.error}` : "status: ok");
   if (item.events?.length) parts.push("events:", ...item.events.flatMap(formatEvent));
+  if (item.runTrees?.length) parts.push("nested runs:", ...formatRunTrees(item.runTrees).map((line) => `  ${line}`));
   if (item.output) parts.push("", "output:", item.output);
   else if (!item.events?.length) parts.push("(no output)");
   return parts.join("\n");
@@ -888,7 +1056,10 @@ var SubagentParams = Type.Object({
 });
 
 // src/tool.ts
-var result = (text, isError = false) => ({ content: [{ type: "text", text }], details: { isError } });
+var result = (text, isError = false, details) => ({
+  content: [{ type: "text", text }],
+  details: { isError, ...details }
+});
 var errorMsg2 = (e) => e instanceof Error ? e.message : String(e);
 async function dispatch(cmd, agents, ctx, onUpdate, signal) {
   if (cmd.type === "runs") return result(formatRunsList());
@@ -898,21 +1069,21 @@ async function dispatch(cmd, agents, ctx, onUpdate, signal) {
   if (cmd.type === "batch") return runBatch(cmd, agents, ctx, onUpdate, signal);
   if (cmd.type === "chain") return runChain(cmd, agents, ctx, onUpdate, signal);
   const cont = await dispatchContinue(cmd.id, cmd.task, agents, ctx, onUpdate, signal);
-  return typeof cont === "string" ? result(cont, cont.includes("not found")) : result(buildResultText(cont), !!cont.error);
+  return typeof cont === "string" ? result(cont, cont.includes("not found")) : result(buildResultText(cont), !!cont.error, { runTrees: [resultToRunTree(cont)] });
 }
 async function runSingle(cmd, agents, ctx, onUpdate, signal) {
   const agent = getAgent(cmd.agent, agents);
   if (!agent) return result(`Unknown agent: ${cmd.agent}`, true);
   const out = await dispatchRun(agent, cmd.task, ctx, cmd.main, onUpdate, signal);
-  return result(buildResultText(out), !!out.error);
+  return result(buildResultText(out), !!out.error, { runTrees: [resultToRunTree(out)] });
 }
 var runBatch = async (cmd, agents, ctx, onUpdate, signal) => {
   const out = await dispatchBatch(cmd.items, agents, ctx, cmd.main, onUpdate, signal);
-  return result(out.map((r) => buildResultText(r)).join("\n---\n"), out.some((r) => !!r.error));
+  return result(out.map((r) => buildResultText(r)).join("\n---\n"), out.some((r) => !!r.error), { runTrees: out.map(resultToRunTree) });
 };
 var runChain = async (cmd, agents, ctx, onUpdate, signal) => {
   const out = await dispatchChain(cmd.steps, agents, ctx, cmd.main, onUpdate, signal);
-  return result(buildResultText(out), !!out.error);
+  return result(buildResultText(out), !!out.error, { runTrees: [resultToRunTree(out)] });
 };
 var snippet = (agents) => `Dispatch subagents: ${agents.map((a) => `${a.name} (${a.description})`).join(", ") || "none loaded"}`;
 var guidelines = (agents) => ["Available agents:", ...agents.map((a) => `  - ${a.name}: ${a.description}`), "Command: run <agent> [--main] -- <task>", "Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]", "Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'", "Manage: continue <id> -- <task>, abort <id>, detail <id>, runs", "The tool blocks until the subagent completes and returns the full result."];

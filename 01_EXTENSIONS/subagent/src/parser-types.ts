@@ -1,4 +1,4 @@
-import type { UsageStats } from "./types.js";
+import type { NestedRunSnapshot, RunTree, UsageStats } from "./types.js";
 
 export interface ParsedEvent {
 	type: "message" | "message_delta" | "tool_start" | "tool_update" | "tool_end" | "agent_end";
@@ -7,6 +7,8 @@ export interface ParsedEvent {
 	toolName?: string;
 	stopReason?: string;
 	isError?: boolean;
+	nestedRuns?: NestedRunSnapshot[];
+	runTrees?: RunTree[];
 }
 
 export interface AssistantMessageEvent {

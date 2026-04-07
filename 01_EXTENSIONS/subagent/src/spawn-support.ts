@@ -34,6 +34,7 @@ export function buildResult(
 		usage: summary.usage,
 		escalation: summary.escalation,
 		stopReason: summary.stopReason,
+		runTrees: summary.runTrees,
 	};
 	if (code !== 0) {
 		result.error = stderr || `Process exited with code ${code}`;
