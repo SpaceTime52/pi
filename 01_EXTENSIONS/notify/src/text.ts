@@ -67,10 +67,6 @@ export function hasKoreanText(text: string): boolean {
 	return /[가-힣]/u.test(text);
 }
 
-function normalizeForComparison(text: string): string {
-	return sanitizeNotificationText(text).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-}
-
 export function stripLeadingTitle(body: string, title: string): string {
 	const safeBody = sanitizeNotificationText(body);
 	const safeTitle = sanitizeNotificationText(title);
@@ -78,10 +74,4 @@ export function stripLeadingTitle(body: string, title: string): string {
 	const escaped = safeTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const stripped = safeBody.replace(new RegExp(`^${escaped}(?:\\s*[:：\\-–—|·,/]\\s*|\\s+)`, "u"), "").trim();
 	return /^(?:완료|완료됨|작업 완료|끝남|끝났어)$/u.test(stripped) ? "" : stripped;
-}
-
-export function containsTitleText(body: string, title: string): boolean {
-	const bodyNorm = normalizeForComparison(body);
-	const titleNorm = normalizeForComparison(title);
-	return Boolean(bodyNorm && titleNorm && bodyNorm.includes(titleNorm));
 }

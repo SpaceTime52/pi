@@ -1,6 +1,5 @@
 import {
 	cleanSummaryLine,
-	containsTitleText,
 	extractSummaryCandidates,
 	hasKoreanText,
 	isGenericHeading,
@@ -51,10 +50,10 @@ export function summarizeNotificationBody(text: string, maxLength = MAX_BODY_LEN
 }
 
 export function buildCompletionNotification(sessionName?: string, messages: NotificationMessage[] = []): { title: string; body: string } {
-	const title = sanitizeNotificationText(sessionName || "") || FALLBACK_TITLE;
-	const summary = stripLeadingTitle(summarizeNotificationBody(extractAssistantText(messages)), title);
+	const fallbackTitle = sanitizeNotificationText(sessionName || "") || FALLBACK_TITLE;
+	const summary = stripLeadingTitle(summarizeNotificationBody(extractAssistantText(messages)), fallbackTitle);
 	return {
-		title,
-		body: summary && hasKoreanText(summary) && !containsTitleText(summary, title) ? summary : "",
+		title: summary && hasKoreanText(summary) ? summary : fallbackTitle,
+		body: "",
 	};
 }

@@ -45,9 +45,6 @@ function stripSummaryLabel(line) {
 function hasKoreanText(text) {
   return /[가-힣]/u.test(text);
 }
-function normalizeForComparison(text) {
-  return sanitizeNotificationText(text).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-}
 function stripLeadingTitle(body, title) {
   const safeBody = sanitizeNotificationText(body);
   const safeTitle = sanitizeNotificationText(title);
@@ -55,11 +52,6 @@ function stripLeadingTitle(body, title) {
   const escaped = safeTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const stripped = safeBody.replace(new RegExp(`^${escaped}(?:\\s*[:\uFF1A\\-\u2013\u2014|\xB7,/]\\s*|\\s+)`, "u"), "").trim();
   return /^(?:완료|완료됨|작업 완료|끝남|끝났어)$/u.test(stripped) ? "" : stripped;
-}
-function containsTitleText(body, title) {
-  const bodyNorm = normalizeForComparison(body);
-  const titleNorm = normalizeForComparison(title);
-  return Boolean(bodyNorm && titleNorm && bodyNorm.includes(titleNorm));
 }
 
 // src/format.ts
@@ -94,11 +86,11 @@ function summarizeNotificationBody(text, maxLength = MAX_BODY_LENGTH) {
   return normalizeSingleSummary(contentLines.join("\n"), maxLength) || "";
 }
 function buildCompletionNotification(sessionName, messages = []) {
-  const title = sanitizeNotificationText(sessionName || "") || FALLBACK_TITLE;
-  const summary = stripLeadingTitle(summarizeNotificationBody(extractAssistantText(messages)), title);
+  const fallbackTitle = sanitizeNotificationText(sessionName || "") || FALLBACK_TITLE;
+  const summary = stripLeadingTitle(summarizeNotificationBody(extractAssistantText(messages)), fallbackTitle);
   return {
-    title,
-    body: summary && hasKoreanText(summary) && !containsTitleText(summary, title) ? summary : ""
+    title: summary && hasKoreanText(summary) ? summary : fallbackTitle,
+    body: ""
   };
 }
 
@@ -173,8 +165,8 @@ function createAgentEndHandler() {
       ctx.model,
       ctx.modelRegistry
     );
-    const body = stripLeadingTitle(koreanBody || "", fallback.title);
-    notify(fallback.title, body && !containsTitleText(body, fallback.title) ? body : fallback.body);
+    const summary = stripLeadingTitle(koreanBody || "", sessionTitle);
+    notify(summary && hasKoreanText(summary) ? summary : fallback.title, fallback.body);
   };
 }
 

@@ -1,7 +1,7 @@
 import { buildCompletionNotification, extractAssistantText, type NotificationMessage } from "./format.js";
 import { notify } from "./notify.js";
 import { resolveKoreanNotificationSummary, type NotificationSummaryModel, type NotificationSummaryModelRegistry } from "./summarize.js";
-import { containsTitleText, sanitizeNotificationText, stripLeadingTitle } from "./text.js";
+import { hasKoreanText, sanitizeNotificationText, stripLeadingTitle } from "./text.js";
 
 interface NotifyContext {
 	model: NotificationSummaryModel | undefined;
@@ -19,7 +19,7 @@ export function createAgentEndHandler() {
 			ctx.model,
 			ctx.modelRegistry,
 		);
-		const body = stripLeadingTitle(koreanBody || "", fallback.title);
-		notify(fallback.title, body && !containsTitleText(body, fallback.title) ? body : fallback.body);
+		const summary = stripLeadingTitle(koreanBody || "", sessionTitle);
+		notify(summary && hasKoreanText(summary) ? summary : fallback.title, fallback.body);
 	};
 }
