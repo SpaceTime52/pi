@@ -298,89 +298,9 @@ function clearToolState(runId) {
 }
 
 // src/run-factory.ts
-import { writeFileSync, existsSync, mkdirSync } from "fs";
-import { tmpdir } from "os";
-import { dirname, join as join2 } from "path";
-
-// src/context.ts
-function extractText(entry) {
-  if (!entry.message?.content) return "";
-  return entry.message.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
-}
-function extractMainContext(entries, maxMessages) {
-  const typed = entries;
-  const parts = [];
-  const compaction = typed.find((e) => e.type === "compaction");
-  if (compaction?.summary) parts.push(`[Context Summary]
-${compaction.summary}`);
-  const messages = typed.filter((e) => e.type === "message" && e.message);
-  const recent = messages.slice(-maxMessages);
-  for (const entry of recent) {
-    const role = entry.message?.role ?? "unknown";
-    const text = extractText(entry);
-    if (text) parts.push(`[${role}] ${text}`);
-  }
-  return parts.join("\n\n");
-}
-
-// src/runner-output.ts
-function collectOutput(events) {
-  const finalTexts = [];
-  const streamedTexts = [];
-  const usage = { inputTokens: 0, outputTokens: 0, turns: 0 };
-  let agentEndText = "", stopReason, lastToolName, lastToolText;
-  for (const evt of events) {
-    if (evt.type === "message" && evt.text !== void 0) {
-      finalTexts.push(evt.text);
-      usage.inputTokens += evt.usage?.inputTokens ?? 0;
-      usage.outputTokens += evt.usage?.outputTokens ?? 0;
-      usage.turns += evt.usage?.turns ?? 0;
-      stopReason = evt.stopReason ?? stopReason;
-    }
-    if (evt.type === "message_delta" && evt.text) streamedTexts.push(evt.text);
-    if ((evt.type === "tool_update" || evt.type === "tool_end") && evt.toolName) {
-      lastToolName = evt.toolName;
-      lastToolText = evt.text || lastToolText;
-    }
-    if (evt.type === "agent_end") {
-      agentEndText = evt.text || agentEndText;
-      stopReason = evt.stopReason ?? stopReason;
-      if (usage.turns === 0) Object.assign(usage, {
-        inputTokens: usage.inputTokens + (evt.usage?.inputTokens ?? 0),
-        outputTokens: usage.outputTokens + (evt.usage?.outputTokens ?? 0),
-        turns: usage.turns + (evt.usage?.turns ?? 0)
-      });
-    }
-  }
-  const finalOutput = finalTexts.join("\n");
-  const streamOutput = streamedTexts.join("");
-  const output = finalOutput || agentEndText || streamOutput;
-  const source = finalOutput ? "message" : agentEndText ? "agent_end" : streamOutput ? "stream" : "empty";
-  const escalation = output.includes(ESCALATION_MARKER) ? output.split(ESCALATION_MARKER)[1]?.trim() : void 0;
-  return { output, usage, escalation, stopReason, source, lastToolName, lastToolText };
-}
-function buildMissingOutputDiagnostic(data) {
-  const lines = ["Subagent finished without a visible assistant response.", `- source: ${data.source}`];
-  if (data.stopReason) lines.push(`- stop reason: ${data.stopReason}`);
-  if (data.exitCode !== null) lines.push(`- exit code: ${data.exitCode}`);
-  if (data.lastToolName) lines.push(`- last tool: ${data.lastToolName}`);
-  if (data.lastToolText) lines.push(`- last tool output: ${previewText(data.lastToolText, 160)}`);
-  if (data.stderr) lines.push(`- stderr: ${previewText(data.stderr, 160)}`);
-  return lines.join("\n");
-}
-
-// src/runner.ts
-function getPiCommand(execPath, argv1, exists) {
-  return argv1 && exists(argv1) ? { cmd: execPath, base: [argv1] } : { cmd: "pi", base: [] };
-}
-function buildArgs(input) {
-  const args = [...input.base, "--mode", "json", "-p", ...input.sessionPath ? ["--session", input.sessionPath] : ["--no-session"]];
-  if (input.model) args.push("--model", input.model);
-  if (input.thinking) args.push("--thinking", input.thinking);
-  if (input.tools) args.push("--tools", input.tools.join(","));
-  args.push("--append-system-prompt", input.systemPromptPath, `Task: ${input.task}`);
-  return args;
-}
+import { writeFileSync } from "fs";
+import { tmpdir as tmpdir2 } from "os";
+import { join as join3 } from "path";
 
 // src/run-progress.ts
 var MAX_RECENT_LINES = 6;
@@ -536,6 +456,98 @@ function parseLine(line) {
   }
 }
 
+// src/runner-output.ts
+function collectOutput(events) {
+  const finalTexts = [];
+  const streamedTexts = [];
+  const usage = { inputTokens: 0, outputTokens: 0, turns: 0 };
+  let agentEndText = "", stopReason, lastToolName, lastToolText;
+  for (const evt of events) {
+    if (evt.type === "message" && evt.text !== void 0) {
+      finalTexts.push(evt.text);
+      usage.inputTokens += evt.usage?.inputTokens ?? 0;
+      usage.outputTokens += evt.usage?.outputTokens ?? 0;
+      usage.turns += evt.usage?.turns ?? 0;
+      stopReason = evt.stopReason ?? stopReason;
+    }
+    if (evt.type === "message_delta" && evt.text) streamedTexts.push(evt.text);
+    if ((evt.type === "tool_update" || evt.type === "tool_end") && evt.toolName) {
+      lastToolName = evt.toolName;
+      lastToolText = evt.text || lastToolText;
+    }
+    if (evt.type === "agent_end") {
+      agentEndText = evt.text || agentEndText;
+      stopReason = evt.stopReason ?? stopReason;
+      if (usage.turns === 0) Object.assign(usage, {
+        inputTokens: usage.inputTokens + (evt.usage?.inputTokens ?? 0),
+        outputTokens: usage.outputTokens + (evt.usage?.outputTokens ?? 0),
+        turns: usage.turns + (evt.usage?.turns ?? 0)
+      });
+    }
+  }
+  const finalOutput = finalTexts.join("\n");
+  const streamOutput = streamedTexts.join("");
+  const output = finalOutput || agentEndText || streamOutput;
+  const source = finalOutput ? "message" : agentEndText ? "agent_end" : streamOutput ? "stream" : "empty";
+  const escalation = output.includes(ESCALATION_MARKER) ? output.split(ESCALATION_MARKER)[1]?.trim() : void 0;
+  return { output, usage, escalation, stopReason, source, lastToolName, lastToolText };
+}
+function buildMissingOutputDiagnostic(data) {
+  const lines = ["Subagent finished without a visible assistant response.", `- source: ${data.source}`];
+  if (data.stopReason) lines.push(`- stop reason: ${data.stopReason}`);
+  if (data.exitCode !== null) lines.push(`- exit code: ${data.exitCode}`);
+  if (data.lastToolName) lines.push(`- last tool: ${data.lastToolName}`);
+  if (data.lastToolText) lines.push(`- last tool output: ${previewText(data.lastToolText, 160)}`);
+  if (data.stderr) lines.push(`- stderr: ${previewText(data.stderr, 160)}`);
+  return lines.join("\n");
+}
+
+// src/runner.ts
+function getPiCommand(execPath, argv1, exists) {
+  return argv1 && exists(argv1) ? { cmd: execPath, base: [argv1] } : { cmd: "pi", base: [] };
+}
+function buildArgs(input) {
+  const args = [...input.base, "--mode", "json", "-p", ...input.sessionPath ? ["--session", input.sessionPath] : ["--no-session"]];
+  if (input.model) args.push("--model", input.model);
+  if (input.thinking) args.push("--thinking", input.thinking);
+  if (input.tools) args.push("--tools", input.tools.join(","));
+  args.push("--append-system-prompt", input.systemPromptPath, `Task: ${input.task}`);
+  return args;
+}
+
+// src/spawn-support.ts
+function clearOptionalTimer(timer) {
+  if (timer) clearTimeout(timer);
+}
+function killWithGrace(proc, isClosed, setKillTimer) {
+  proc.kill("SIGTERM");
+  setKillTimer(setTimeout(() => {
+    if (!isClosed()) proc.kill("SIGKILL");
+  }, TERMINATION_GRACE_MS));
+}
+function buildResult(id, agentName, events, stderrChunks, code) {
+  const summary = collectOutput(events);
+  const stderr = stderrChunks.join("").trim();
+  const result2 = {
+    id,
+    agent: agentName,
+    output: summary.output,
+    usage: summary.usage,
+    escalation: summary.escalation,
+    stopReason: summary.stopReason
+  };
+  if (code !== 0) {
+    result2.error = stderr || `Process exited with code ${code}`;
+    if (!result2.output) result2.output = buildMissingOutputDiagnostic({ ...summary, stderr, exitCode: code });
+    return result2;
+  }
+  if (!result2.output.trim()) {
+    result2.error = "Subagent finished without a visible assistant result";
+    result2.output = buildMissingOutputDiagnostic({ ...summary, stderr, exitCode: code });
+  }
+  return result2;
+}
+
 // src/spawn.ts
 function spawnAndCollect(cmd, args, id, agentName, signal, onEvent, options = {}) {
   return new Promise((resolve, reject) => {
@@ -548,9 +560,6 @@ function spawnAndCollect(cmd, args, id, agentName, signal, onEvent, options = {}
     let killTimer;
     let hardTimer;
     let idleTimer;
-    const clearOptionalTimer = (timer) => {
-      if (timer) clearTimeout(timer);
-    };
     const cleanup = (keepKillTimer = false) => {
       if (!keepKillTimer) {
         clearOptionalTimer(killTimer);
@@ -573,12 +582,9 @@ function spawnAndCollect(cmd, args, id, agentName, signal, onEvent, options = {}
       cleanup(keepKillTimer);
       reject(err);
     };
-    const killProc = () => {
-      proc.kill("SIGTERM");
-      killTimer = setTimeout(() => {
-        if (!closed) proc.kill("SIGKILL");
-      }, TERMINATION_GRACE_MS);
-    };
+    const killProc = () => killWithGrace(proc, () => closed, (timer) => {
+      killTimer = timer;
+    });
     const failForTimeout = (label, timeoutMs) => {
       if (settled) return;
       killProc();
@@ -598,10 +604,7 @@ function spawnAndCollect(cmd, args, id, agentName, signal, onEvent, options = {}
       hardTimer = setTimeout(() => failForTimeout("hard", options.hardTimeoutMs), options.hardTimeoutMs);
     }
     scheduleIdleTimeout();
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
+    if (signal?.aborted) return onAbort();
     signal?.addEventListener("abort", onAbort, { once: true });
     rl.on("line", (line) => {
       scheduleIdleTimeout();
@@ -616,44 +619,75 @@ function spawnAndCollect(cmd, args, id, agentName, signal, onEvent, options = {}
       scheduleIdleTimeout();
     });
     proc.on("error", (err) => {
-      if (settled) return;
-      finishReject(err);
+      if (!settled) finishReject(err);
     });
     proc.on("close", (code) => {
       closed = true;
-      if (settled) {
-        cleanup();
-        return;
-      }
-      const summary = collectOutput(events);
-      const stderr = stderrChunks.join("").trim();
-      const result2 = {
-        id,
-        agent: agentName,
-        output: summary.output,
-        usage: summary.usage,
-        escalation: summary.escalation,
-        stopReason: summary.stopReason
-      };
-      if (code !== 0) {
-        result2.error = stderr || `Process exited with code ${code}`;
-        if (!result2.output) {
-          result2.output = buildMissingOutputDiagnostic({ ...summary, stderr, exitCode: code });
-        }
-        finishResolve(result2);
-        return;
-      }
-      if (!result2.output.trim()) {
-        result2.error = "Subagent finished without a visible assistant result";
-        result2.output = buildMissingOutputDiagnostic({ ...summary, stderr, exitCode: code });
-      }
-      finishResolve(result2);
+      if (settled) return cleanup();
+      finishResolve(buildResult(id, agentName, events, stderrChunks, code));
     });
   });
 }
 
-// src/run-factory.ts
+// src/run-factory-support.ts
+import { existsSync, mkdirSync } from "fs";
+import { tmpdir } from "os";
+import { dirname, join as join2 } from "path";
+
+// src/context.ts
+function extractText(entry) {
+  if (!entry.message?.content) return "";
+  return entry.message.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
+}
+function extractMainContext(entries, maxMessages) {
+  const typed = entries;
+  const parts = [];
+  const compaction = typed.find((e) => e.type === "compaction");
+  if (compaction?.summary) parts.push(`[Context Summary]
+${compaction.summary}`);
+  const messages = typed.filter((e) => e.type === "message" && e.message);
+  const recent = messages.slice(-maxMessages);
+  for (const entry of recent) {
+    const role = entry.message?.role ?? "unknown";
+    const text = extractText(entry);
+    if (text) parts.push(`[${role}] ${text}`);
+  }
+  return parts.join("\n\n");
+}
+
+// src/run-factory-support.ts
 var errorMsg = (e) => e instanceof Error ? e.message : String(e);
+function buildPrompt(agent, ctx, main) {
+  if (!main) return agent.systemPrompt;
+  const summary = extractMainContext(ctx.sessionManager.getBranch(), 20);
+  return summary ? `${agent.systemPrompt}
+
+[Main Context]
+${summary}` : agent.systemPrompt;
+}
+function buildRunCommand(agent, task, sessionFile, prompt, id) {
+  const { cmd, base } = getPiCommand(process.execPath, process.argv[1], existsSync);
+  const promptPath = prompt ? join2(tmpdir(), `pi-sub-${agent.name}-${id}.md`) : "";
+  const args = buildArgs({ base, model: agent.model, thinking: agent.thinking, tools: agent.tools, systemPromptPath: promptPath, task, sessionPath: sessionFile });
+  if (!prompt) args.splice(args.indexOf("--append-system-prompt"), 2);
+  return { cmd, args };
+}
+function ensureSessionDir(file) {
+  const dir = dirname(file);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+}
+function finishRun(result2, sessionFile, events) {
+  addToHistory({ id: result2.id, agent: result2.agent, task: result2.task, output: result2.output, error: result2.error, sessionFile, events });
+  unregisterRun(result2.id);
+  return result2;
+}
+function failRun(e, id, agent, task, sessionFile, events) {
+  addToHistory({ id, agent, task, output: "", error: errorMsg(e), sessionFile, events });
+  unregisterRun(id);
+  throw e;
+}
+
+// src/run-factory.ts
 var createRunner = (main, ctx, onUpdate, outerSignal) => async (agent, task) => {
   const id = nextId();
   return runAgent({ id, agent, task, ctx, onUpdate, outerSignal, sessionFile: sessionPath(id), prompt: buildPrompt(agent, ctx, main) });
@@ -664,7 +698,7 @@ var createSessionRunner = (sessFile, ctx, onUpdate, outerSignal) => async (agent
 };
 async function runAgent(input) {
   const id = input.id;
-  if (input.prompt) writeFileSync(join2(tmpdir(), `pi-sub-${input.agent.name}-${id}.md`), input.prompt);
+  if (input.prompt) writeFileSync(join3(tmpdir2(), `pi-sub-${input.agent.name}-${id}.md`), input.prompt);
   ensureSessionDir(input.sessionFile);
   const { cmd, args } = buildRunCommand(input.agent, input.task, input.sessionFile, input.prompt, id);
   const ac = new AbortController();
@@ -699,35 +733,6 @@ async function runAgent(input) {
   removeOuterAbortListener();
   if (failed) return failRun(failure, id, input.agent.name, input.task, input.sessionFile, events);
   return finishRun({ ...result2, task: input.task }, input.sessionFile, events);
-}
-function buildPrompt(agent, ctx, main) {
-  if (!main) return agent.systemPrompt;
-  const summary = extractMainContext(ctx.sessionManager.getBranch(), 20);
-  return summary ? `${agent.systemPrompt}
-
-[Main Context]
-${summary}` : agent.systemPrompt;
-}
-function buildRunCommand(agent, task, sessionFile, prompt, id) {
-  const { cmd, base } = getPiCommand(process.execPath, process.argv[1], existsSync);
-  const promptPath = prompt ? join2(tmpdir(), `pi-sub-${agent.name}-${id}.md`) : "";
-  const args = buildArgs({ base, model: agent.model, thinking: agent.thinking, tools: agent.tools, systemPromptPath: promptPath, task, sessionPath: sessionFile });
-  if (!prompt) args.splice(args.indexOf("--append-system-prompt"), 2);
-  return { cmd, args };
-}
-function ensureSessionDir(file) {
-  const dir = dirname(file);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-}
-function finishRun(result2, sessionFile, events) {
-  addToHistory({ id: result2.id, agent: result2.agent, task: result2.task, output: result2.output, error: result2.error, sessionFile, events });
-  unregisterRun(result2.id);
-  return result2;
-}
-function failRun(e, id, agent, task, sessionFile, events) {
-  addToHistory({ id, agent, task, output: "", error: errorMsg(e), sessionFile, events });
-  unregisterRun(id);
-  throw e;
 }
 
 // src/dispatch.ts
@@ -965,7 +970,7 @@ function buildSubCommand(agentsDir, sendUserMessage) {
 }
 
 // src/index.ts
-import { dirname as dirname2, join as join3 } from "path";
+import { dirname as dirname2, join as join4 } from "path";
 import { fileURLToPath } from "url";
 function index_default(pi) {
   pi.on("session_start", onSessionRestore());
@@ -974,8 +979,8 @@ function index_default(pi) {
     pi.appendEntry("subagent-runs", buildRunsEntry());
     syncWidget(ctx, listRuns());
   });
-  pi.registerTool(createTool(pi, join3(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
-  pi.registerCommand("sub", buildSubCommand(join3(dirname2(fileURLToPath(import.meta.url)), "..", "agents"), (c, o) => pi.sendUserMessage(c, o)));
+  pi.registerTool(createTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerCommand("sub", buildSubCommand(join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents"), (c, o) => pi.sendUserMessage(c, o)));
 }
 export {
   index_default as default
