@@ -25,7 +25,13 @@ export class ServerPool {
 		connector: () => Promise<ServerConnection>,
 	): Promise<ServerConnection> {
 		const existing = this.connections.get(name);
-		if (existing) return existing;
+		if (existing) {
+			if (existing.status === "failed" || existing.status === "closed") {
+				this.connections.delete(name);
+			} else {
+				return existing;
+			}
+		}
 
 		const inflight = this.pending.get(name);
 		if (inflight) return inflight;

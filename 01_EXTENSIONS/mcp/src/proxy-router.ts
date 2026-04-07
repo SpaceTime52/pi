@@ -57,6 +57,7 @@ export function createProxyTool(
 	return {
 		name: "mcp",
 		label: "MCP",
+		promptSnippet: "MCP gateway - connect to MCP servers and call their tools",
 		description: FALLBACK_DESC,
 		parameters: ProxySchema,
 		execute: async (_toolCallId: string, params: ProxyParams) => {

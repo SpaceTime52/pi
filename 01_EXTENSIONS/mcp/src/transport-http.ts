@@ -9,6 +9,7 @@ export interface TransportFactory {
 		url: string,
 		headers?: Record<string, string>,
 	): Promise<McpTransport>;
+	probe?: (transport: McpTransport) => Promise<void>;
 }
 
 export async function createHttpTransport(
@@ -17,7 +18,9 @@ export async function createHttpTransport(
 	factory: TransportFactory,
 ): Promise<McpTransport> {
 	try {
-		return await factory.createStreamableHttp(url, headers);
+		const transport = await factory.createStreamableHttp(url, headers);
+		if (factory.probe) await factory.probe(transport);
+		return transport;
 	} catch {
 		return factory.createSse(url, headers);
 	}

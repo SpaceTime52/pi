@@ -24,6 +24,51 @@ describe("loadOAuthTokens", () => {
 		const fs = { existsSync: () => true, readFileSync: () => JSON.stringify(tokens) };
 		expect(loadOAuthTokens("/oauth/s1/tokens.json", fs)).toBeNull();
 	});
+
+	it("returns null for arrays", () => {
+		const fs = { existsSync: () => true, readFileSync: () => JSON.stringify([1, 2]) };
+		expect(loadOAuthTokens("/path", fs)).toBeNull();
+	});
+
+	it("returns null for null JSON", () => {
+		const fs = { existsSync: () => true, readFileSync: () => "null" };
+		expect(loadOAuthTokens("/path", fs)).toBeNull();
+	});
+
+	it("parses refresh_token when present", () => {
+		const tokens = { access_token: "abc", token_type: "bearer", refresh_token: "rt123" };
+		const fs = { existsSync: () => true, readFileSync: () => JSON.stringify(tokens) };
+		const result = loadOAuthTokens("/path", fs);
+		expect(result?.refresh_token).toBe("rt123");
+	});
+
+	it("refresh_token is undefined when not a string", () => {
+		const tokens = { access_token: "abc", refresh_token: 42 };
+		const fs = { existsSync: () => true, readFileSync: () => JSON.stringify(tokens) };
+		const result = loadOAuthTokens("/path", fs);
+		expect(result?.refresh_token).toBeUndefined();
+	});
+
+	it("computes expiresAt from savedAt + expires_in fallback", () => {
+		const tokens = { access_token: "abc", savedAt: 1000, expires_in: 3600 };
+		const fs = { existsSync: () => true, readFileSync: () => JSON.stringify(tokens) };
+		const result = loadOAuthTokens("/path", fs);
+		expect(result?.expiresAt).toBe(1000 + 3600 * 1000);
+	});
+
+	it("prefers expiresAt over expires_in fallback", () => {
+		const tokens = { access_token: "abc", expiresAt: 9999, savedAt: 1000, expires_in: 3600 };
+		const fs = { existsSync: () => true, readFileSync: () => JSON.stringify(tokens) };
+		const result = loadOAuthTokens("/path", fs);
+		expect(result?.expiresAt).toBe(9999);
+	});
+
+	it("ignores expires_in without savedAt", () => {
+		const tokens = { access_token: "abc", expires_in: 3600 };
+		const fs = { existsSync: () => true, readFileSync: () => JSON.stringify(tokens) };
+		const result = loadOAuthTokens("/path", fs);
+		expect(result?.expiresAt).toBeUndefined();
+	});
 });
 
 describe("isOAuthTokenValid", () => {

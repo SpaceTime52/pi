@@ -18,7 +18,7 @@ export function getImportPath(kind: ImportKind, platform: Platform, home: string
 
 	const paths: Record<ImportKind, string> = {
 		cursor: join(home, ".cursor", "mcp.json"),
-		"claude-code": join(home, ".claude", "mcp.json"),
+		"claude-code": join(home, ".claude", "claude_desktop_config.json"),
 		"claude-desktop": platform === "darwin" ? join(libSupport, "Claude", "claude_desktop_config.json")
 			: platform === "linux" ? join(configDir, "Claude", "claude_desktop_config.json")
 			: join(appData, "Claude", "claude_desktop_config.json"),

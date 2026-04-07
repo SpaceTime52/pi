@@ -8,6 +8,7 @@ function makeDeps(overrides?: Partial<InitDeps>): InitDeps {
 	return {
 		loadConfig: vi.fn().mockResolvedValue({ mcpServers: { s1: { lifecycle: "eager" } } }),
 		mergeConfigs: vi.fn().mockImplementation((c) => c),
+		applyDirectToolsEnv: vi.fn().mockImplementation((c) => c),
 		computeHash: vi.fn().mockReturnValue("hash1"),
 		loadCache: vi.fn().mockReturnValue(null),
 		isCacheValid: vi.fn().mockReturnValue(false),

@@ -51,10 +51,11 @@ describe("routeAction", () => {
 
 describe("createProxyTool", () => {
 	const pi = { sendMessage: vi.fn() };
-	it("returns tool definition with correct name and schema", () => {
+	it("returns tool definition with correct name, label, and promptSnippet", () => {
 		const tool = createProxyTool(pi, () => "MCP proxy", () => stubDeps());
 		expect(tool.name).toBe("mcp");
 		expect(tool.label).toBe("MCP");
+		expect(tool.promptSnippet).toContain("MCP gateway");
 		expect(tool.parameters).toBeDefined();
 		expect(tool.parameters).toHaveProperty("properties");
 	});

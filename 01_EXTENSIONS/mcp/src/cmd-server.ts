@@ -3,6 +3,7 @@ import type { ServerEntry } from "./types-config.js";
 type ConnectFn = (name: string, entry: ServerEntry) => Promise<void>;
 type CloseFn = (name: string) => Promise<void>;
 type NotifyFn = (msg: string, type?: "info" | "warning" | "error") => void;
+type UpdateFooterFn = () => void;
 type Config = { mcpServers: Record<string, ServerEntry> };
 
 export async function handleConnect(
@@ -32,6 +33,7 @@ export async function handleDisconnect(
 export async function handleReconnect(
 	name: string | undefined, cfg: Config,
 	closeFn: CloseFn, connectFn: ConnectFn, notify: NotifyFn,
+	updateFooter?: UpdateFooterFn,
 ): Promise<void> {
 	const targets = name ? [name] : Object.keys(cfg.mcpServers);
 	if (name && !cfg.mcpServers[name]) {
@@ -47,6 +49,7 @@ export async function handleReconnect(
 			notify(`Failed to reconnect "${n}": ${errorMsg(err)}`, "error");
 		}
 	}
+	if (updateFooter) updateFooter();
 }
 
 function errorMsg(err: unknown): string {

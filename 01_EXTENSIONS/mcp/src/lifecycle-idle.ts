@@ -9,6 +9,7 @@ interface IdleConn {
 	name: string;
 	lastUsedAt: number;
 	status: string;
+	inFlight: number;
 }
 
 interface IdleOpts {
@@ -29,6 +30,7 @@ function checkIdle(opts: IdleOpts): void {
 		const serverDef = opts.servers[name];
 		if (serverDef?.lifecycle === "keep-alive") continue;
 		const timeout = serverDef?.idleTimeout ?? opts.timeoutMs;
+		if (conn.inFlight > 0) continue;
 		if (now - conn.lastUsedAt > timeout) {
 			opts.logger?.info(`Closing idle server: ${name}`);
 			opts.closeFn(name).catch(() => {});

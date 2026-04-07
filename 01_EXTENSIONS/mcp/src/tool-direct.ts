@@ -4,12 +4,8 @@ import { applyPrefix, checkCollision } from "./tool-collision.js";
 
 type WarnFn = (msg: string) => void;
 
-function shouldPromote(
-	tool: ToolMetadata,
-	directTools: true | string[],
-): boolean {
-	if (directTools === true) return true;
-	return directTools.includes(tool.originalName);
+function shouldPromote(tool: ToolMetadata, directTools: true | string[]): boolean {
+	return directTools === true || directTools.includes(tool.originalName);
 }
 
 function resolveOneTool(
@@ -54,6 +50,23 @@ export function resolveDirectTools(
 		}
 	}
 	return result;
+}
+
+export function applyDirectToolsEnv(
+	config: { mcpServers: Record<string, { directTools?: boolean | string[] }> },
+	envVal: string | undefined,
+): typeof config {
+	const parsed = parseDirectToolsEnv(envVal);
+	if (parsed === undefined) return config;
+	if (parsed === false) {
+		for (const entry of Object.values(config.mcpServers)) entry.directTools = false;
+		return config;
+	}
+	for (const [server, val] of parsed) {
+		const entry = config.mcpServers[server];
+		if (entry) entry.directTools = val;
+	}
+	return config;
 }
 
 export function parseDirectToolsEnv(

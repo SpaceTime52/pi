@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { proxySearch } from "../src/proxy-search.js";
 import type { ToolMetadata } from "../src/types-tool.js";
+import { matchTool } from "../src/search.js";
 
 describe("proxySearch", () => {
 	const meta: Map<string, ToolMetadata[]> = new Map([
@@ -21,11 +22,13 @@ describe("proxySearch", () => {
 		const result = proxySearch("search", meta, matcher);
 		expect(result.content[0].text).toContain("search_repos");
 		expect(result.content[0].text).toContain("search_msgs");
+		expect(result.details).toEqual({ mode: "search" });
 	});
 
 	it("returns no results message when nothing matches", () => {
 		const result = proxySearch("zzz_nonexistent", meta, matcher);
 		expect(result.content[0].text).toContain("No tools found");
+		expect(result.details?.error).toBe("no_match");
 	});
 
 	it("returns empty result for empty query", () => {
@@ -45,5 +48,22 @@ describe("proxySearch", () => {
 		const result = proxySearch("create", meta, matcher);
 		const text = result.content[0].text ?? "";
 		expect(text).toContain("Create PR");
+	});
+
+	it("filters by server when opts.server is set", () => {
+		const result = proxySearch("search", meta, matcher, { server: "github" });
+		expect(result.content[0].text).toContain("search_repos");
+		expect(result.content[0].text).not.toContain("search_msgs");
+	});
+
+	it("wraps query as regex when opts.regex is true", () => {
+		const result = proxySearch("search_.*", meta, matchTool, { regex: true });
+		expect(result.content[0].text).toContain("search_repos");
+		expect(result.content[0].text).toContain("search_msgs");
+	});
+
+	it("does not match non-regex when regex is true", () => {
+		const result = proxySearch("^create$", meta, matchTool, { regex: true });
+		expect(result.content[0].text).toContain("No tools found");
 	});
 });

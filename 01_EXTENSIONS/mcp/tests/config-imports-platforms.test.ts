@@ -17,10 +17,10 @@ describe("config-imports platform paths", () => {
 	});
 
 	it("claude-code darwin", () => {
-		expect(getImportPath("claude-code", "darwin", home)).toBe(`${home}/.claude/mcp.json`);
+		expect(getImportPath("claude-code", "darwin", home)).toBe(`${home}/.claude/claude_desktop_config.json`);
 	});
 	it("claude-code linux", () => {
-		expect(getImportPath("claude-code", "linux", linuxHome)).toBe(`${linuxHome}/.claude/mcp.json`);
+		expect(getImportPath("claude-code", "linux", linuxHome)).toBe(`${linuxHome}/.claude/claude_desktop_config.json`);
 	});
 
 	it("claude-desktop darwin", () => {

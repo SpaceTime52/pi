@@ -3,6 +3,7 @@ import { SERVER_NAME_SANITIZE_RE, OAUTH_TOKEN_DIR } from "./constants.js";
 export interface OAuthTokens {
 	access_token: string;
 	token_type: string;
+	refresh_token?: string;
 	expiresAt?: number;
 }
 
@@ -27,18 +28,33 @@ export function buildAuthHeader(token: string | undefined): Record<string, strin
 	return { Authorization: `Bearer ${token}` };
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+	return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function parseTokenObj(obj: Record<string, unknown>): OAuthTokens | null {
+	if (typeof obj.access_token !== "string") return null;
+	let expiresAt: number | undefined;
+	if (typeof obj.expiresAt === "number") {
+		expiresAt = obj.expiresAt;
+	} else if (typeof obj.expires_in === "number" && typeof obj.savedAt === "number") {
+		expiresAt = obj.savedAt + obj.expires_in * 1000;
+	}
+	return {
+		access_token: obj.access_token,
+		token_type: typeof obj.token_type === "string" ? obj.token_type : "bearer",
+		refresh_token: typeof obj.refresh_token === "string" ? obj.refresh_token : undefined,
+		expiresAt,
+	};
+}
+
 export function loadOAuthTokens(path: string, fs: OAuthFsOps): OAuthTokens | null {
 	if (!fs.existsSync(path)) return null;
 	try {
 		const raw = fs.readFileSync(path);
 		const parsed: unknown = JSON.parse(raw);
-		const obj = parsed as Record<string, unknown>;
-		if (typeof obj.access_token !== "string") return null;
-		return {
-			access_token: obj.access_token,
-			token_type: typeof obj.token_type === "string" ? obj.token_type : "bearer",
-			expiresAt: typeof obj.expiresAt === "number" ? obj.expiresAt : undefined,
-		};
+		if (!isRecord(parsed)) return null;
+		return parseTokenObj(parsed);
 	} catch {
 		return null;
 	}

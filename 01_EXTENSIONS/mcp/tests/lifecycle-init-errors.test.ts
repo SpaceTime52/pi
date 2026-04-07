@@ -5,6 +5,7 @@ function makeDeps(overrides?: Partial<InitDeps>): InitDeps {
 	return {
 		loadConfig: vi.fn().mockResolvedValue({ mcpServers: {} }),
 		mergeConfigs: vi.fn().mockImplementation((c) => c),
+		applyDirectToolsEnv: vi.fn().mockImplementation((c) => c),
 		computeHash: vi.fn().mockReturnValue("hash1"),
 		loadCache: vi.fn().mockReturnValue(null), isCacheValid: vi.fn().mockReturnValue(false),
 		saveCache: vi.fn().mockResolvedValue(undefined),
@@ -52,32 +53,29 @@ describe("lifecycle-init errors", () => {
 		expect(deps.setConnection).not.toHaveBeenCalled();
 	});
 	it("handles empty server list", async () => {
-		const deps = makeDeps();
-		await run(deps);
-		expect(deps.updateFooter).toHaveBeenCalled();
+		const deps = makeDeps(); await run(deps); expect(deps.updateFooter).toHaveBeenCalled();
 	});
 	it("handles buildMetadata failure for a server", async () => {
 		const deps = makeDeps({
 			loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }),
 			buildMetadata: vi.fn().mockRejectedValue(new Error("discovery failed")),
 		});
-		await run(deps);
-		expect(deps.logger.warn).toHaveBeenCalled();
+		await run(deps); expect(deps.logger.warn).toHaveBeenCalled();
 	});
 	it("handles non-Error thrown from connectServer", async () => {
-		const deps = makeDeps({ loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }), connectServer: vi.fn().mockRejectedValue("str") });
-		await run(deps);
-		expect(deps.logger.warn).toHaveBeenCalledWith("Failed to connect s1: str");
+		const d = makeDeps({ loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }), connectServer: vi.fn().mockRejectedValue("str") });
+		await run(d);
+		expect(d.logger.warn).toHaveBeenCalledWith("Failed to connect s1: str");
 	});
 	it("handles non-Error thrown from buildMetadata", async () => {
-		const deps = makeDeps({ loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }), buildMetadata: vi.fn().mockRejectedValue(42) });
-		await run(deps);
-		expect(deps.logger.warn).toHaveBeenCalledWith("Tool discovery failed for s1: 42");
+		const d = makeDeps({ loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }), buildMetadata: vi.fn().mockRejectedValue(42) });
+		await run(d);
+		expect(d.logger.warn).toHaveBeenCalledWith("Tool discovery failed for s1: 42");
 	});
 	it("handles non-Error thrown from loadConfig", async () => {
-		const deps = makeDeps({ loadConfig: vi.fn().mockRejectedValue("bad") });
-		await run(deps);
-		expect(deps.logger.error).toHaveBeenCalledWith("Config load failed: bad");
+		const d = makeDeps({ loadConfig: vi.fn().mockRejectedValue("bad") });
+		await run(d);
+		expect(d.logger.error).toHaveBeenCalledWith("Config load failed: bad");
 	});
 	it("skips stale generation after buildMetadata", async () => {
 		let gen = 1;

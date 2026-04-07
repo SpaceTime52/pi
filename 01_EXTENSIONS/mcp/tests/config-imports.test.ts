@@ -10,7 +10,7 @@ describe("getImportPath", () => {
 
 	it("returns darwin path for claude-code", () => {
 		const p = getImportPath("claude-code", "darwin", "/Users/me");
-		expect(p).toBe("/Users/me/.claude/mcp.json");
+		expect(p).toBe("/Users/me/.claude/claude_desktop_config.json");
 	});
 
 	it("returns darwin path for claude-desktop", () => {

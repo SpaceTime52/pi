@@ -47,4 +47,40 @@ describe("createHttpTransport", () => {
 		expect(factory.createStreamableHttp).toHaveBeenCalledWith("http://host", headers);
 		expect(factory.createSse).toHaveBeenCalledWith("http://host", headers);
 	});
+
+	it("calls probe after streamable creation when provided", async () => {
+		const transport = { close: vi.fn() };
+		const probe = vi.fn().mockResolvedValue(undefined);
+		const factory: TransportFactory = {
+			createStreamableHttp: vi.fn().mockResolvedValue(transport),
+			createSse: vi.fn(),
+			probe,
+		};
+		const result = await createHttpTransport("http://host/mcp", undefined, factory);
+		expect(result).toBe(transport);
+		expect(probe).toHaveBeenCalledWith(transport);
+		expect(factory.createSse).not.toHaveBeenCalled();
+	});
+
+	it("falls back to SSE when probe fails", async () => {
+		const streamTransport = { close: vi.fn() };
+		const sseTransport = { close: vi.fn() };
+		const factory: TransportFactory = {
+			createStreamableHttp: vi.fn().mockResolvedValue(streamTransport),
+			createSse: vi.fn().mockResolvedValue(sseTransport),
+			probe: vi.fn().mockRejectedValue(new Error("probe failed")),
+		};
+		const result = await createHttpTransport("http://host/mcp", undefined, factory);
+		expect(result).toBe(sseTransport);
+	});
+
+	it("skips probe when not provided", async () => {
+		const transport = { close: vi.fn() };
+		const factory: TransportFactory = {
+			createStreamableHttp: vi.fn().mockResolvedValue(transport),
+			createSse: vi.fn(),
+		};
+		const result = await createHttpTransport("http://host/mcp", undefined, factory);
+		expect(result).toBe(transport);
+	});
 });

@@ -3,6 +3,7 @@ import type { ServerPool } from "./server-pool.js";
 export async function closeServer(name: string, pool: ServerPool): Promise<void> {
 	const conn = pool.get(name);
 	if (!conn) return;
+	conn.status = "closed";
 	pool.remove(name);
 	try {
 		await conn.client.close();

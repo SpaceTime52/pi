@@ -50,7 +50,11 @@ describe("isMetadataCacheValid", () => {
 
 	it("returns false when TTL expired", () => {
 		const expired = Date.now() - 8 * 24 * 60 * 60 * 1000;
-		const cache = { version: 1, servers: {}, savedAt: expired, configHash: "h" };
+		const cache = {
+			version: 1,
+			servers: { s1: { tools: [], savedAt: expired } },
+			configHash: "h",
+		};
 		expect(isMetadataCacheValid(cache, "h", Date.now)).toBe(false);
 	});
 

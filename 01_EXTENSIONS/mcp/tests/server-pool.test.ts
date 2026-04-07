@@ -72,4 +72,26 @@ describe("ServerPool", () => {
 		expect(result).toBe(conn);
 		expect(connector).not.toHaveBeenCalled();
 	});
+
+	it("getOrConnect evicts failed connection and reconnects", async () => {
+		const stale = mockConn("s1");
+		stale.status = "failed";
+		pool.add("s1", stale);
+		const fresh = mockConn("s1");
+		const connector = vi.fn().mockResolvedValue(fresh);
+		const result = await pool.getOrConnect("s1", connector);
+		expect(result).toBe(fresh);
+		expect(connector).toHaveBeenCalled();
+	});
+
+	it("getOrConnect evicts closed connection and reconnects", async () => {
+		const stale = mockConn("s1");
+		stale.status = "closed";
+		pool.add("s1", stale);
+		const fresh = mockConn("s1");
+		const connector = vi.fn().mockResolvedValue(fresh);
+		const result = await pool.getOrConnect("s1", connector);
+		expect(result).toBe(fresh);
+		expect(connector).toHaveBeenCalled();
+	});
 });

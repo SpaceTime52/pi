@@ -28,16 +28,17 @@ describe("closeServer", () => {
 		expect(conn.transport.close).toHaveBeenCalled();
 	});
 
-	it("removes from pool before async cleanup", async () => {
+	it("sets status to closed before removing from pool", async () => {
 		const pool = new ServerPool();
 		const conn = mockConn("s1");
-		let removedBeforeClose = false;
+		let statusDuringClose = "";
 		conn.client.close = vi.fn().mockImplementation(async () => {
-			removedBeforeClose = pool.get("s1") === undefined;
+			statusDuringClose = conn.status;
 		});
 		pool.add("s1", conn);
 		await closeServer("s1", pool);
-		expect(removedBeforeClose).toBe(true);
+		expect(statusDuringClose).toBe("closed");
+		expect(pool.get("s1")).toBeUndefined();
 	});
 
 	it("no-op for missing server", async () => {

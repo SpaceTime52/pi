@@ -9,23 +9,42 @@ interface SearchHit {
 	description: string;
 }
 
+export interface SearchOpts {
+	regex?: boolean;
+	server?: string;
+}
+
+function wrapQuery(query: string, regex?: boolean): string {
+	if (regex && !query.startsWith("/")) return `/${query}/`;
+	return query;
+}
+
 export function proxySearch(
 	query: string,
 	metadata: Map<string, ToolMetadata[]>,
 	match: MatchFn,
+	opts?: SearchOpts,
 ): ProxyToolResult {
+	const wrapped = wrapQuery(query, opts?.regex);
 	const hits: SearchHit[] = [];
 	for (const [server, tools] of metadata) {
+		if (opts?.server && server !== opts.server) continue;
 		for (const tool of tools) {
-			if (match(tool.name, query)) {
+			if (match(tool.name, wrapped)) {
 				hits.push({ serverName: server, name: tool.name, description: tool.description });
 			}
 		}
 	}
 	if (hits.length === 0) {
-		return { content: [{ type: "text", text: `No tools found matching "${query}".` }] };
+		return {
+			content: [{ type: "text", text: `No tools found matching "${query}".` }],
+			details: { mode: "search", error: "no_match" },
+		};
 	}
-	return { content: [{ type: "text", text: formatHits(hits) }] };
+	return {
+		content: [{ type: "text", text: formatHits(hits) }],
+		details: { mode: "search" },
+	};
 }
 
 function formatHits(hits: SearchHit[]): string {

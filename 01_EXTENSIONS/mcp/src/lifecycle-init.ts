@@ -13,6 +13,7 @@ export interface CacheData { hash: string; servers: Record<string, unknown[]>; t
 export interface InitDeps {
 	loadConfig: () => Promise<McpConfig>;
 	mergeConfigs: (config: McpConfig) => McpConfig;
+	applyDirectToolsEnv: (config: McpConfig) => McpConfig;
 	computeHash: (config: McpConfig) => string;
 	loadCache: () => CacheData | null;
 	isCacheValid: (cache: CacheData | null, hash: string) => boolean;
@@ -32,21 +33,20 @@ export interface InitDeps {
 	updateFooter: () => void; logger: Logger;
 }
 
-type ServerClassification = { name: string; entry: ServerEntry; mode: string };
+type SC = { name: string; entry: ServerEntry; mode: string };
 
-function classifyServers(config: McpConfig): { eager: ServerClassification[]; lazy: ServerClassification[] } {
-	const eager: ServerClassification[] = [];
-	const lazy: ServerClassification[] = [];
+function classifyServers(config: McpConfig): { eager: SC[]; lazy: SC[] } {
+	const eager: SC[] = [];
+	const lazy: SC[] = [];
 	for (const [name, entry] of Object.entries(config.mcpServers)) {
 		const mode = entry.lifecycle ?? "lazy";
-		if (mode === "lazy") lazy.push({ name, entry, mode });
-		else eager.push({ name, entry, mode });
+		(mode === "lazy" ? lazy : eager).push({ name, entry, mode });
 	}
 	return { eager, lazy };
 }
 
 async function connectAndDiscover(
-	gen: number, server: ServerClassification, deps: InitDeps,
+	gen: number, server: SC, deps: InitDeps,
 ): Promise<void> {
 	try {
 		const conn = await deps.connectServer(server.name, server.entry);
@@ -73,7 +73,7 @@ export function onSessionStart(pi: InitPi, deps?: InitDeps) {
 		deps.logger.info("Session start: loading config");
 		let config: McpConfig;
 		try {
-			config = deps.mergeConfigs(await deps.loadConfig());
+			config = deps.applyDirectToolsEnv(deps.mergeConfigs(await deps.loadConfig()));
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			deps.logger.error(`Config load failed: ${msg}`);
