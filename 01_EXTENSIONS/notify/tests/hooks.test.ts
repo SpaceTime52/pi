@@ -22,7 +22,7 @@ describe("createAgentEndHandler", () => {
 			{ model: undefined, modelRegistry, sessionManager: { getSessionName: () => "notify" } },
 		);
 		expect(resolveKoreanNotificationSummary).toHaveBeenCalledWith("Fixed login copy", "notify", undefined, modelRegistry);
-		expect(notify).toHaveBeenCalledWith("작업 완료", "로그인 문구 수정 완료");
+		expect(notify).toHaveBeenCalledWith("notify", "로그인 문구 수정 완료");
 	});
 
 	it("drops a summary that repeats the session title", async () => {
@@ -31,7 +31,7 @@ describe("createAgentEndHandler", () => {
 			{ messages: [{ role: "assistant", content: "로그인 문구 수정 완료" }] },
 			{ model: undefined, modelRegistry: { getApiKeyAndHeaders: vi.fn() }, sessionManager: { getSessionName: () => "로그인 문구 수정" } },
 		);
-		expect(notify).toHaveBeenCalledWith("작업 완료", "");
+		expect(notify).toHaveBeenCalledWith("로그인 문구 수정", "");
 	});
 
 	it("falls back to the local Korean body", async () => {
@@ -40,6 +40,6 @@ describe("createAgentEndHandler", () => {
 			{ messages: [{ role: "assistant", content: "로그인 문구 수정 완료" }] },
 			{ model: undefined, modelRegistry: { getApiKeyAndHeaders: vi.fn() }, sessionManager: { getSessionName: () => undefined } },
 		);
-		expect(notify).toHaveBeenCalledWith("작업 완료", "로그인 문구 수정 완료");
+		expect(notify).toHaveBeenCalledWith("π", "로그인 문구 수정 완료");
 	});
 });

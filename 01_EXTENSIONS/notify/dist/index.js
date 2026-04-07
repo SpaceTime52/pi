@@ -55,7 +55,7 @@ function containsTitleText(body, title) {
 }
 
 // src/format.ts
-var NOTIFICATION_TITLE = "\uC791\uC5C5 \uC644\uB8CC";
+var FALLBACK_TITLE = "\u03C0";
 var MAX_BODY_LENGTH = 140;
 function extractAssistantText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -86,16 +86,16 @@ function summarizeNotificationBody(text, maxLength = MAX_BODY_LENGTH) {
   return normalizeSingleSummary(contentLines.join("\n"), maxLength) || "";
 }
 function buildCompletionNotification(sessionName, messages = []) {
-  const sessionTitle = sanitizeNotificationText(sessionName || "");
+  const title = sanitizeNotificationText(sessionName || "") || FALLBACK_TITLE;
   const summary = summarizeNotificationBody(extractAssistantText(messages));
   return {
-    title: NOTIFICATION_TITLE,
-    body: summary && hasKoreanText(summary) && !containsTitleText(summary, sessionTitle) ? summary : ""
+    title,
+    body: summary && hasKoreanText(summary) && !containsTitleText(summary, title) ? summary : ""
   };
 }
 
 // src/notify.ts
-var FALLBACK_TITLE = "\u03C0";
+var FALLBACK_TITLE2 = "\u03C0";
 function notifyOSC777(title, body, write) {
   write(`\x1B]777;notify;${title};${body}\x07`);
 }
@@ -104,7 +104,7 @@ function notifyOSC99(title, body, write) {
   if (body) write(`\x1B]99;i=1:p=body;${body}\x1B\\`);
 }
 function notify(title, body, write = (s) => process.stdout.write(s)) {
-  const safeTitle = sanitizeNotificationText(title) || FALLBACK_TITLE;
+  const safeTitle = sanitizeNotificationText(title) || FALLBACK_TITLE2;
   const safeBody = sanitizeNotificationText(body);
   if (process.env.KITTY_WINDOW_ID) {
     notifyOSC99(safeTitle, safeBody, write);
@@ -165,7 +165,7 @@ function createAgentEndHandler() {
       ctx.model,
       ctx.modelRegistry
     );
-    notify(fallback.title, koreanBody && !containsTitleText(koreanBody, sessionTitle) ? koreanBody : fallback.body);
+    notify(fallback.title, koreanBody && !containsTitleText(koreanBody, fallback.title) ? koreanBody : fallback.body);
   };
 }
 

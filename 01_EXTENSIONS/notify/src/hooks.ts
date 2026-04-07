@@ -19,6 +19,6 @@ export function createAgentEndHandler() {
 			ctx.model,
 			ctx.modelRegistry,
 		);
-		notify(fallback.title, koreanBody && !containsTitleText(koreanBody, sessionTitle) ? koreanBody : fallback.body);
+		notify(fallback.title, koreanBody && !containsTitleText(koreanBody, fallback.title) ? koreanBody : fallback.body);
 	};
 }
