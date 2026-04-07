@@ -66,3 +66,13 @@ export function stripSummaryLabel(line: string): string {
 export function hasKoreanText(text: string): boolean {
 	return /[가-힣]/u.test(text);
 }
+
+function normalizeForComparison(text: string): string {
+	return sanitizeNotificationText(text).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+export function containsTitleText(body: string, title: string): boolean {
+	const bodyNorm = normalizeForComparison(body);
+	const titleNorm = normalizeForComparison(title);
+	return Boolean(bodyNorm && titleNorm && bodyNorm.includes(titleNorm));
+}

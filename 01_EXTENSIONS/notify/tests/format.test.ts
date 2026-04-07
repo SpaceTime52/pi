@@ -4,29 +4,33 @@ import { sanitizeNotificationText } from "../src/text.js";
 
 describe("notify formatting", () => {
 	it("builds a compact completion notification", () => {
-		expect(buildCompletionNotification()).toEqual({ title: "π", body: "작업 완료" });
+		expect(buildCompletionNotification()).toEqual({ title: "작업 완료", body: "" });
 		expect(buildCompletionNotification("Fix auth tests", [{
 			role: "assistant",
 			content: [{ type: "toolCall" }, { type: "text", text: "- Updated auth flow. Added regression tests too." }],
-		}])).toEqual({ title: "Fix auth tests", body: "작업 완료" });
+		}])).toEqual({ title: "작업 완료", body: "" });
 		expect(buildCompletionNotification("  \n;\t ", [{ role: "assistant", content: "로그인 문구 수정 완료" }])).toEqual({
-			title: "π",
-			body: "로그인 문구 수정 완료",
+			title: "로그인 문구 수정 완료",
+			body: "",
+		});
+		expect(buildCompletionNotification("로그인 문구 수정", [{ role: "assistant", content: "로그인 문구 수정 완료" }])).toEqual({
+			title: "작업 완료",
+			body: "",
 		});
 	});
 
 	it("falls back for empty assistant output", () => {
 		expect(buildCompletionNotification("notify", [{ role: "assistant", content: [{ type: "toolCall" }] }])).toEqual({
-			title: "notify",
-			body: "작업 완료",
+			title: "작업 완료",
+			body: "",
 		});
 		expect(buildCompletionNotification("notify", [
 			{ role: "assistant", content: "로그인 문구 수정 완료" },
 			{ role: "assistant", content: "   " },
-		])).toEqual({ title: "notify", body: "로그인 문구 수정 완료" });
+		])).toEqual({ title: "로그인 문구 수정 완료", body: "" });
 		expect(buildCompletionNotification("notify", [{ role: "user", content: "ignore me" }, { role: "assistant" }])).toEqual({
-			title: "notify",
-			body: "작업 완료",
+			title: "작업 완료",
+			body: "",
 		});
 	});
 

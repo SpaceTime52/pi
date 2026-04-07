@@ -3,9 +3,11 @@ import { normalizeSingleSummary } from "./format.js";
 import { sanitizeNotificationText } from "./text.js";
 
 const NOTIFICATION_SUMMARY_PROMPT = [
-	"You write production-style app notifications for coding work.",
+	"You write production-style app notification titles for coding work.",
 	"Always answer in Korean.",
 	"Return exactly one plain summary line.",
+	"Do not repeat or restate the session title.",
+	"Never output generic placeholders like Ready for input.",
 	"Summarize only the single most important completed result.",
 	"If multiple bullets or sentences exist, choose only one.",
 	"No bullets, numbering, labels, quotes, emoji, or markdown.",
@@ -31,6 +33,7 @@ function extractText(content: Array<{ type: string; text?: string }>): string {
 
 export async function resolveKoreanNotificationSummary(
 	input: string,
+	title: string | undefined,
 	model: NotificationSummaryModel | undefined,
 	modelRegistry: NotificationSummaryModelRegistry,
 ): Promise<string | undefined> {
@@ -40,7 +43,11 @@ export async function resolveKoreanNotificationSummary(
 	try {
 		const message = await completeSimple(model, {
 			systemPrompt: NOTIFICATION_SUMMARY_PROMPT,
-			messages: [{ role: "user", content: input, timestamp: Date.now() }],
+			messages: [{
+				role: "user",
+				content: `Session title: ${title || "(none)"}\nAssistant result:\n${input}`,
+				timestamp: Date.now(),
+			}],
 		}, {
 			apiKey: auth.apiKey,
 			headers: auth.headers,

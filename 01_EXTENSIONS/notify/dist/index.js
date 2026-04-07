@@ -45,10 +45,17 @@ function stripSummaryLabel(line) {
 function hasKoreanText(text) {
   return /[가-힣]/u.test(text);
 }
+function normalizeForComparison(text) {
+  return sanitizeNotificationText(text).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+function containsTitleText(body, title) {
+  const bodyNorm = normalizeForComparison(body);
+  const titleNorm = normalizeForComparison(title);
+  return Boolean(bodyNorm && titleNorm && bodyNorm.includes(titleNorm));
+}
 
 // src/format.ts
-var FALLBACK_TITLE = "\u03C0";
-var FALLBACK_BODY = "\uC791\uC5C5 \uC644\uB8CC";
+var FALLBACK_TITLE = "\uC791\uC5C5 \uC644\uB8CC";
 var MAX_BODY_LENGTH = 140;
 function extractAssistantText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -79,26 +86,24 @@ function summarizeNotificationBody(text, maxLength = MAX_BODY_LENGTH) {
   return normalizeSingleSummary(contentLines.join("\n"), maxLength) || "";
 }
 function buildCompletionNotification(sessionName, messages = []) {
+  const sessionTitle = sanitizeNotificationText(sessionName || "");
   const summary = summarizeNotificationBody(extractAssistantText(messages));
-  return {
-    title: sanitizeNotificationText(sessionName || "") || FALLBACK_TITLE,
-    body: summary && hasKoreanText(summary) ? summary : FALLBACK_BODY
-  };
+  const title = summary && hasKoreanText(summary) && !containsTitleText(summary, sessionTitle) ? summary : FALLBACK_TITLE;
+  return { title, body: "" };
 }
 
 // src/notify.ts
 var FALLBACK_TITLE2 = "\u03C0";
-var FALLBACK_BODY2 = "\uC791\uC5C5 \uC644\uB8CC";
 function notifyOSC777(title, body, write) {
   write(`\x1B]777;notify;${title};${body}\x07`);
 }
 function notifyOSC99(title, body, write) {
   write(`\x1B]99;i=1:d=0;${title}\x1B\\`);
-  write(`\x1B]99;i=1:p=body;${body}\x1B\\`);
+  if (body) write(`\x1B]99;i=1:p=body;${body}\x1B\\`);
 }
 function notify(title, body, write = (s) => process.stdout.write(s)) {
   const safeTitle = sanitizeNotificationText(title) || FALLBACK_TITLE2;
-  const safeBody = sanitizeNotificationText(body) || FALLBACK_BODY2;
+  const safeBody = sanitizeNotificationText(body);
   if (process.env.KITTY_WINDOW_ID) {
     notifyOSC99(safeTitle, safeBody, write);
   } else {
@@ -109,9 +114,11 @@ function notify(title, body, write = (s) => process.stdout.write(s)) {
 // src/summarize.ts
 import { completeSimple } from "@mariozechner/pi-ai";
 var NOTIFICATION_SUMMARY_PROMPT = [
-  "You write production-style app notifications for coding work.",
+  "You write production-style app notification titles for coding work.",
   "Always answer in Korean.",
   "Return exactly one plain summary line.",
+  "Do not repeat or restate the session title.",
+  "Never output generic placeholders like Ready for input.",
   "Summarize only the single most important completed result.",
   "If multiple bullets or sentences exist, choose only one.",
   "No bullets, numbering, labels, quotes, emoji, or markdown.",
@@ -120,14 +127,20 @@ var NOTIFICATION_SUMMARY_PROMPT = [
 function extractText(content) {
   return content.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n").trim();
 }
-async function resolveKoreanNotificationSummary(input, model, modelRegistry) {
+async function resolveKoreanNotificationSummary(input, title, model, modelRegistry) {
   if (!sanitizeNotificationText(input) || !model) return void 0;
   const auth = await modelRegistry.getApiKeyAndHeaders(model);
   if (!auth.ok) return void 0;
   try {
     const message = await completeSimple(model, {
       systemPrompt: NOTIFICATION_SUMMARY_PROMPT,
-      messages: [{ role: "user", content: input, timestamp: Date.now() }]
+      messages: [{
+        role: "user",
+        content: `Session title: ${title || "(none)"}
+Assistant result:
+${input}`,
+        timestamp: Date.now()
+      }]
     }, {
       apiKey: auth.apiKey,
       headers: auth.headers
@@ -142,13 +155,15 @@ async function resolveKoreanNotificationSummary(input, model, modelRegistry) {
 // src/hooks.ts
 function createAgentEndHandler() {
   return async (event, ctx) => {
-    const fallback = buildCompletionNotification(ctx.sessionManager.getSessionName(), event.messages);
-    const koreanBody = await resolveKoreanNotificationSummary(
+    const sessionTitle = sanitizeNotificationText(ctx.sessionManager.getSessionName() || "");
+    const fallback = buildCompletionNotification(sessionTitle, event.messages);
+    const koreanTitle = await resolveKoreanNotificationSummary(
       extractAssistantText(event.messages),
+      sessionTitle,
       ctx.model,
       ctx.modelRegistry
     );
-    notify(fallback.title, koreanBody || fallback.body);
+    notify(koreanTitle && !containsTitleText(koreanTitle, sessionTitle) ? koreanTitle : fallback.title, "");
   };
 }
 

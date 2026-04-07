@@ -52,8 +52,15 @@ describe("resolveKoreanNotificationSummary", () => {
 
 	it("uses an LLM-generated Korean one-line summary", async () => {
 		completeSimple.mockResolvedValue(message([{ type: "text", text: "로그인 타이틀 수정 완료" }]));
-		expect(await resolveKoreanNotificationSummary("Fixed login title and tests", model, registry)).toBe("로그인 타이틀 수정 완료");
-		expect(completeSimple).toHaveBeenCalledWith(model, expect.objectContaining({ systemPrompt: expect.stringContaining("Always answer in Korean.") }), expect.not.objectContaining({ reasoning: expect.anything() }));
+		expect(await resolveKoreanNotificationSummary("Fixed login title and tests", "Fix auth tests", model, registry)).toBe("로그인 타이틀 수정 완료");
+		expect(completeSimple).toHaveBeenCalledWith(
+			model,
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining("Never output generic placeholders like Ready for input."),
+				messages: [expect.objectContaining({ content: expect.stringContaining("Session title: Fix auth tests") })],
+			}),
+			expect.not.objectContaining({ reasoning: expect.anything() }),
+		);
 	});
 
 	it("normalizes labeled or multiline model output down to one summary line", async () => {
@@ -61,22 +68,27 @@ describe("resolveKoreanNotificationSummary", () => {
 			{ type: "thinking", thinking: "hidden" },
 			{ type: "text", text: "요약: 로그인 타이틀 수정 완료\n테스트 추가" },
 		]));
-		expect(await resolveKoreanNotificationSummary("Fixed login title and tests", model, registry)).toBe("로그인 타이틀 수정 완료");
+		expect(await resolveKoreanNotificationSummary("Fixed login title and tests", undefined, model, registry)).toBe("로그인 타이틀 수정 완료");
+		expect(completeSimple).toHaveBeenCalledWith(
+			model,
+			expect.objectContaining({ messages: [expect.objectContaining({ content: expect.stringContaining("Session title: (none)") })] }),
+			expect.any(Object),
+		);
 	});
 
 	it("ignores empty input, missing models, and auth failures", async () => {
-		expect(await resolveKoreanNotificationSummary("  \n\t ", model, registry)).toBeUndefined();
-		expect(await resolveKoreanNotificationSummary("Fixed login", undefined, registry)).toBeUndefined();
+		expect(await resolveKoreanNotificationSummary("  \n\t ", "Fix auth", model, registry)).toBeUndefined();
+		expect(await resolveKoreanNotificationSummary("Fixed login", "Fix auth", undefined, registry)).toBeUndefined();
 		registry.getApiKeyAndHeaders.mockResolvedValue({ ok: false, error: "no auth" });
-		expect(await resolveKoreanNotificationSummary("Fixed login", model, registry)).toBeUndefined();
+		expect(await resolveKoreanNotificationSummary("Fixed login", "Fix auth", model, registry)).toBeUndefined();
 	});
 
 	it("returns undefined when the provider errors, output is empty, or the call throws", async () => {
 		completeSimple.mockResolvedValueOnce(message([], "error"));
-		expect(await resolveKoreanNotificationSummary("Fixed login", model, registry)).toBeUndefined();
+		expect(await resolveKoreanNotificationSummary("Fixed login", "Fix auth", model, registry)).toBeUndefined();
 		completeSimple.mockResolvedValueOnce(message([{ type: "thinking", thinking: "hidden" }]));
-		expect(await resolveKoreanNotificationSummary("Fixed login", model, registry)).toBeUndefined();
+		expect(await resolveKoreanNotificationSummary("Fixed login", "Fix auth", model, registry)).toBeUndefined();
 		completeSimple.mockRejectedValue(new Error("boom"));
-		expect(await resolveKoreanNotificationSummary("Fixed login", model, registry)).toBeUndefined();
+		expect(await resolveKoreanNotificationSummary("Fixed login", "Fix auth", model, registry)).toBeUndefined();
 	});
 });

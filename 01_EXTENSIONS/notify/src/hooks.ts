@@ -1,6 +1,7 @@
 import { buildCompletionNotification, extractAssistantText, type NotificationMessage } from "./format.js";
 import { notify } from "./notify.js";
 import { resolveKoreanNotificationSummary, type NotificationSummaryModel, type NotificationSummaryModelRegistry } from "./summarize.js";
+import { containsTitleText, sanitizeNotificationText } from "./text.js";
 
 interface NotifyContext {
 	model: NotificationSummaryModel | undefined;
@@ -10,12 +11,14 @@ interface NotifyContext {
 
 export function createAgentEndHandler() {
 	return async (event: { messages: NotificationMessage[] }, ctx: NotifyContext): Promise<void> => {
-		const fallback = buildCompletionNotification(ctx.sessionManager.getSessionName(), event.messages);
-		const koreanBody = await resolveKoreanNotificationSummary(
+		const sessionTitle = sanitizeNotificationText(ctx.sessionManager.getSessionName() || "");
+		const fallback = buildCompletionNotification(sessionTitle, event.messages);
+		const koreanTitle = await resolveKoreanNotificationSummary(
 			extractAssistantText(event.messages),
+			sessionTitle,
 			ctx.model,
 			ctx.modelRegistry,
 		);
-		notify(fallback.title, koreanBody || fallback.body);
+		notify(koreanTitle && !containsTitleText(koreanTitle, sessionTitle) ? koreanTitle : fallback.title, "");
 	};
 }
