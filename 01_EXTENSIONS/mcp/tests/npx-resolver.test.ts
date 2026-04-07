@@ -87,4 +87,11 @@ describe("resolveNpxCommand", () => {
 		const r = resolveNpxCommand("npm", ["exec", "tool"], ok("/bin/tool\n"), mc(), NOW);
 		expect(r.command).toBe("/bin/tool");
 	});
+
+	it("rejects unsafe binary names (shell injection prevention)", () => {
+		const exec: ExecSync = vi.fn();
+		const r = resolveNpxCommand("npx", ["pkg; rm -rf /"], exec, mc(), NOW);
+		expect(r).toEqual({ command: "npx", args: ["pkg; rm -rf /"] });
+		expect(exec).not.toHaveBeenCalled();
+	});
 });

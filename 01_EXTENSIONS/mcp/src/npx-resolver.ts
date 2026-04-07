@@ -25,9 +25,14 @@ function parseNpxArgs(args: string[]): { pkg: string; rest: string[] } | null {
 	return { pkg: args[i], rest: args.slice(i + 1) };
 }
 
+const SAFE_BIN_RE = /^[a-zA-Z0-9._@-]+$/;
+
 function lookupBinary(pkg: string, exec: ExecSync): string | null {
+	const parts = pkg.split("/");
+	const bin = parts[parts.length - 1];
+	if (!SAFE_BIN_RE.test(bin)) return null;
 	try {
-		return exec(`which ${pkg.split("/").pop()}`, { timeout: 5000 }).trim() || null;
+		return exec(`which ${bin}`, { timeout: 5000 }).trim() || null;
 	} catch {
 		return null;
 	}
