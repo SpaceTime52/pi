@@ -28,9 +28,11 @@ vi.mock("../src/sdk-client.js", () => ({ createSdkClient: () => mockClient() }))
 
 import { wireCommandConnect, wireCommandClose, makeConnectDeps } from "../src/wire-command.js";
 import { connectServer } from "../src/server-connect.js";
-import { setConnection, getConnections, removeConnection, setMetadata } from "../src/state.js";
+import { setConnection, getConnections, removeConnection, setMetadata, getConfig, getAllMetadata } from "../src/state.js";
 import { buildToolMetadata } from "../src/tool-metadata.js";
 import { recordFailure, clearFailure } from "../src/failure-tracker.js";
+import { computeConfigHash } from "../src/config-hash.js";
+import { wireSaveCache } from "../src/wire-init-config.js";
 
 describe("makeConnectDeps", () => {
 	beforeEach(() => vi.clearAllMocks());
@@ -51,6 +53,17 @@ describe("wireCommandConnect", () => {
 		vi.mocked(connectServer).mockRejectedValueOnce(new Error("boom"));
 		await expect(wireCommandConnect()("s1", { command: "node" })).rejects.toThrow("boom");
 		expect(recordFailure).toHaveBeenCalledWith("s1");
+	});
+	it("saves metadata cache when config is present", async () => {
+		const cfg = { mcpServers: { s1: { command: "node" } } };
+		const metadata = new Map([["s1___tool", { serverName: "s1", description: "d" }]]);
+		const saveCache = vi.fn().mockResolvedValue(undefined);
+		vi.mocked(getConfig).mockReturnValue(cfg);
+		vi.mocked(getAllMetadata).mockReturnValue(metadata);
+		vi.mocked(wireSaveCache).mockReturnValue(saveCache);
+		await wireCommandConnect()("s1", { command: "node" });
+		expect(computeConfigHash).toHaveBeenCalledWith(cfg);
+		expect(saveCache).toHaveBeenCalledWith("hash", metadata);
 	});
 });
 

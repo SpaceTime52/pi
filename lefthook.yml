@@ -3,11 +3,37 @@ pre-commit:
     architecture:
       run: cd 00_ARCHITECTURE/tests && go test -count=1 ./...
     biome:
-      run: if ls -d 01_EXTENSIONS/*/ >/dev/null 2>&1; then for dir in 01_EXTENSIONS/*/; do [ -f "$dir/biome.json" ] && (cd "$dir" && npx biome check --error-on-warnings .); done; fi
+      run: |
+        set -e
+        for dir in 01_EXTENSIONS/*/; do
+          [ -d "$dir" ] || continue
+          [ -f "$dir/biome.json" ] || continue
+          (cd "$dir" && npx biome check --error-on-warnings .)
+        done
 
 pre-push:
   commands:
     extension-build:
-      run: if ls -d 01_EXTENSIONS/*/ >/dev/null 2>&1; then for dir in 01_EXTENSIONS/*/; do [ -f "$dir/package.json" ] && (cd "$dir" && npm run build); done && git add 01_EXTENSIONS/*/dist/ && git diff --cached --quiet || git commit -m "dist 빌드 반영"; fi
+      run: |
+        set -e
+        built_any=0
+        for dir in 01_EXTENSIONS/*/; do
+          [ -d "$dir" ] || continue
+          [ -f "$dir/package.json" ] || continue
+          built_any=1
+          (cd "$dir" && npm run build)
+        done
+        if [ "$built_any" -eq 1 ]; then
+          git add 01_EXTENSIONS/*/dist/
+          if ! git diff --cached --quiet; then
+            git commit -m "dist 빌드 반영"
+          fi
+        fi
     extension-tests:
-      run: if ls -d 01_EXTENSIONS/*/ >/dev/null 2>&1; then for dir in 01_EXTENSIONS/*/; do [ -f "$dir/package.json" ] && (cd "$dir" && npm test); done; fi
+      run: |
+        set -e
+        for dir in 01_EXTENSIONS/*/; do
+          [ -d "$dir" ] || continue
+          [ -f "$dir/package.json" ] || continue
+          (cd "$dir" && npm test)
+        done
