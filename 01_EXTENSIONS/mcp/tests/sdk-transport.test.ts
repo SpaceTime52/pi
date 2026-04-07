@@ -26,11 +26,14 @@ import {
 describe("createSdkStdioTransport", () => {
 	beforeEach(() => vi.clearAllMocks());
 
-	it("creates StdioClientTransport with params", () => {
+	it("creates StdioClientTransport with merged env", () => {
 		const t = createSdkStdioTransport("node", ["s.js"], { FOO: "1" }, "/tmp");
-		expect(StdioClientTransport).toHaveBeenCalledWith({
-			command: "node", args: ["s.js"], env: { FOO: "1" }, cwd: "/tmp", stderr: "pipe",
-		});
+		const call = (StdioClientTransport as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(call.command).toBe("node");
+		expect(call.args).toEqual(["s.js"]);
+		expect(call.env.FOO).toBe("1");
+		expect(call.env.PATH).toBeDefined();
+		expect(call.cwd).toBe("/tmp");
 		expect(t).toBe(mockStdioInstance);
 	});
 

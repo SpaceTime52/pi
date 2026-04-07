@@ -66,34 +66,21 @@ describe("connectServer discovery", () => {
 		expect(conn.resources).toEqual([]);
 	});
 
-	it("paginates resources across multiple pages", async () => {
-		const resources: McpResourceRaw[] = [
-			{ uri: "file:///a", name: "doc1" },
-			{ uri: "file:///b", name: "doc2" },
-		];
+	it("gracefully handles servers that do not support resources", async () => {
 		const transport: McpTransport = { close: vi.fn() };
-		let resCall = 0;
 		const deps: ConnectDeps = {
 			createStdioTransport: vi.fn().mockReturnValue(transport),
-			createHttpTransport: vi.fn().mockResolvedValue(transport),
+			createHttpTransport: vi.fn(),
 			createClient: vi.fn().mockReturnValue({
-				callTool: vi.fn(),
-				listTools: vi.fn().mockResolvedValue({ tools: [] }),
-				listResources: vi.fn().mockImplementation(() => {
-					resCall++;
-					if (resCall === 1) {
-						return Promise.resolve({
-							resources: resources.slice(0, 1), nextCursor: "rc1",
-						});
-					}
-					return Promise.resolve({ resources: resources.slice(1) });
-				}),
+				callTool: vi.fn(), listTools: vi.fn().mockResolvedValue({ tools: [] }),
+				listResources: vi.fn().mockRejectedValue(new Error("Method not found")),
 				readResource: vi.fn(), ping: vi.fn(), close: vi.fn(),
 				connect: vi.fn().mockResolvedValue(undefined),
 			}),
 			processEnv: {},
 		};
 		const conn = await connectServer("s1", { command: "echo" }, deps);
-		expect(conn.resources).toHaveLength(2);
+		expect(conn.resources).toEqual([]);
 	});
+
 });

@@ -60,9 +60,9 @@ export async function connectServer(
 	}
 	const client = deps.createClient();
 	await client.connect(transport);
-	const [tools, resources] = await Promise.all([
-		discoverTools(client), discoverResources(client),
-	]);
+	const tools = await discoverTools(client);
+	let resources: McpResourceRaw[] = [];
+	try { resources = await discoverResources(client); } catch { /* server may not support resources */ }
 	return {
 		name, client, transport, status: "connected",
 		lastUsedAt: Date.now(), inFlight: 0, tools, resources,

@@ -12,10 +12,11 @@ export function createSdkStdioTransport(
 	env: Record<string, string> | undefined,
 	cwd: string | undefined,
 ): SdkTransport {
+	const mergedEnv = env ? { ...process.env, ...env } : undefined;
 	return new StdioClientTransport({
 		command,
 		args,
-		env,
+		env: mergedEnv,
 		cwd,
 		stderr: "pipe",
 	});

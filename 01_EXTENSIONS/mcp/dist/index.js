@@ -7818,10 +7818,12 @@ async function connectServer(name, entry, deps) {
   }
   const client = deps.createClient();
   await client.connect(transport);
-  const [tools, resources] = await Promise.all([
-    discoverTools(client),
-    discoverResources(client)
-  ]);
+  const tools = await discoverTools(client);
+  let resources = [];
+  try {
+    resources = await discoverResources(client);
+  } catch {
+  }
   return {
     name,
     client,
@@ -18994,10 +18996,11 @@ var SSEClientTransport = class {
 
 // src/sdk-transport.ts
 function createSdkStdioTransport(command, args, env, cwd) {
+  const mergedEnv = env ? { ...process.env, ...env } : void 0;
   return new StdioClientTransport({
     command,
     args,
-    env,
+    env: mergedEnv,
     cwd,
     stderr: "pipe"
   });
