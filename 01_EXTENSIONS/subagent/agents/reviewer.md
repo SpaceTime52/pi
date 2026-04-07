@@ -2,7 +2,7 @@
 name: reviewer
 description: Code review specialist — use for quality, correctness, and security analysis of code changes
 tools: read, grep, find, ls, bash
-model: gpt-5.4-pro
+model: openai/gpt-5.4-pro
 thinking: xhigh
 ---
 

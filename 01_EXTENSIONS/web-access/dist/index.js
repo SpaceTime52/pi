@@ -21382,8 +21382,30 @@ async function webSearch(query2, numResults, fetchImpl = fetch, signal) {
 }
 
 // src/code-search.ts
+var CODE_CONTEXT_TOOL = "get_code_context_exa";
+function isMissingCodeContextToolError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(`Tool ${CODE_CONTEXT_TOOL} not found`);
+}
+function buildFallbackQuery(query2) {
+  return `${query2} code examples api reference documentation github`;
+}
+function buildFallbackResult(answer, results) {
+  const sources = results.map((r) => `- [${r.title}](${r.url})`).join("\n");
+  return [answer.trim(), sources ? `## Sources
+${sources}` : ""].filter(Boolean).join("\n\n");
+}
+function fallbackResultCount(maxTokens) {
+  return Math.max(3, Math.min(10, Math.ceil(maxTokens / 1500)));
+}
 async function codeSearch(query2, maxTokens, fetchImpl = fetch, signal) {
-  return callExaMcp("get_code_context_exa", { query: query2, tokensNum: maxTokens }, fetchImpl, signal);
+  try {
+    return await callExaMcp(CODE_CONTEXT_TOOL, { query: query2, tokensNum: maxTokens }, fetchImpl, signal);
+  } catch (error) {
+    if (!isMissingCodeContextToolError(error)) throw error;
+    const { answer, results } = await webSearch(buildFallbackQuery(query2), fallbackResultCount(maxTokens), fetchImpl, signal);
+    return buildFallbackResult(answer, results);
+  }
 }
 
 // src/readability.ts
