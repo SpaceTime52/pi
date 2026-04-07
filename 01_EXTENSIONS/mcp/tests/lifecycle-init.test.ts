@@ -25,7 +25,6 @@ function makeDeps(overrides?: Partial<InitDeps>): InitDeps {
 		incrementGeneration: vi.fn().mockReturnValue(1),
 		getGeneration: vi.fn().mockReturnValue(1),
 		updateFooter: vi.fn(),
-		logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() },
 		...overrides,
 	};
 }

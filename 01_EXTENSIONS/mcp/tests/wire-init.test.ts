@@ -12,7 +12,6 @@ vi.mock("../src/state.js", () => ({
 	getGeneration: vi.fn().mockReturnValue(1), getConnections: vi.fn().mockReturnValue(new Map()),
 	getConfig: vi.fn().mockReturnValue(null), updateFooterStatus: vi.fn(),
 }));
-vi.mock("../src/logger.js", () => ({ createLogger: vi.fn().mockReturnValue({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }));
 vi.mock("../src/wire-init-config.js", () => ({
 	wireLoadConfig: vi.fn().mockReturnValue(vi.fn().mockResolvedValue({ mcpServers: {} })),
 	wireMergeConfigs: vi.fn().mockReturnValue(vi.fn().mockImplementation((c: unknown) => c)),
@@ -41,7 +40,7 @@ import { getConnections, getConfig, updateFooterStatus } from "../src/state.js";
 
 describe("wire-init", () => {
 	beforeEach(() => { vi.clearAllMocks(); setCapturedUi(null); });
-	it("returns all required fields", () => { const d = wireInitDeps(); ["loadConfig","mergeConfigs","applyDirectToolsEnv","computeHash","loadCache","isCacheValid","saveCache","connectServer","buildMetadata","resolveDirectTools","registerDirectTools","buildResourceTools","deduplicateTools","startIdleTimer","startKeepalive","setConfig","setConnection","setMetadata","getAllMetadata","incrementGeneration","getGeneration","updateFooter","logger"].forEach((k) => expect(d).toHaveProperty(k)); });
+	it("returns all required fields", () => { const d = wireInitDeps(); ["loadConfig","mergeConfigs","applyDirectToolsEnv","computeHash","loadCache","isCacheValid","saveCache","connectServer","buildMetadata","resolveDirectTools","registerDirectTools","buildResourceTools","deduplicateTools","startIdleTimer","startKeepalive","setConfig","setConnection","setMetadata","getAllMetadata","incrementGeneration","getGeneration","updateFooter"].forEach((k) => expect(d).toHaveProperty(k)); });
 	it("idle delegates with McpConfig", () => { wireInitDeps().startIdleTimer({ mcpServers: {} }); expect(startIdleTimer).toHaveBeenCalled(); });
 	it("idle ignores non-config", () => { wireInitDeps().startIdleTimer("x"); expect(startIdleTimer).not.toHaveBeenCalled(); });
 	it("idle uses settings.idleTimeout", () => { wireInitDeps().startIdleTimer({ mcpServers: {}, settings: { idleTimeout: 5000 } }); expect(startIdleTimer).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 5000 })); });

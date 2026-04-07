@@ -8,7 +8,6 @@ describe("lifecycle-shutdown", () => {
 		stopIdle: vi.fn(),
 		stopKeepalive: vi.fn(),
 		resetState: vi.fn(),
-		logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() },
 	});
 
 	it("calls dual-flush in order: saveCache then closeAll", async () => {
@@ -27,7 +26,6 @@ describe("lifecycle-shutdown", () => {
 		const handler = onSessionShutdown(ops);
 		await handler(undefined, undefined);
 		expect(ops.closeAll).toHaveBeenCalled();
-		expect(ops.logger.error).toHaveBeenCalled();
 	});
 
 	it("stops timers before closing connections", async () => {
@@ -55,23 +53,22 @@ describe("lifecycle-shutdown", () => {
 		const handler = onSessionShutdown(ops);
 		await handler(undefined, undefined);
 		expect(ops.resetState).toHaveBeenCalled();
-		expect(ops.logger.error).toHaveBeenCalled();
 	});
 
-	it("handles non-Error thrown from saveCache", async () => {
+	it("silently handles saveCache error", async () => {
 		const ops = makeOps();
 		ops.saveCache.mockRejectedValue("string error");
 		const handler = onSessionShutdown(ops);
 		await handler(undefined, undefined);
-		expect(ops.logger.error).toHaveBeenCalledWith("Cache save failed: string error");
+		expect(ops.closeAll).toHaveBeenCalled();
 	});
 
-	it("handles non-Error thrown from closeAll", async () => {
+	it("silently handles closeAll error", async () => {
 		const ops = makeOps();
 		ops.closeAll.mockRejectedValue(42);
 		const handler = onSessionShutdown(ops);
 		await handler(undefined, undefined);
-		expect(ops.logger.error).toHaveBeenCalledWith("Close connections failed: 42");
+		expect(ops.resetState).toHaveBeenCalled();
 	});
 
 	it("returns no-op handler when called without ops", async () => {

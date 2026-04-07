@@ -6,7 +6,6 @@ vi.mock("../src/state.js", () => ({
 	resetState: vi.fn(), getConnections: vi.fn().mockReturnValue(new Map()),
 	getConfig: vi.fn().mockReturnValue(null), getAllMetadata: vi.fn().mockReturnValue(new Map()),
 }));
-vi.mock("../src/logger.js", () => ({ createLogger: vi.fn().mockReturnValue({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }));
 vi.mock("../src/wire-init-config.js", () => ({ wireSaveCache: vi.fn().mockReturnValue(vi.fn().mockResolvedValue(undefined)) }));
 vi.mock("../src/config-hash.js", () => ({ computeConfigHash: vi.fn().mockReturnValue("hash123") }));
 
@@ -19,7 +18,6 @@ describe("wire-shutdown", () => {
 	it("returns all required fields", () => {
 		const ops = wireShutdownOps();
 		["saveCache","closeAll","stopIdle","stopKeepalive","resetState"].forEach((k) => expect(typeof (ops as Record<string, unknown>)[k]).toBe("function"));
-		expect(typeof ops.logger.info).toBe("function");
 	});
 	it("saveCache resolves when no config", async () => { await expect(wireShutdownOps().saveCache()).resolves.toBeUndefined(); });
 	it("saveCache delegates when config exists", async () => {

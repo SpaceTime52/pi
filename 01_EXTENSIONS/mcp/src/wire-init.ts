@@ -7,7 +7,6 @@ import {
 	setConfig, setConnection, setMetadata, getAllMetadata, incrementGeneration,
 	getGeneration, getConnections, getConfig, updateFooterStatus,
 } from "./state.js";
-import { createLogger } from "./logger.js";
 import { DEFAULT_IDLE_TIMEOUT_MS, KEEPALIVE_INTERVAL_MS } from "./constants.js";
 import {
 	wireLoadConfig, wireMergeConfigs, wireApplyDirectToolsEnv,
@@ -59,7 +58,6 @@ function wrapKeepalive(opts: unknown): void {
 	});
 }
 export function wireInitDeps(): InitDeps {
-	const logger = createLogger("info", { module: "init" });
 	const cDeps = makeConnectDeps();
 	return {
 		loadConfig: wireLoadConfig(), mergeConfigs: wireMergeConfigs(),
@@ -77,7 +75,6 @@ export function wireInitDeps(): InitDeps {
 			const ui = getCapturedUi(); const cfg = getConfig();
 			if (ui && cfg) updateFooterStatus(ui, Object.keys(cfg.mcpServers).length);
 		},
-		logger,
 	};
 }
 interface InitPi {

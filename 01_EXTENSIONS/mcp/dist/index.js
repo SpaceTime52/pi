@@ -7722,23 +7722,17 @@ function onSessionShutdown(opsOrPi) {
   const ops = isShutdownOps(opsOrPi) ? opsOrPi : void 0;
   return async (_event, _ctx) => {
     if (!ops) return;
-    ops.logger.info("Session shutdown starting");
     ops.stopIdle();
     ops.stopKeepalive();
     try {
       await ops.saveCache();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      ops.logger.error(`Cache save failed: ${msg}`);
+    } catch {
     }
     try {
       await ops.closeAll();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      ops.logger.error(`Close connections failed: ${msg}`);
+    } catch {
     }
     ops.resetState();
-    ops.logger.info("Session shutdown complete");
   };
 }
 
@@ -7847,7 +7841,6 @@ function checkIdle(opts) {
     const timeout = serverDef?.idleTimeout ?? opts.timeoutMs;
     if (conn.inFlight > 0) continue;
     if (now - conn.lastUsedAt > timeout) {
-      opts.logger?.info(`Closing idle server: ${name}`);
       opts.closeFn(name).catch(() => {
       });
     }
@@ -7872,9 +7865,7 @@ async function pingAll(opts) {
     if (opts.servers[name]?.lifecycle !== "keep-alive") continue;
     try {
       await conn.client.ping();
-      opts.logger?.debug(`Ping OK: ${name}`);
     } catch {
-      opts.logger?.warn(`Ping failed, reconnecting: ${name}`);
       opts.reconnectFn(name).catch(() => {
       });
     }
@@ -7913,36 +7904,27 @@ async function connectAndDiscover(gen, server, deps) {
       const tools = await deps.buildMetadata(server.name, conn.client);
       if (deps.getGeneration() !== gen) return;
       deps.setMetadata(server.name, tools);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      deps.logger.warn(`Tool discovery failed for ${server.name}: ${msg}`);
+    } catch {
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    deps.logger.warn(`Failed to connect ${server.name}: ${msg}`);
+  } catch {
   }
 }
 function onSessionStart(pi, deps) {
   return async (_event, _ctx) => {
     if (!deps) return;
     const gen = deps.incrementGeneration();
-    deps.logger.info("Session start: loading config");
     let config3;
     try {
       config3 = deps.applyDirectToolsEnv(deps.mergeConfigs(await deps.loadConfig()));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      deps.logger.error(`Config load failed: ${msg}`);
+    } catch {
       return;
     }
     deps.setConfig(config3);
     const hash2 = deps.computeHash(config3);
     const cache = deps.loadCache();
-    const cacheHit = deps.isCacheValid(cache, hash2);
+    deps.isCacheValid(cache, hash2);
     const { eager } = classifyServers(config3);
-    const total = Object.keys(config3.mcpServers).length;
-    const toConnect = eager;
-    await Promise.allSettled(toConnect.map((s) => connectAndDiscover(gen, s, deps)));
+    await Promise.allSettled(eager.map((s) => connectAndDiscover(gen, s, deps)));
     if (deps.getGeneration() !== gen) return;
     const directSpecs = deps.resolveDirectTools(deps.getAllMetadata(), config3);
     const deduped = deps.deduplicateTools(directSpecs);
@@ -7952,36 +7934,6 @@ function onSessionStart(pi, deps) {
     deps.saveCache(hash2, deps.getAllMetadata()).catch(() => {
     });
     deps.updateFooter();
-    deps.logger.info(`Session started: ${eager.length}/${total} servers connected`);
-  };
-}
-
-// src/logger-format.ts
-var LEVEL_ORDER = { debug: 0, info: 1, warn: 2, error: 3 };
-function shouldLog(level, minLevel) {
-  return LEVEL_ORDER[level] >= LEVEL_ORDER[minLevel];
-}
-function formatEntry(level, message, context) {
-  const prefix = `[mcp:${level}]`;
-  const ctxStr = context ? Object.entries(context).filter(([, v]) => v !== void 0).map(([k, v]) => `${k}=${v}`).join(" ") : "";
-  return ctxStr ? `${prefix} ${message} (${ctxStr})` : `${prefix} ${message}`;
-}
-
-// src/logger.ts
-function createLogger(minLevel, context) {
-  const log = (level, msg) => {
-    if (!shouldLog(level, minLevel)) return;
-    const line = formatEntry(level, msg, context);
-    if (level === "error") console.error(line);
-    else if (level === "warn") console.warn(line);
-    else console.log(line);
-  };
-  return {
-    debug: (msg) => log("debug", msg),
-    info: (msg) => log("info", msg),
-    warn: (msg) => log("warn", msg),
-    error: (msg) => log("error", msg),
-    child: (ctx) => createLogger(minLevel, { ...context, ...ctx })
   };
 }
 
@@ -24911,7 +24863,6 @@ function wrapKeepalive(opts) {
   });
 }
 function wireInitDeps() {
-  const logger = createLogger("info", { module: "init" });
   const cDeps = makeConnectDeps();
   return {
     loadConfig: wireLoadConfig(),
@@ -24941,8 +24892,7 @@ function wireInitDeps() {
       const ui = getCapturedUi();
       const cfg = getConfig();
       if (ui && cfg) updateFooterStatus(ui, Object.keys(cfg.mcpServers).length);
-    },
-    logger
+    }
   };
 }
 function wireSessionStart(pi) {
@@ -24973,7 +24923,6 @@ async function closeAllConnections() {
   }));
 }
 function wireShutdownOps() {
-  const logger = createLogger("info", { module: "shutdown" });
   const save = wireSaveCache();
   return {
     saveCache: async () => {
@@ -24984,8 +24933,7 @@ function wireShutdownOps() {
     closeAll: closeAllConnections,
     stopIdle: stopIdleTimer,
     stopKeepalive,
-    resetState,
-    logger
+    resetState
   };
 }
 

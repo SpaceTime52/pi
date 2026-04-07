@@ -61,16 +61,6 @@ describe("lifecycle-idle", () => {
 		expect(closeFn).not.toHaveBeenCalled();
 	});
 
-	it("calls logger.info when logger is provided", () => {
-		const { closeFn, connections, servers } = setup([
-			["s1", { name: "s1", lastUsedAt: Date.now() - 700_000, status: "connected", inFlight: 0 }],
-		]);
-		const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-		startIdleTimer({ connections, servers, closeFn, timeoutMs: 600_000, intervalMs: 60_000, logger });
-		vi.advanceTimersByTime(60_000);
-		expect(logger.info).toHaveBeenCalled();
-	});
-
 	it("skips servers with in-flight requests", () => {
 		const { closeFn, connections, servers } = setup([
 			["s1", { name: "s1", lastUsedAt: Date.now() - 700_000, status: "connected", inFlight: 2 }],

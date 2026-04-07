@@ -1,10 +1,3 @@
-interface Logger {
-	info(msg: string): void;
-	warn(msg: string): void;
-	error(msg: string): void;
-	debug(msg: string): void;
-}
-
 interface IdleConn {
 	name: string;
 	lastUsedAt: number;
@@ -18,7 +11,6 @@ interface IdleOpts {
 	closeFn: (name: string) => Promise<void>;
 	timeoutMs: number;
 	intervalMs: number;
-	logger?: Logger;
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -32,7 +24,6 @@ function checkIdle(opts: IdleOpts): void {
 		const timeout = serverDef?.idleTimeout ?? opts.timeoutMs;
 		if (conn.inFlight > 0) continue;
 		if (now - conn.lastUsedAt > timeout) {
-			opts.logger?.info(`Closing idle server: ${name}`);
 			opts.closeFn(name).catch(() => {});
 		}
 	}

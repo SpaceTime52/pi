@@ -40,22 +40,6 @@ describe("lifecycle-keepalive", () => {
 		expect(ping).not.toHaveBeenCalled();
 	});
 
-	it("calls logger.debug on successful ping", async () => {
-		const ping = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
-		const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-		startKeepalive({ connections: mkConn(ping), servers: kaServers, reconnectFn: mkReconnect(), intervalMs: 30_000, logger });
-		await vi.advanceTimersByTimeAsync(30_000);
-		expect(logger.debug).toHaveBeenCalled();
-	});
-
-	it("calls logger.warn on ping failure", async () => {
-		const ping = vi.fn<() => Promise<void>>().mockRejectedValue(new Error("timeout"));
-		const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-		startKeepalive({ connections: mkConn(ping), servers: kaServers, reconnectFn: mkReconnect(), intervalMs: 30_000, logger });
-		await vi.advanceTimersByTimeAsync(30_000);
-		expect(logger.warn).toHaveBeenCalled();
-	});
-
 	it("stopKeepalive prevents further pings", async () => {
 		const ping = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
 		startKeepalive({ connections: mkConn(ping), servers: kaServers, reconnectFn: mkReconnect(), intervalMs: 30_000 });

@@ -18,7 +18,6 @@ function makeDeps(overrides?: Partial<InitDeps>): InitDeps {
 		getAllMetadata: vi.fn().mockReturnValue(new Map()),
 		incrementGeneration: vi.fn().mockReturnValue(1), getGeneration: vi.fn().mockReturnValue(1),
 		updateFooter: vi.fn(),
-		logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() },
 		...overrides,
 	};
 }
@@ -34,12 +33,11 @@ describe("lifecycle-init errors", () => {
 		});
 		await run(deps);
 		expect(deps.setConnection).toHaveBeenCalledWith("good", expect.anything());
-		expect(deps.logger.warn).toHaveBeenCalled();
 	});
 	it("handles loadConfig failure gracefully", async () => {
 		const deps = makeDeps({ loadConfig: vi.fn().mockRejectedValue(new Error("no config")) });
 		await run(deps);
-		expect(deps.logger.error).toHaveBeenCalled();
+		expect(deps.setConfig).not.toHaveBeenCalled();
 	});
 	it("skips stale generation writes", async () => {
 		let gen = 1;
@@ -60,22 +58,22 @@ describe("lifecycle-init errors", () => {
 			loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }),
 			buildMetadata: vi.fn().mockRejectedValue(new Error("discovery failed")),
 		});
-		await run(deps); expect(deps.logger.warn).toHaveBeenCalled();
+		await run(deps); expect(deps.setMetadata).not.toHaveBeenCalled();
 	});
-	it("handles non-Error thrown from connectServer", async () => {
+	it("silently handles connect failure", async () => {
 		const d = makeDeps({ loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }), connectServer: vi.fn().mockRejectedValue("str") });
 		await run(d);
-		expect(d.logger.warn).toHaveBeenCalledWith("Failed to connect s1: str");
+		expect(d.setConnection).not.toHaveBeenCalled();
 	});
-	it("handles non-Error thrown from buildMetadata", async () => {
+	it("silently handles buildMetadata failure", async () => {
 		const d = makeDeps({ loadConfig: eagerCfg({ s1: { lifecycle: "eager" } }), buildMetadata: vi.fn().mockRejectedValue(42) });
 		await run(d);
-		expect(d.logger.warn).toHaveBeenCalledWith("Tool discovery failed for s1: 42");
+		expect(d.setMetadata).not.toHaveBeenCalled();
 	});
-	it("handles non-Error thrown from loadConfig", async () => {
+	it("silently handles loadConfig failure", async () => {
 		const d = makeDeps({ loadConfig: vi.fn().mockRejectedValue("bad") });
 		await run(d);
-		expect(d.logger.error).toHaveBeenCalledWith("Config load failed: bad");
+		expect(d.setConfig).not.toHaveBeenCalled();
 	});
 	it("skips stale generation after buildMetadata", async () => {
 		let gen = 1;
