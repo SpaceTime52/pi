@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildReadyNotification, notify, sanitizeNotificationText } from "../src/notify.js";
+import { notify } from "../src/notify.js";
 
-describe("notify", () => {
+describe("notify transport", () => {
 	const originalEnv = process.env;
 	const write = vi.fn();
 
@@ -17,42 +17,28 @@ describe("notify", () => {
 
 	it("uses stdout.write by default", () => {
 		const spy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-		notify("Pi", "Ready");
+		notify("π", "Done");
 		expect(spy).toHaveBeenCalled();
 		spy.mockRestore();
 	});
 
-	it("OSC 777 by default", () => {
-		notify("Pi", "Ready", write);
-		expect(write).toHaveBeenCalledWith("\x1b]777;notify;Pi;Ready\x07");
+	it("uses OSC 777 by default", () => {
+		notify("π", "Done", write);
+		expect(write).toHaveBeenCalledWith("\x1b]777;notify;π;Done\x07");
 	});
 
-	it("OSC 99 when KITTY_WINDOW_ID is set", () => {
+	it("uses OSC 99 in Kitty", () => {
 		process.env.KITTY_WINDOW_ID = "1";
-		notify("Pi", "Ready", write);
-		expect(write).toHaveBeenCalledWith("\x1b]99;i=1:d=0;Pi\x1b\\");
-		expect(write).toHaveBeenCalledWith("\x1b]99;i=1:p=body;Ready\x1b\\");
+		notify("π", "Done", write);
+		expect(write).toHaveBeenCalledWith("\x1b]99;i=1:d=0;π\x1b\\");
+		expect(write).toHaveBeenCalledWith("\x1b]99;i=1:p=body;Done\x1b\\");
 	});
 
-	it("sanitizes control characters and semicolons", () => {
-		notify("Pi;\x1bBad", "Ready\nnow;", write);
-		expect(write).toHaveBeenCalledWith("\x1b]777;notify;Pi Bad;Ready now\x07");
-	});
-
-	it("builds a session-aware ready notification", () => {
-		expect(buildReadyNotification()).toEqual({ title: "Pi", body: "Ready for input" });
-		expect(buildReadyNotification("Fix auth tests")).toEqual({
-			title: "Pi · Fix auth tests",
-			body: "Ready for input",
-		});
-	});
-
-	it("falls back to Pi when the notification title sanitizes to empty", () => {
-		notify("\n;\t", "Ready", write);
-		expect(write).toHaveBeenCalledWith("\x1b]777;notify;Pi;Ready\x07");
-	});
-
-	it("sanitizeNotificationText trims whitespace-only noise", () => {
-		expect(sanitizeNotificationText("  hi\nthere;\t ")).toBe("hi there");
+	it("sanitizes and falls back for empty values", () => {
+		notify("π;\x1bBad", "Ready\nnow;", write);
+		expect(write).toHaveBeenCalledWith("\x1b]777;notify;π Bad;Ready now\x07");
+		write.mockClear();
+		notify("\n;\t", "\n;\t", write);
+		expect(write).toHaveBeenCalledWith("\x1b]777;notify;π;작업 완료\x07");
 	});
 });

@@ -1,19 +1,9 @@
+import { sanitizeNotificationText } from "./text.js";
+
 type Writer = (s: string) => void;
 
-export function sanitizeNotificationText(text: string): string {
-	return text
-		.replace(/[\r\n\t]+/g, " ")
-		.replace(/[\x00-\x1f\x7f;]+/g, " ")
-		.replace(/ +/g, " ")
-		.trim();
-}
-
-export function buildReadyNotification(sessionName?: string): { title: string; body: string } {
-	return {
-		title: sessionName ? `Pi · ${sessionName}` : "Pi",
-		body: "Ready for input",
-	};
-}
+const FALLBACK_TITLE = "π";
+const FALLBACK_BODY = "작업 완료";
 
 function notifyOSC777(title: string, body: string, write: Writer): void {
 	write(`\x1b]777;notify;${title};${body}\x07`);
@@ -29,8 +19,8 @@ export function notify(
 	body: string,
 	write: Writer = (s) => process.stdout.write(s),
 ): void {
-	const safeTitle = sanitizeNotificationText(title) || "Pi";
-	const safeBody = sanitizeNotificationText(body);
+	const safeTitle = sanitizeNotificationText(title) || FALLBACK_TITLE;
+	const safeBody = sanitizeNotificationText(body) || FALLBACK_BODY;
 	if (process.env.KITTY_WINDOW_ID) {
 		notifyOSC99(safeTitle, safeBody, write);
 	} else {

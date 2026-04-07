@@ -1,0 +1,21 @@
+import { buildCompletionNotification, extractAssistantText, type NotificationMessage } from "./format.js";
+import { notify } from "./notify.js";
+import { resolveKoreanNotificationSummary, type NotificationSummaryModel, type NotificationSummaryModelRegistry } from "./summarize.js";
+
+interface NotifyContext {
+	model: NotificationSummaryModel | undefined;
+	modelRegistry: NotificationSummaryModelRegistry;
+	sessionManager: { getSessionName(): string | undefined };
+}
+
+export function createAgentEndHandler() {
+	return async (event: { messages: NotificationMessage[] }, ctx: NotifyContext): Promise<void> => {
+		const fallback = buildCompletionNotification(ctx.sessionManager.getSessionName(), event.messages);
+		const koreanBody = await resolveKoreanNotificationSummary(
+			extractAssistantText(event.messages),
+			ctx.model,
+			ctx.modelRegistry,
+		);
+		notify(fallback.title, koreanBody || fallback.body);
+	};
+}
