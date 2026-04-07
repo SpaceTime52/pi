@@ -18,14 +18,13 @@ export async function refreshState(ctx: Ctx): Promise<BridgeState> {
 	const next = await loadState(ctx.cwd);
 	if (activeState) next.activeConditionalRuleIds = activeState.activeConditionalRuleIds;
 	activeState = next;
-	for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, `[claude-bridge] ${warning}`);
+	for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
 	return next;
 }
 
-export function appendWarning(ctx: Ctx | undefined, message: string) {
+export function appendWarning(_ctx: Ctx | undefined, message: string) {
 	if (warned.has(message)) return;
 	warned.add(message);
-	ctx?.ui.notify(message, "warning");
 }
 
 export function compactWarnings(warnings: string[]): string[] {

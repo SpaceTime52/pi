@@ -34,10 +34,9 @@ export async function ensureProjectHookTrust(ctx: Ctx, state: BridgeState): Prom
 	if (!state.hasRepoScopedHooks || getTrustedRoots().has(state.projectRoot)) return true;
 	if (getPromptedRoots().has(state.projectRoot)) return false;
 	getPromptedRoots().add(state.projectRoot);
-	if (!ctx.hasUI) return appendWarning(ctx, `[claude-bridge] Repo-scoped Claude hooks are disabled for this session until trusted: ${state.projectRoot}`), false;
+	if (!ctx.hasUI) return appendWarning(ctx, `Repo-scoped Claude hooks are disabled for this session until trusted: ${state.projectRoot}`), false;
 	const ok = await ctx.ui.confirm("Trust repo-scoped Claude hooks for this session?", `${state.projectRoot}\n\nThis project defines Claude command/http hooks in .claude/settings*.json.\nTrusting allows those repo-scoped hooks to run automatically inside pi for this session only.`);
-	if (!ok) return ctx.ui.notify(`[claude-bridge] Repo-scoped hooks remain disabled for ${state.projectRoot}`, "warning"), false;
+	if (!ok) return false;
 	getTrustedRoots().add(state.projectRoot);
-	ctx.ui.notify(`[claude-bridge] Trusted repo-scoped hooks for ${state.projectRoot}`, "info");
 	return true;
 }

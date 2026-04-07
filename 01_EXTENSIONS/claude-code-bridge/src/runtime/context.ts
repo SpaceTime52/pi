@@ -11,7 +11,6 @@ export function createSessionStartHandler(pi: any) {
 		const state = await refreshState(ctx);
 		await startWatchLoop(pi, ctx);
 		if (!state.enabled) return;
-		ctx.ui.notify(`[claude-bridge] detected ${state.instructionFiles.length} instruction file(s), ${state.settingsFiles.length} settings file(s).`, "info");
 		const source = event.reason === "resume" ? "resume" : "startup";
 		const results = await runHandlers(pi, "SessionStart", source, { ...buildClaudeInputBase(ctx, "SessionStart"), source, pi_source: event.reason, model: `${ctx.model?.provider || "unknown"}/${ctx.model?.id || "unknown"}` }, ctx);
 		await emitInstructionLoads(pi, ctx, state.eagerLoads);

@@ -547,13 +547,12 @@ async function refreshState(ctx) {
   const next = await loadState(ctx.cwd);
   if (activeState) next.activeConditionalRuleIds = activeState.activeConditionalRuleIds;
   activeState = next;
-  for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, `[claude-bridge] ${warning}`);
+  for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
   return next;
 }
-function appendWarning(ctx, message) {
+function appendWarning(_ctx, message) {
   if (warned.has(message)) return;
   warned.add(message);
-  ctx?.ui.notify(message, "warning");
 }
 function compactWarnings(warnings) {
   return [...new Set(warnings)];
@@ -624,14 +623,13 @@ async function ensureProjectHookTrust(ctx, state) {
   if (!state.hasRepoScopedHooks || getTrustedRoots().has(state.projectRoot)) return true;
   if (getPromptedRoots().has(state.projectRoot)) return false;
   getPromptedRoots().add(state.projectRoot);
-  if (!ctx.hasUI) return appendWarning(ctx, `[claude-bridge] Repo-scoped Claude hooks are disabled for this session until trusted: ${state.projectRoot}`), false;
+  if (!ctx.hasUI) return appendWarning(ctx, `Repo-scoped Claude hooks are disabled for this session until trusted: ${state.projectRoot}`), false;
   const ok = await ctx.ui.confirm("Trust repo-scoped Claude hooks for this session?", `${state.projectRoot}
 
 This project defines Claude command/http hooks in .claude/settings*.json.
 Trusting allows those repo-scoped hooks to run automatically inside pi for this session only.`);
-  if (!ok) return ctx.ui.notify(`[claude-bridge] Repo-scoped hooks remain disabled for ${state.projectRoot}`, "warning"), false;
+  if (!ok) return false;
   getTrustedRoots().add(state.projectRoot);
-  ctx.ui.notify(`[claude-bridge] Trusted repo-scoped hooks for ${state.projectRoot}`, "info");
   return true;
 }
 
@@ -798,7 +796,7 @@ async function runHandlers(pi, eventName, matcherValue, input, ctx) {
     try {
       results.push({ ...await runHook(handler, input, state, ctx.cwd, ctx), scope: handler.scope });
     } catch (error) {
-      appendWarning(ctx, `[claude-bridge] Hook failed open for ${eventName}: ${error?.message || String(error)}`);
+      appendWarning(ctx, `Hook failed open for ${eventName}: ${error?.message || String(error)}`);
     }
   }
   return results;
@@ -806,7 +804,7 @@ async function runHandlers(pi, eventName, matcherValue, input, ctx) {
 function sendAsyncHookMessage(pi, result, eventName) {
   const extra = hookSpecificOutput(result, eventName)?.additionalContext || result.parsedJson?.systemMessage || plainAdditionalText(result);
   if (!extra) return;
-  pi.sendMessage({ customType: "claude-bridge-async", content: `[claude-bridge async ${eventName}] ${extra}`, display: true }, { deliverAs: "followUp", triggerTurn: false });
+  pi.sendMessage({ customType: "claude-bridge-async", content: extra, display: false }, { deliverAs: "followUp", triggerTurn: false });
 }
 
 // src/runtime/instructions-loaded.ts
@@ -895,7 +893,7 @@ async function handleConfigChanges(pi, ctx, paths) {
     if (state?.enabled) {
       const results = await runHandlers(pi, "ConfigChange", source, { ...buildClaudeInputBase(ctx, "ConfigChange"), source, file_path: path }, ctx);
       if (isBlocked(results)) {
-        appendWarning(ctx, `[claude-bridge] Blocked Claude config change for ${path}`);
+        appendWarning(ctx, `Blocked Claude config change for ${path}`);
         continue;
       }
     }
@@ -1041,9 +1039,9 @@ function clearDynamicWatchPaths(projectRoot, basenames) {
 function createClaudeBridgeCommand() {
   return { description: "Show Claude Code bridge status for the current cwd", handler: async (_args, ctx) => {
     const state = await refreshState(ctx);
-    if (!state.enabled) return ctx.ui.notify("[claude-bridge] No Claude Code files detected for this cwd.", "info");
+    if (!state.enabled) return ctx.ui.notify("No Claude Code files detected for this cwd.", "info");
     const activeRules = state.conditionalRules.filter((rule) => state.activeConditionalRuleIds.has(rule.id));
-    const lines = [`[claude-bridge] projectRoot=${state.projectRoot}`, `trustedProjectHooks=${getTrustedRoots().has(state.projectRoot)}`, `instructions=${state.instructionFiles.length}`, `settings=${state.settingsFiles.length}`, `conditionalRules=${state.conditionalRules.length}`, `activeConditionalRules=${activeRules.length}`, `hookEvents=${Array.from(state.hooksByEvent.keys()).join(", ") || "none"}`];
+    const lines = [`projectRoot=${state.projectRoot}`, `trustedProjectHooks=${getTrustedRoots().has(state.projectRoot)}`, `instructions=${state.instructionFiles.length}`, `settings=${state.settingsFiles.length}`, `conditionalRules=${state.conditionalRules.length}`, `activeConditionalRules=${activeRules.length}`, `hookEvents=${Array.from(state.hooksByEvent.keys()).join(", ") || "none"}`];
     if (state.warnings.length > 0) lines.push(`warnings=${compactWarnings(state.warnings).join(" | ")}`);
     ctx.ui.notify(lines.join("\n"), "info");
   } };
@@ -1052,7 +1050,6 @@ function createTrustHooksCommand() {
   return { description: "Trust repo-scoped Claude hooks for the current project in this session", handler: async (_args, ctx) => {
     const state = await refreshState(ctx);
     getTrustedRoots().add(state.projectRoot);
-    ctx.ui.notify(`[claude-bridge] Trusted repo-scoped hooks for ${state.projectRoot}`, "info");
   } };
 }
 function createUntrustHooksCommand() {
@@ -1061,7 +1058,6 @@ function createUntrustHooksCommand() {
     getTrustedRoots().delete(state.projectRoot);
     getPromptedRoots().delete(state.projectRoot);
     clearDynamicWatchPaths(state.projectRoot, state.fileWatchBasenames);
-    ctx.ui.notify(`[claude-bridge] Untrusted repo-scoped hooks for ${state.projectRoot}`, "info");
   } };
 }
 
@@ -1071,7 +1067,6 @@ function createSessionStartHandler(pi) {
     const state = await refreshState(ctx);
     await startWatchLoop(pi, ctx);
     if (!state.enabled) return;
-    ctx.ui.notify(`[claude-bridge] detected ${state.instructionFiles.length} instruction file(s), ${state.settingsFiles.length} settings file(s).`, "info");
     const source = event.reason === "resume" ? "resume" : "startup";
     const results = await runHandlers(pi, "SessionStart", source, { ...buildClaudeInputBase(ctx, "SessionStart"), source, pi_source: event.reason, model: `${ctx.model?.provider || "unknown"}/${ctx.model?.id || "unknown"}` }, ctx);
     await emitInstructionLoads(pi, ctx, state.eagerLoads);

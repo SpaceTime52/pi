@@ -19,7 +19,7 @@ export async function runHandlers(pi: PiBridge, eventName: EventName, matcherVal
 		try {
 			results.push({ ...(await runHook(handler, input, state, ctx.cwd, ctx)), scope: handler.scope });
 		} catch (error: any) {
-			appendWarning(ctx, `[claude-bridge] Hook failed open for ${eventName}: ${error?.message || String(error)}`);
+			appendWarning(ctx, `Hook failed open for ${eventName}: ${error?.message || String(error)}`);
 		}
 	}
 	return results;
@@ -28,5 +28,5 @@ export async function runHandlers(pi: PiBridge, eventName: EventName, matcherVal
 function sendAsyncHookMessage(pi: PiBridge, result: HookRunResult, eventName: EventName) {
 	const extra = hookSpecificOutput(result, eventName)?.additionalContext || result.parsedJson?.systemMessage || plainAdditionalText(result);
 	if (!extra) return;
-	pi.sendMessage({ customType: "claude-bridge-async", content: `[claude-bridge async ${eventName}] ${extra}`, display: true }, { deliverAs: "followUp", triggerTurn: false });
+	pi.sendMessage({ customType: "claude-bridge-async", content: extra, display: false }, { deliverAs: "followUp", triggerTurn: false });
 }

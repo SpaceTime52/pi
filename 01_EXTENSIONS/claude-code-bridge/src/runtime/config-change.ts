@@ -12,7 +12,7 @@ export async function handleConfigChanges(pi: PiBridge, ctx: Ctx, paths: string[
 		if (state?.enabled) {
 			const results = await runHandlers(pi, "ConfigChange", source, { ...buildClaudeInputBase(ctx, "ConfigChange"), source, file_path: path }, ctx);
 			if (isBlocked(results)) {
-				appendWarning(ctx, `[claude-bridge] Blocked Claude config change for ${path}`);
+				appendWarning(ctx, `Blocked Claude config change for ${path}`);
 				continue;
 			}
 		}
