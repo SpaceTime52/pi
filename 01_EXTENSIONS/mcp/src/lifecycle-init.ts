@@ -85,7 +85,7 @@ export function onSessionStart(pi: InitPi, deps?: InitDeps) {
 		const cacheHit = deps.isCacheValid(cache, hash);
 		const { eager } = classifyServers(config);
 		const total = Object.keys(config.mcpServers).length;
-		const toConnect = cacheHit ? [] : eager;
+		const toConnect = eager;
 		await Promise.allSettled(toConnect.map((s) => connectAndDiscover(gen, s, deps)));
 		if (deps.getGeneration() !== gen) return;
 		const directSpecs = deps.resolveDirectTools(deps.getAllMetadata(), config);

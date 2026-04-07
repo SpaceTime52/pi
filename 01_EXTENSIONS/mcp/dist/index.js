@@ -7664,6 +7664,7 @@ function createMcpCommand(_pi, connectFn, closeFn) {
 }
 async function routeCommand(cmd, arg, cfg, notify, connectFn, closeFn) {
   if (cmd === "status") {
+    console.error(`[mcp:dbg] conns.size=${getConnections().size} meta.size=${getAllMetadata().size}`);
     notify(formatStatus(getConnections(), cfg, getAllMetadata(), getFailure), "info");
   } else if (cmd === "tools") {
     notify(formatTools(getAllMetadata(), arg), "info");
@@ -7941,7 +7942,7 @@ function onSessionStart(pi, deps) {
     const cacheHit = deps.isCacheValid(cache, hash2);
     const { eager } = classifyServers(config3);
     const total = Object.keys(config3.mcpServers).length;
-    const toConnect = cacheHit ? [] : eager;
+    const toConnect = eager;
     await Promise.allSettled(toConnect.map((s) => connectAndDiscover(gen, s, deps)));
     if (deps.getGeneration() !== gen) return;
     const directSpecs = deps.resolveDirectTools(deps.getAllMetadata(), config3);

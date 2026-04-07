@@ -70,7 +70,7 @@ describe("lifecycle-init", () => {
 		expect(deps.startKeepalive).toHaveBeenCalled();
 		expect(deps.updateFooter).toHaveBeenCalled();
 	});
-	it("skips connecting when cache is valid", async () => {
+	it("connects eager servers even when cache is valid", async () => {
 		const cached = { hash: "hash1", servers: { s1: [{ name: "t1" }] }, timestamp: Date.now() };
 		const deps = makeDeps({
 			loadCache: vi.fn().mockReturnValue(cached),
@@ -78,8 +78,7 @@ describe("lifecycle-init", () => {
 		});
 		await run(deps);
 		expect(deps.loadCache).toHaveBeenCalled();
-		expect(deps.isCacheValid).toHaveBeenCalledWith(cached, "hash1");
-		expect(deps.connectServer).not.toHaveBeenCalled();
+		expect(deps.connectServer).toHaveBeenCalled();
 	});
 	it("resolves direct tools from getAllMetadata", async () => {
 		const meta = new Map([["s1", [{ name: "t1", originalName: "t1", serverName: "s1", description: "" }]]]);
