@@ -54,9 +54,10 @@ async function connectAndDiscover(
 		try {
 			const tools = await deps.buildMetadata(server.name, conn.client);
 			if (deps.getGeneration() !== gen) return;
+			console.error(`[mcp] discovered ${tools.length} tools for ${server.name}`);
 			deps.setMetadata(server.name, tools);
-		} catch { /* discovery failed – silent */ }
-	} catch { /* connect failed – silent */ }
+		} catch (e) { console.error("[mcp] discovery failed:", e instanceof Error ? e.message : e); }
+	} catch (e) { console.error("[mcp] connect failed:", e instanceof Error ? e.message : e); }
 }
 
 export function onSessionStart(pi: InitPi, deps?: InitDeps) {
@@ -78,7 +79,9 @@ export function onSessionStart(pi: InitPi, deps?: InitDeps) {
 		const deduped = deps.deduplicateTools(directSpecs);
 		deps.registerDirectTools(pi, deduped, deps);
 		deps.startIdleTimer(config); deps.startKeepalive(config);
-		deps.saveCache(hash, deps.getAllMetadata()).catch(() => {});
+		const allMeta = deps.getAllMetadata();
+		console.error(`[mcp] saving cache: ${allMeta.size} servers`);
+		deps.saveCache(hash, allMeta).catch(() => {});
 		deps.updateFooter();
 	};
 }
