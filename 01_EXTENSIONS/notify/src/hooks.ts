@@ -13,12 +13,12 @@ export function createAgentEndHandler() {
 	return async (event: { messages: NotificationMessage[] }, ctx: NotifyContext): Promise<void> => {
 		const sessionTitle = sanitizeNotificationText(ctx.sessionManager.getSessionName() || "");
 		const fallback = buildCompletionNotification(sessionTitle, event.messages);
-		const koreanTitle = await resolveKoreanNotificationSummary(
+		const koreanBody = await resolveKoreanNotificationSummary(
 			extractAssistantText(event.messages),
 			sessionTitle,
 			ctx.model,
 			ctx.modelRegistry,
 		);
-		notify(koreanTitle && !containsTitleText(koreanTitle, sessionTitle) ? koreanTitle : fallback.title, "");
+		notify(fallback.title, koreanBody && !containsTitleText(koreanBody, sessionTitle) ? koreanBody : fallback.body);
 	};
 }

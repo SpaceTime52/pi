@@ -15,7 +15,7 @@ export type NotificationMessage = {
 	content?: string | Array<{ type?: string; text?: string }>;
 };
 
-const FALLBACK_TITLE = "작업 완료";
+const NOTIFICATION_TITLE = "작업 완료";
 const MAX_BODY_LENGTH = 140;
 
 export function extractAssistantText(messages: NotificationMessage[]): string {
@@ -52,6 +52,8 @@ export function summarizeNotificationBody(text: string, maxLength = MAX_BODY_LEN
 export function buildCompletionNotification(sessionName?: string, messages: NotificationMessage[] = []): { title: string; body: string } {
 	const sessionTitle = sanitizeNotificationText(sessionName || "");
 	const summary = summarizeNotificationBody(extractAssistantText(messages));
-	const title = summary && hasKoreanText(summary) && !containsTitleText(summary, sessionTitle) ? summary : FALLBACK_TITLE;
-	return { title, body: "" };
+	return {
+		title: NOTIFICATION_TITLE,
+		body: summary && hasKoreanText(summary) && !containsTitleText(summary, sessionTitle) ? summary : "",
+	};
 }

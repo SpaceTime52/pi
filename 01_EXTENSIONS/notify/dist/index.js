@@ -55,7 +55,7 @@ function containsTitleText(body, title) {
 }
 
 // src/format.ts
-var FALLBACK_TITLE = "\uC791\uC5C5 \uC644\uB8CC";
+var NOTIFICATION_TITLE = "\uC791\uC5C5 \uC644\uB8CC";
 var MAX_BODY_LENGTH = 140;
 function extractAssistantText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -88,12 +88,14 @@ function summarizeNotificationBody(text, maxLength = MAX_BODY_LENGTH) {
 function buildCompletionNotification(sessionName, messages = []) {
   const sessionTitle = sanitizeNotificationText(sessionName || "");
   const summary = summarizeNotificationBody(extractAssistantText(messages));
-  const title = summary && hasKoreanText(summary) && !containsTitleText(summary, sessionTitle) ? summary : FALLBACK_TITLE;
-  return { title, body: "" };
+  return {
+    title: NOTIFICATION_TITLE,
+    body: summary && hasKoreanText(summary) && !containsTitleText(summary, sessionTitle) ? summary : ""
+  };
 }
 
 // src/notify.ts
-var FALLBACK_TITLE2 = "\u03C0";
+var FALLBACK_TITLE = "\u03C0";
 function notifyOSC777(title, body, write) {
   write(`\x1B]777;notify;${title};${body}\x07`);
 }
@@ -102,7 +104,7 @@ function notifyOSC99(title, body, write) {
   if (body) write(`\x1B]99;i=1:p=body;${body}\x1B\\`);
 }
 function notify(title, body, write = (s) => process.stdout.write(s)) {
-  const safeTitle = sanitizeNotificationText(title) || FALLBACK_TITLE2;
+  const safeTitle = sanitizeNotificationText(title) || FALLBACK_TITLE;
   const safeBody = sanitizeNotificationText(body);
   if (process.env.KITTY_WINDOW_ID) {
     notifyOSC99(safeTitle, safeBody, write);
@@ -114,7 +116,7 @@ function notify(title, body, write = (s) => process.stdout.write(s)) {
 // src/summarize.ts
 import { completeSimple } from "@mariozechner/pi-ai";
 var NOTIFICATION_SUMMARY_PROMPT = [
-  "You write production-style app notification titles for coding work.",
+  "You write production-style app notification bodies for coding work.",
   "Always answer in Korean.",
   "Return exactly one plain summary line.",
   "Do not repeat or restate the session title.",
@@ -157,13 +159,13 @@ function createAgentEndHandler() {
   return async (event, ctx) => {
     const sessionTitle = sanitizeNotificationText(ctx.sessionManager.getSessionName() || "");
     const fallback = buildCompletionNotification(sessionTitle, event.messages);
-    const koreanTitle = await resolveKoreanNotificationSummary(
+    const koreanBody = await resolveKoreanNotificationSummary(
       extractAssistantText(event.messages),
       sessionTitle,
       ctx.model,
       ctx.modelRegistry
     );
-    notify(koreanTitle && !containsTitleText(koreanTitle, sessionTitle) ? koreanTitle : fallback.title, "");
+    notify(fallback.title, koreanBody && !containsTitleText(koreanBody, sessionTitle) ? koreanBody : fallback.body);
   };
 }
 

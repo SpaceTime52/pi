@@ -3,7 +3,7 @@ import { normalizeSingleSummary } from "./format.js";
 import { sanitizeNotificationText } from "./text.js";
 
 const NOTIFICATION_SUMMARY_PROMPT = [
-	"You write production-style app notification titles for coding work.",
+	"You write production-style app notification bodies for coding work.",
 	"Always answer in Korean.",
 	"Return exactly one plain summary line.",
 	"Do not repeat or restate the session title.",
