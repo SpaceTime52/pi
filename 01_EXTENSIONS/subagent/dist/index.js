@@ -152,12 +152,12 @@ function formatDuration(ms) {
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}m ${sec % 60}s`;
 }
-function singleLine(text) {
-  return text.replace(/\s+/g, " ").trim();
+function singleLine(text2) {
+  return text2.replace(/\s+/g, " ").trim();
 }
-function previewText(text, max = 80) {
-  if (!text) return "";
-  const normalized = singleLine(text);
+function previewText(text2, max = 80) {
+  if (!text2) return "";
+  const normalized = singleLine(text2);
   if (normalized.length <= max) return normalized;
   return `${normalized.slice(0, Math.max(1, max - 1))}\u2026`;
 }
@@ -501,13 +501,13 @@ function parseAssistantUpdate(message, delta) {
   return { type: "agent_end", stopReason: delta.reason ?? "error", text: err, isError: true };
 }
 function parseToolEvent(type, toolName2, data, isError) {
-  const text = previewText(extractToolText(data), 120);
+  const text2 = previewText(extractToolText(data), 120);
   if (type === "tool_start") return { type, toolName: toolName2, text: summarizeArgs(data) };
   const nestedRuns = extractNestedRuns(data);
   const runTrees = type === "tool_end" ? extractRunTrees(data) : void 0;
   const nested2 = nestedRuns ? { nestedRuns } : {};
   const completed = runTrees ? { runTrees } : {};
-  return type === "tool_end" ? { type, toolName: toolName2, text, isError: !!isError, ...nested2, ...completed } : { type, toolName: toolName2, text, ...nested2 };
+  return type === "tool_end" ? { type, toolName: toolName2, text: text2, isError: !!isError, ...nested2, ...completed } : { type, toolName: toolName2, text: text2, ...nested2 };
 }
 
 // src/parser-types.ts
@@ -627,25 +627,25 @@ function killWithGrace(proc, isClosed, setKillTimer) {
   }, TERMINATION_GRACE_MS));
 }
 function buildResult(id, agentName, events, stderrChunks, code) {
-  const summary = collectOutput(events);
+  const summary2 = collectOutput(events);
   const stderr = stderrChunks.join("").trim();
   const result2 = {
     id,
     agent: agentName,
-    output: summary.output,
-    usage: summary.usage,
-    escalation: summary.escalation,
-    stopReason: summary.stopReason,
-    runTrees: summary.runTrees
+    output: summary2.output,
+    usage: summary2.usage,
+    escalation: summary2.escalation,
+    stopReason: summary2.stopReason,
+    runTrees: summary2.runTrees
   };
   if (code !== 0) {
     result2.error = stderr || `Process exited with code ${code}`;
-    if (!result2.output) result2.output = buildMissingOutputDiagnostic({ ...summary, stderr, exitCode: code });
+    if (!result2.output) result2.output = buildMissingOutputDiagnostic({ ...summary2, stderr, exitCode: code });
     return result2;
   }
   if (!result2.output.trim()) {
     result2.error = "Subagent finished without a visible assistant result";
-    result2.output = buildMissingOutputDiagnostic({ ...summary, stderr, exitCode: code });
+    result2.output = buildMissingOutputDiagnostic({ ...summary2, stderr, exitCode: code });
   }
   return result2;
 }
@@ -751,8 +751,8 @@ ${compaction.summary}`);
   const recent = messages.slice(-maxMessages);
   for (const entry of recent) {
     const role = entry.message?.role ?? "unknown";
-    const text = extractText(entry);
-    if (text) parts.push(`[${role}] ${text}`);
+    const text2 = extractText(entry);
+    if (text2) parts.push(`[${role}] ${text2}`);
   }
   return parts.join("\n\n");
 }
@@ -761,11 +761,11 @@ ${compaction.summary}`);
 var errorMsg = (e) => e instanceof Error ? e.message : String(e);
 function buildPrompt(agent, ctx, main) {
   if (!main) return agent.systemPrompt;
-  const summary = extractMainContext(ctx.sessionManager.getBranch(), 20);
-  return summary ? `${agent.systemPrompt}
+  const summary2 = extractMainContext(ctx.sessionManager.getBranch(), 20);
+  return summary2 ? `${agent.systemPrompt}
 
 [Main Context]
-${summary}` : agent.systemPrompt;
+${summary2}` : agent.systemPrompt;
 }
 function buildRunCommand(agent, task, sessionFile, prompt, id) {
   const { cmd, base } = getPiCommand(process.execPath, process.argv[1], existsSync);
@@ -888,6 +888,52 @@ function onSessionRestore() {
     restoreRuns(ctx.sessionManager.getBranch());
     syncWidget(ctx, listRuns());
   };
+}
+
+// src/batch-update.ts
+function createBatchUpdate(onUpdate, total) {
+  if (!onUpdate) return void 0;
+  const active2 = /* @__PURE__ */ new Map();
+  const finished = /* @__PURE__ */ new Map();
+  return (update) => {
+    if (!hasRootRun(update)) return onUpdate(update);
+    active2.set(update.details.activeRuns[0].id, update);
+    const activeIds = new Set(listRuns().map((run) => run.id));
+    for (const [id, entry] of active2) if (!activeIds.has(id)) active2.delete(id), finished.set(id, entry);
+    onUpdate(aggregate(Array.from(active2.entries()), Array.from(finished.entries()), total));
+  };
+}
+function aggregate(active2, finished, total) {
+  const activeSorted = active2.sort(([a], [b]) => a - b).map(([, update]) => update);
+  const finishedSorted = finished.sort(([a], [b]) => a - b).map(([, update]) => update);
+  const blocks = [
+    `\u23F3 batch progress \u2014 ${activeSorted.length} active / ${finishedSorted.length} finished / ${total} total`,
+    ...activeSorted.map(text),
+    ...summaries(finishedSorted)
+  ].filter(Boolean);
+  return { content: [{ type: "text", text: blocks.join("\n\n") }], details: { isError: false, activeRuns: mergeRuns(activeSorted) } };
+}
+function hasRootRun(update) {
+  const root = update.details?.activeRuns?.[0];
+  return typeof root?.id === "number";
+}
+function text(update) {
+  const item = update.content.find((content) => content.type === "text");
+  return item?.type === "text" ? item.text : "";
+}
+function summaries(finished) {
+  if (finished.length === 0) return [];
+  return ["finished:", ...finished.slice(-8).map((update) => `  ${summary(text(update))}`)];
+}
+function summary(value) {
+  const [header = "subagent", current = ""] = value.split("\n");
+  const prefix = current.includes("failed") || value.includes("\n  \u2717 ") ? "\u2717" : "\u2713";
+  return `${prefix} ${header.replace(/^⏳\s+/, "")}`;
+}
+function mergeRuns(updates) {
+  const merged = /* @__PURE__ */ new Map();
+  for (const update of updates) for (const run of update.details.activeRuns) merged.set(run.id, run);
+  return Array.from(merged.values()).sort((a, b) => a.depth - b.depth || a.id - b.id);
 }
 
 // src/render.ts
@@ -1087,8 +1133,8 @@ ${result2.output || "(no output)"}${treeSection}
 
 ${footer}`;
 }
-var textComponent = (text) => ({ render(width) {
-  return text.split("\n").map((line) => truncateToWidth2(line, Math.max(0, width)));
+var textComponent = (text2) => ({ render(width) {
+  return text2.split("\n").map((line) => truncateToWidth2(line, Math.max(0, width)));
 }, invalidate() {
 } });
 var renderCallForCommand = (cmd) => textComponent(buildCallText(cmd));
@@ -1190,7 +1236,7 @@ var subagentToolSpecs = [
 ];
 
 // src/tool.ts
-var result = (text, isError = false, details) => ({ content: [{ type: "text", text }], details: { isError, ...details } });
+var result = (text2, isError = false, details) => ({ content: [{ type: "text", text: text2 }], details: { isError, ...details } });
 var errorMsg2 = (error) => error instanceof Error ? error.message : String(error);
 async function dispatch(cmd, agents, ctx, onUpdate, signal) {
   if (cmd.type === "runs") return result(formatRunsList());
@@ -1209,7 +1255,7 @@ async function runSingle(cmd, agents, ctx, onUpdate, signal) {
   return result(buildResultText(output), !!output.error, { runTrees: [resultToRunTree(output)] });
 }
 async function runMany(cmd, agents, ctx, onUpdate, signal) {
-  const output = await dispatchBatch(cmd.items, agents, ctx, cmd.main, onUpdate, signal);
+  const output = await dispatchBatch(cmd.items, agents, ctx, cmd.main, createBatchUpdate(onUpdate, cmd.items.length), signal);
   return result(output.map(buildResultText).join("\n---\n"), output.some((item) => !!item.error), { runTrees: output.map(resultToRunTree) });
 }
 async function runChain(cmd, agents, ctx, onUpdate, signal) {

@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "fs";
 import { dispatchAbort, dispatchBatch, dispatchChain, dispatchContinue, dispatchRun } from "./dispatch.js";
 import type { DispatchCtx } from "./dispatch.js";
 import { loadAgentsFromDir, getAgent } from "./agents.js";
+import { createBatchUpdate } from "./batch-update.js";
 import { buildResultText, renderCallForCommand, renderResult } from "./render.js";
 import { resultToRunTree } from "./run-tree.js";
 import { formatDetail, formatRunsList } from "./tool-report.js";
@@ -33,7 +34,7 @@ async function runSingle(cmd: Extract<Subcommand, { type: "run" }>, agents: Agen
 }
 
 async function runMany(cmd: Extract<Subcommand, { type: "batch" }>, agents: AgentConfig[], ctx: DispatchCtx, onUpdate: UpdateFn, signal?: AbortSignal) {
-	const output = await dispatchBatch(cmd.items, agents, ctx, cmd.main, onUpdate, signal);
+	const output = await dispatchBatch(cmd.items, agents, ctx, cmd.main, createBatchUpdate(onUpdate, cmd.items.length), signal);
 	return result(output.map(buildResultText).join("\n---\n"), output.some((item) => !!item.error), { runTrees: output.map(resultToRunTree) });
 }
 
