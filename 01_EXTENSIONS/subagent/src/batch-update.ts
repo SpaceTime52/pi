@@ -24,8 +24,8 @@ function aggregate(active: Array<[number, ActiveUpdate]>, finished: Array<[numbe
 	const finishedSorted = finished.sort(([a], [b]) => a - b).map(([, update]) => update);
 	const blocks = [
 		`⏳ batch progress — ${activeSorted.length} active / ${finishedSorted.length} finished / ${total} total`,
-		...activeSorted.map(text),
-		...summaries(finishedSorted),
+		...activeSection(activeSorted),
+		...finishedSection(finishedSorted),
 	].filter(Boolean);
 	return { content: [{ type: "text", text: blocks.join("\n\n") }], details: { isError: false, activeRuns: mergeRuns(activeSorted) } };
 }
@@ -40,9 +40,18 @@ function text(update: Update): string {
 	return item?.type === "text" ? item.text : "";
 }
 
-function summaries(finished: ActiveUpdate[]): string[] {
+function activeSection(active: ActiveUpdate[]): string[] {
+	if (active.length === 0) return [];
+	return ["active:", ...active.map((update) => indent(text(update)))];
+}
+
+function finishedSection(finished: ActiveUpdate[]): string[] {
 	if (finished.length === 0) return [];
 	return ["finished:", ...finished.slice(-8).map((update) => `  ${summary(text(update))}`)];
+}
+
+function indent(text: string): string {
+	return text.split("\n").map((line) => `  ${line}`).join("\n");
 }
 
 function summary(value: string): string {

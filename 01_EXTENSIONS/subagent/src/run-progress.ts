@@ -1,6 +1,7 @@
 import type { AgentToolUpdateCallback } from "@mariozechner/pi-coding-agent";
 import { previewText } from "./format.js";
 import type { ParsedEvent } from "./parser.js";
+import { summarizeToolActivity } from "./progress-summary.js";
 import { formatRunTrees } from "./run-tree.js";
 import { type HistoryEvent } from "./session.js";
 import { addRun, listRuns, removeRun } from "./store.js";
@@ -50,12 +51,12 @@ export function makeOnEvent(id: number, agent: string, task: string, ctx: Dispat
 		collected.push({ type: evt.type, text: evt.text, toolName: evt.toolName, isError: evt.isError, stopReason: evt.stopReason });
 		if (evt.type === "tool_start") current = `running ${evt.toolName ?? "tool"}${evt.text ? `: ${previewText(evt.text, 72)}` : ""}`;
 		if (evt.type === "tool_start") pushRecent(`→ ${evt.toolName ?? "tool"}${evt.text ? `: ${previewText(evt.text, 96)}` : ""}`);
-		if (evt.type === "tool_update" && evt.toolName) current = `${evt.toolName}${evt.text ? `: ${previewText(evt.text, 72)}` : ""}`;
+		if (evt.type === "tool_update" && evt.toolName) current = summarizeToolActivity(evt.toolName, evt.text);
 		if (evt.type === "tool_end") current = `${evt.toolName ?? "tool"} ${evt.isError ? "failed" : "finished"}`;
 		if (evt.type === "tool_end" && evt.text) pushRecent(`${evt.isError ? "✗" : "✓"} ${evt.toolName ?? "tool"}: ${previewText(evt.text, 96)}`);
 		if (evt.type === "message_delta" && evt.text) { draft += evt.text; current = `drafting reply: ${previewText(draft, 72)}`; }
 		if (evt.type === "message") current = evt.stopReason ? `reply ready (${evt.stopReason})` : "reply ready";
-		if (evt.type === "message") pushRecent(`💬 ${previewText(evt.text, 120) || "(empty response)"}`);
+		if (evt.type === "message" && evt.text && previewText(evt.text, 120)) pushRecent(`💬 ${previewText(evt.text, 120)}`);
 		if (evt.type === "agent_end") current = evt.stopReason ? `finished (${evt.stopReason})` : "finished";
 		if (evt.type === "agent_end" && evt.isError && evt.text) pushRecent(`✗ ${previewText(evt.text, 120)}`);
 		if (evt.type === "tool_start" || evt.type === "tool_update") setCurrentTool(id, evt.toolName, evt.text);

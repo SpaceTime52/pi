@@ -28,12 +28,14 @@ describe("createBatchUpdate", () => {
 		emit(update(2, "⏳ worker #2 — second\ncurrent: reply ready"));
 		const live = onUpdate.mock.calls.at(-1)?.[0]?.content?.[0]?.text ?? "";
 		expect(live).toContain("2 active / 0 finished / 3 total");
-		expect(live).toContain("scout #1");
-		expect(live).toContain("worker #2");
+		expect(live).toContain("active:");
+		expect(live).toContain("  ⏳ scout #1");
+		expect(live).toContain("  ⏳ worker #2");
 		(listRuns as ReturnType<typeof vi.fn>).mockReturnValue([{ id: 2 }]);
 		emit(update(2, "⏳ worker #2 — second\ncurrent: running Read"));
 		const next = onUpdate.mock.calls.at(-1)?.[0]?.content?.[0]?.text ?? "";
 		expect(next).toContain("1 active / 1 finished / 3 total");
+		expect(next).toContain("active:");
 		expect(next).toContain("current: running Read");
 		expect(next).toContain("finished:");
 		expect(next).toContain("✓ scout #1 — first");

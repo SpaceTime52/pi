@@ -283,6 +283,26 @@ import { writeFileSync } from "fs";
 import { tmpdir as tmpdir2 } from "os";
 import { join as join3 } from "path";
 
+// src/tool-names.ts
+var SUBAGENT_TOOL_PREFIX = "subagent_";
+var suffixes = ["run", "batch", "chain", "continue", "abort", "detail", "runs"];
+var subagentToolKinds = [...suffixes];
+var subagentToolName = (kind) => `${SUBAGENT_TOOL_PREFIX}${kind}`;
+function isSubagentToolName(name) {
+  return typeof name === "string" && (name === "subagent" || suffixes.some((suffix) => name === subagentToolName(suffix)));
+}
+
+// src/progress-summary.ts
+function summarizeToolActivity(toolName2, text2) {
+  if (!isSubagentToolName(toolName2)) return `${toolName2}${text2 ? `: ${previewText(text2, 72)}` : ""}`;
+  const batch = text2?.match(/⏳ batch progress — (\d+) active \/ (\d+) finished \/ (\d+) total/);
+  if (batch) return `${toolName2}: ${batch[1]} active / ${batch[2]} finished / ${batch[3]} total`;
+  const current = text2?.match(/(?:^|\n)current:\s*(.+)$/m)?.[1];
+  if (current) return `${toolName2}: ${previewText(current, 72)}`;
+  const firstLine = text2?.split("\n").find(Boolean)?.replace(/^⏳\s+/, "");
+  return `${toolName2}${firstLine ? `: ${previewText(firstLine, 72)}` : ""}`;
+}
+
 // src/run-tree.ts
 function statusForResult(result2) {
   if (result2.error) return "error";
@@ -346,15 +366,6 @@ function isRunTree(value) {
   return true;
 }
 
-// src/tool-names.ts
-var SUBAGENT_TOOL_PREFIX = "subagent_";
-var suffixes = ["run", "batch", "chain", "continue", "abort", "detail", "runs"];
-var subagentToolKinds = [...suffixes];
-var subagentToolName = (kind) => `${SUBAGENT_TOOL_PREFIX}${kind}`;
-function isSubagentToolName(name) {
-  return typeof name === "string" && (name === "subagent" || suffixes.some((suffix) => name === subagentToolName(suffix)));
-}
-
 // src/run-progress.ts
 var MAX_RECENT_LINES = 8;
 function registerRun(id, agent, task, ctx, ac) {
@@ -386,7 +397,7 @@ function makeOnEvent(id, agent, task, ctx, collected, onUpdate) {
     collected.push({ type: evt.type, text: evt.text, toolName: evt.toolName, isError: evt.isError, stopReason: evt.stopReason });
     if (evt.type === "tool_start") current = `running ${evt.toolName ?? "tool"}${evt.text ? `: ${previewText(evt.text, 72)}` : ""}`;
     if (evt.type === "tool_start") pushRecent(`\u2192 ${evt.toolName ?? "tool"}${evt.text ? `: ${previewText(evt.text, 96)}` : ""}`);
-    if (evt.type === "tool_update" && evt.toolName) current = `${evt.toolName}${evt.text ? `: ${previewText(evt.text, 72)}` : ""}`;
+    if (evt.type === "tool_update" && evt.toolName) current = summarizeToolActivity(evt.toolName, evt.text);
     if (evt.type === "tool_end") current = `${evt.toolName ?? "tool"} ${evt.isError ? "failed" : "finished"}`;
     if (evt.type === "tool_end" && evt.text) pushRecent(`${evt.isError ? "\u2717" : "\u2713"} ${evt.toolName ?? "tool"}: ${previewText(evt.text, 96)}`);
     if (evt.type === "message_delta" && evt.text) {
@@ -394,7 +405,7 @@ function makeOnEvent(id, agent, task, ctx, collected, onUpdate) {
       current = `drafting reply: ${previewText(draft, 72)}`;
     }
     if (evt.type === "message") current = evt.stopReason ? `reply ready (${evt.stopReason})` : "reply ready";
-    if (evt.type === "message") pushRecent(`\u{1F4AC} ${previewText(evt.text, 120) || "(empty response)"}`);
+    if (evt.type === "message" && evt.text && previewText(evt.text, 120)) pushRecent(`\u{1F4AC} ${previewText(evt.text, 120)}`);
     if (evt.type === "agent_end") current = evt.stopReason ? `finished (${evt.stopReason})` : "finished";
     if (evt.type === "agent_end" && evt.isError && evt.text) pushRecent(`\u2717 ${previewText(evt.text, 120)}`);
     if (evt.type === "tool_start" || evt.type === "tool_update") setCurrentTool(id, evt.toolName, evt.text);
@@ -421,10 +432,10 @@ function progressText(agent, id, task, current, recent, activeRuns) {
 }
 function nestedProgress(activeRuns, currentRunId) {
   return activeRuns.filter((run) => run.id !== currentRunId).map((run) => {
-    const indent = `${"  ".repeat(Math.max(0, run.depth - 1))}\u21B3 `;
+    const indent2 = `${"  ".repeat(Math.max(0, run.depth - 1))}\u21B3 `;
     const task = run.task ? ` \u2014 ${previewText(run.task, 36)}` : "";
     const activity2 = run.activity ? ` \u2192 ${previewText(run.activity, 30)}` : "";
-    return `nested: ${indent}${run.agent} #${run.id}${task}${activity2}`;
+    return `nested: ${indent2}${run.agent} #${run.id}${task}${activity2}`;
   });
 }
 
@@ -908,8 +919,8 @@ function aggregate(active2, finished, total) {
   const finishedSorted = finished.sort(([a], [b]) => a - b).map(([, update]) => update);
   const blocks = [
     `\u23F3 batch progress \u2014 ${activeSorted.length} active / ${finishedSorted.length} finished / ${total} total`,
-    ...activeSorted.map(text),
-    ...summaries(finishedSorted)
+    ...activeSection(activeSorted),
+    ...finishedSection(finishedSorted)
   ].filter(Boolean);
   return { content: [{ type: "text", text: blocks.join("\n\n") }], details: { isError: false, activeRuns: mergeRuns(activeSorted) } };
 }
@@ -921,9 +932,16 @@ function text(update) {
   const item = update.content.find((content) => content.type === "text");
   return item?.type === "text" ? item.text : "";
 }
-function summaries(finished) {
+function activeSection(active2) {
+  if (active2.length === 0) return [];
+  return ["active:", ...active2.map((update) => indent(text(update)))];
+}
+function finishedSection(finished) {
   if (finished.length === 0) return [];
   return ["finished:", ...finished.slice(-8).map((update) => `  ${summary(text(update))}`)];
+}
+function indent(text2) {
+  return text2.split("\n").map((line) => `  ${line}`).join("\n");
 }
 function summary(value) {
   const [header = "subagent", current = ""] = value.split("\n");

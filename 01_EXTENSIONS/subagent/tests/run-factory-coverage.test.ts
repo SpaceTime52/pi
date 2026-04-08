@@ -37,7 +37,7 @@ describe("run-factory coverage", () => {
 		});
 		await createRunner(false, ctx(), onUpdate)(agent, "inspect patch");
 		expect(lastText(onUpdate)).toContain("bash finished");
-		expect(lastText(onUpdate)).toContain("💬 (empty response)");
+		expect(lastText(onUpdate)).not.toContain("empty response");
 	});
 
 	it("covers tool start and tool end text branches", async () => {
