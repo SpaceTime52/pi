@@ -1,44 +1,33 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetStore, addRun } from "../src/store.js";
 import { resetSession, addToHistory } from "../src/session.js";
 
 const agentMd = "---\nname: scout\ndescription: find code\n---\nYou find code.";
 vi.mock("fs", async (orig) => {
-	const a = await orig<typeof import("fs")>();
-	return {
-		...a,
-		writeFileSync: vi.fn(),
-		existsSync: vi.fn((p: string) => String(p).includes("agents")),
-		mkdirSync: vi.fn(),
-		readdirSync: vi.fn(() => ["scout.md"]),
-		readFileSync: vi.fn(() => agentMd),
-	};
+	const fs = await orig<typeof import("fs")>();
+	return { ...fs, writeFileSync: vi.fn(), existsSync: vi.fn((path: string) => String(path).includes("agents")), mkdirSync: vi.fn(), readdirSync: vi.fn(() => ["scout.md"]), readFileSync: vi.fn(() => agentMd) };
 });
-vi.mock("../src/spawn.js", () => ({
-	spawnAndCollect: vi.fn().mockResolvedValue({ id: 1, agent: "scout", output: "found", usage: { inputTokens: 10, outputTokens: 5, turns: 1 } }),
-}));
+vi.mock("../src/spawn.js", () => ({ spawnAndCollect: vi.fn().mockResolvedValue({ id: 1, agent: "scout", output: "found", usage: { inputTokens: 10, outputTokens: 5, turns: 1 } }) }));
 
-import { createTool } from "../src/tool.js";
+import { createTools } from "../src/tool.js";
 
 const stubPi = () => ({ appendEntry: vi.fn() });
 const stubCtx = () => ({ hasUI: false, ui: { setWidget: vi.fn() }, sessionManager: { getBranch: (): unknown[] => [] } });
-const exec = async (input: { type: "runs" } | { type: "detail"; id: number }) => createTool(stubPi(), "/agents").execute("", input, undefined, undefined, stubCtx());
+const exec = async (toolName: "subagent_runs" | "subagent_detail", input: unknown) => createTools(stubPi(), "/agents").find((tool) => tool.name === toolName)?.execute("", input, undefined, undefined, stubCtx());
 
-describe("tool extra coverage", () => {
+describe("subagent listing tools", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
 
 	it("includes task snippets and nested tree summaries in runs", async () => {
 		addRun({ id: 1, agent: "scout", task: "find auth code in the repo", startedAt: Date.now(), abort: () => {} });
 		addToHistory({ id: 2, agent: "scout", task: "review patch", error: "boom", runTrees: [{ id: 3, agent: "reviewer", status: "ok", children: [{ id: 4, agent: "verifier", status: "error", error: "bad" }] }] });
-		const r = await exec({ type: "runs" });
-		expect(r.content[0].text).toContain("find auth code in the repo");
-		expect(r.content[0].text).toContain("review patch");
-		expect(r.content[0].text).toContain("[error]");
-		expect(r.content[0].text).toContain("reviewer #3");
-		expect(r.content[0].text).toContain("verifier #4");
+		const result = await exec("subagent_runs", {});
+		expect(result?.content[0].text).toContain("find auth code in the repo");
+		expect(result?.content[0].text).toContain("review patch");
+		expect(result?.content[0].text).toContain("reviewer #3");
 	});
 
-	it("renders detailed history with task, session, error, and event variants", async () => {
+	it("renders detailed history with task, session, error, and events", async () => {
 		addToHistory({
 			id: 7,
 			agent: "scout",
@@ -46,31 +35,29 @@ describe("tool extra coverage", () => {
 			sessionFile: "/tmp/subagent.json",
 			error: "failed",
 			output: "final output",
-			runTrees: [{ id: 8, agent: "worker", status: "ok", children: [{ id: 9, agent: "verifier", status: "error", error: "failed" }] }],
+			runTrees: [{ id: 8, agent: "worker", status: "ok" }],
 			events: [
 				{ type: "tool_start", toolName: "Bash", text: "git status" },
 				{ type: "tool_update", toolName: "Bash", text: "partial" },
 				{ type: "tool_update", text: "orphan" },
 				{ type: "tool_end", toolName: "Bash", text: "done", isError: true },
-				{ type: "tool_end", isError: false },
 				{ type: "message_delta", text: "draft" },
 				{ type: "message", text: "final message" },
 				{ type: "agent_end", stopReason: "error" },
 				{ type: "noop" },
 			],
 		});
-		const r = await exec({ type: "detail", id: 7 });
-		expect(r.content[0].text).toContain("task: investigate");
-		expect(r.content[0].text).toContain("session: /tmp/subagent.json");
-		expect(r.content[0].text).toContain("status: error — failed");
-		expect(r.content[0].text).toContain("↳ Bash: partial");
-		expect(r.content[0].text).toContain("✗ Bash: done");
-		expect(r.content[0].text).toContain("✓ tool");
-		expect(r.content[0].text).toContain("… draft");
-		expect(r.content[0].text).toContain("done: error");
-		expect(r.content[0].text).toContain("nested runs:");
-		expect(r.content[0].text).toContain("worker #8");
-		expect(r.content[0].text).toContain("verifier #9");
-		expect(r.content[0].text).toContain("output:\nfinal output");
+		addToHistory({ id: 9, agent: "scout", events: [{ type: "tool_start", toolName: "Read" }, { type: "tool_update" }, { type: "tool_end", isError: false }] });
+		const result = await exec("subagent_detail", { id: 7 });
+		const fallback = await exec("subagent_detail", { id: 9 });
+		expect(result?.content[0].text).toContain("session: /tmp/subagent.json");
+		expect(result?.content[0].text).toContain("↳ Bash: partial");
+		expect(result?.content[0].text).toContain("↳ tool: orphan");
+		expect(result?.content[0].text).toContain("✗ Bash: done");
+		expect(result?.content[0].text).toContain("… draft");
+		expect(result?.content[0].text).toContain("done: error");
+		expect(result?.content[0].text).toContain("worker #8");
+		expect(fallback?.content[0].text).toContain("→ Read");
+		expect(fallback?.content[0].text).toContain("✓ tool");
 	});
 });

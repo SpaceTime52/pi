@@ -5,7 +5,7 @@
 **목적:** 구현자가 요청된 내용만 정확히 만들었는지 검증한다(더도 말고 덜도 말고)
 
 ```
-subagent tool:
+subagent_run tool:
   parameters:
     type: "run"
     agent: "reviewer"

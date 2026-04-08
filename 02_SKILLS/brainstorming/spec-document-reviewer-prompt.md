@@ -1,13 +1,13 @@
 # 스펙 문서 리뷰어 프롬프트 템플릿
 
-`subagent` 도구로 스펙 문서 리뷰어를 호출할 때 이 템플릿을 사용한다.
+`subagent_run` 도구로 스펙 문서 리뷰어를 호출할 때 이 템플릿을 사용한다.
 
 **목적:** 스펙이 완전하고 일관되며 구현 계획 수립을 시작할 준비가 되었는지 검증한다.
 
 **호출 시점:** 스펙 문서가 docs/specs/에 작성된 뒤
 
 ```
-subagent tool:
+subagent_run tool:
   parameters:
     type: "run"
     agent: "reviewer"

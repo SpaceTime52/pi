@@ -7,7 +7,7 @@
 **반드시 스펙 준수 리뷰를 통과한 뒤에만 호출한다.**
 
 ```
-subagent tool:
+subagent_run tool:
   parameters:
     type: "run"
     agent: "reviewer"

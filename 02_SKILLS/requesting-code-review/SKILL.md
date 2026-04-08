@@ -31,7 +31,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 
 **2. reviewer 서브에이전트를 호출한다:**
 
-`subagent` 도구로 `agent: "reviewer"`를 호출하고, `code-reviewer.md`의 템플릿을 `task` 본문에 채운다.
+`subagent_run` 도구로 `agent: "reviewer"`를 호출하고, `code-reviewer.md`의 템플릿을 `task` 본문에 채운다.
 
 **자리표시자:**
 - `{WHAT_WAS_IMPLEMENTED}` - 방금 구현한 내용

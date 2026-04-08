@@ -27,7 +27,7 @@ export function createToolCallHandler(pi: any) {
 }
 
 async function onSubagentStart(pi: any, event: any, ctx: Ctx) {
-	const type = extractSubagentType(event.input);
+	const type = extractSubagentType(event.toolName, event.input);
 	const results = await runHandlers(pi, "SubagentStart", type, { ...buildClaudeInputBase(ctx, "SubagentStart"), agent_id: event.toolCallId, agent_type: type }, ctx);
 	return results.map((result) => hookSpecificOutput(result, "SubagentStart")?.additionalContext).filter(Boolean);
 }

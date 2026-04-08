@@ -4,6 +4,7 @@ import type { ParsedEvent } from "./parser.js";
 import { formatRunTrees } from "./run-tree.js";
 import { type HistoryEvent } from "./session.js";
 import { addRun, listRuns, removeRun } from "./store.js";
+import { isSubagentToolName } from "./tool-names.js";
 import type { NestedRunSnapshot, SubagentToolDetails } from "./types.js";
 import {
 	buildNestedRunSnapshotsForRun,
@@ -60,7 +61,7 @@ export function makeOnEvent(id: number, agent: string, task: string, ctx: Dispat
 		if (evt.type === "tool_start" || evt.type === "tool_update") setCurrentTool(id, evt.toolName, evt.text);
 		if (evt.type === "tool_end") setCurrentTool(id, undefined);
 		if (["message_delta", "message", "agent_end"].includes(evt.type)) setCurrentMessage(id, evt.type === "message_delta" ? draft : evt.text);
-		if (evt.toolName === "subagent") {
+		if (isSubagentToolName(evt.toolName)) {
 			if (evt.type === "tool_update") setNestedRuns(id, evt.nestedRuns);
 			if (evt.type === "tool_end") {
 				clearNestedRuns(id);

@@ -7,7 +7,7 @@
 **호출 시점:** 전체 계획 문서가 작성된 뒤.
 
 ```
-subagent tool:
+subagent_run tool:
   parameters:
     type: "run"
     agent: "reviewer"

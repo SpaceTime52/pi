@@ -29,16 +29,14 @@ export interface ActiveRun { id: number; agent: string; task?: string; startedAt
 export interface SubagentPi { appendEntry(type: string, data?: unknown): void }
 export interface AgentTaskInput { agent: string; task: string }
 
-export type SubagentToolInput =
-	| { type: "run"; agent: string; task: string; main?: boolean; cwd?: string }
-	| { type: "batch"; items: AgentTaskInput[]; main?: boolean }
-	| { type: "chain"; steps: AgentTaskInput[]; main?: boolean }
-	| { type: "continue"; id: number; task: string }
-	| { type: "abort"; id: number }
-	| { type: "detail"; id: number }
-	| { type: "runs" };
+export interface RunToolInput { agent: string; task: string; main?: boolean; cwd?: string }
+export interface BatchToolInput { items: AgentTaskInput[]; main?: boolean }
+export interface ChainToolInput { steps: AgentTaskInput[]; main?: boolean }
+export interface ContinueToolInput { id: number; task: string }
+export interface AbortToolInput { id: number }
+export interface DetailToolInput { id: number }
+export interface RunsToolInput {}
 
-export type StructuredSubagentInput = SubagentToolInput;
 export type Subcommand =
 	| { type: "run"; agent: string; task: string; main: boolean; cwd?: string }
 	| { type: "batch"; items: AgentTaskInput[]; main: boolean }

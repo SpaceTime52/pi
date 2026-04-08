@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { createTool } from "./tool.js";
+import { createAbortTool, createBatchTool, createChainTool, createContinueTool, createDetailTool, createRunTool, createRunsTool } from "./tool.js";
 import { buildRunsEntry } from "./session.js";
 import { syncWidget } from "./widget.js";
 import { listRuns } from "./store.js";
@@ -15,6 +15,12 @@ export default function (pi: ExtensionAPI) {
 		pi.appendEntry("subagent-runs", buildRunsEntry());
 		syncWidget(ctx, listRuns());
 	});
-	pi.registerTool(createTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerTool(createRunTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerTool(createBatchTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerTool(createChainTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerTool(createContinueTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerTool(createAbortTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerTool(createDetailTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
+	pi.registerTool(createRunsTool(pi, join(dirname(fileURLToPath(import.meta.url)), "..", "agents")));
 	pi.registerCommand("sub", buildSubCommand(join(dirname(fileURLToPath(import.meta.url)), "..", "agents"), (c, o) => pi.sendUserMessage(c, o)));
 }

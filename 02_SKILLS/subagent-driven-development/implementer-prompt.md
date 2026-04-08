@@ -3,7 +3,7 @@
 구현 담당 서브에이전트를 호출할 때 이 템플릿을 사용한다.
 
 ```
-subagent tool:
+subagent_run tool:
   parameters:
     type: "run"
     agent: "worker"

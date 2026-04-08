@@ -1,182 +1,6 @@
 // src/tool.ts
 import { defineTool } from "@mariozechner/pi-coding-agent";
-import { readdirSync, readFileSync, existsSync as existsSync2 } from "fs";
-
-// src/cli-args.ts
-function tokenize(input) {
-  const tokens = [];
-  let current = "";
-  let quote;
-  let escaping = false;
-  let tokenStarted = false;
-  const push = () => {
-    if (tokenStarted) tokens.push(current);
-    current = "";
-    tokenStarted = false;
-  };
-  for (const ch of input) {
-    if (escaping) {
-      current += ch;
-      escaping = false;
-      tokenStarted = true;
-      continue;
-    }
-    if (quote) {
-      if (quote === "single" && ch === "'" || quote === "double" && ch === '"') {
-        quote = void 0;
-        continue;
-      }
-      if (ch === "\\") {
-        escaping = true;
-        continue;
-      }
-      current += ch;
-      tokenStarted = true;
-      continue;
-    }
-    if (/\s/.test(ch)) {
-      push();
-      continue;
-    }
-    if (ch === "'" || ch === '"') {
-      quote = ch === "'" ? "single" : "double";
-      tokenStarted = true;
-      continue;
-    }
-    if (ch === "\\") {
-      escaping = true;
-      tokenStarted = true;
-      continue;
-    }
-    current += ch;
-    tokenStarted = true;
-  }
-  if (escaping) throw new Error("Unterminated escape sequence");
-  if (quote) throw new Error(`Unterminated ${quote} quote`);
-  push();
-  return tokens;
-}
-function toArray(value) {
-  if (Array.isArray(value)) return value.map(String);
-  if (value !== void 0 && value !== true) return [String(value)];
-  return [];
-}
-function parseArgs(input) {
-  const parsed = { _: [] };
-  const tokens = tokenize(input);
-  for (const [index, token] of tokens.entries()) {
-    if (!token.startsWith("--")) {
-      parsed._.push(token);
-      continue;
-    }
-    const key = token.slice(2);
-    const next = tokens[index + 1];
-    if (!next || next.startsWith("--")) parsed[key] = true;
-  }
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (!token.startsWith("--")) continue;
-    const key = token.slice(2);
-    const next = tokens[i + 1];
-    if (!next || next.startsWith("--")) continue;
-    i++;
-    const prev = parsed[key];
-    if (Array.isArray(prev)) prev.push(next);
-    else if (prev !== void 0 && prev !== true) parsed[key] = [prev, next];
-    else parsed[key] = next;
-  }
-  return parsed;
-}
-function zipAgentTask(argv) {
-  const agents = toArray(argv.agent);
-  const tasks = toArray(argv.task);
-  return agents.map((agent, index) => ({ agent, task: tasks[index] ?? "" }));
-}
-
-// src/cli.ts
-function parseCommand(command) {
-  const [head, ...rest] = command.split(" -- ");
-  const task = rest.join(" -- ").trim();
-  const argv = parseArgs(head);
-  switch (String(argv._[0] ?? "")) {
-    case "run":
-      return { type: "run", agent: String(argv._[1] ?? ""), task, main: Boolean(argv.main), cwd: argv.cwd ? String(argv.cwd) : void 0 };
-    case "batch":
-      return { type: "batch", items: zipAgentTask(argv), main: Boolean(argv.main) };
-    case "chain":
-      return { type: "chain", steps: zipAgentTask(argv), main: Boolean(argv.main) };
-    case "continue":
-      return { type: "continue", id: Number(argv._[1]), task };
-    case "abort":
-      return { type: "abort", id: Number(argv._[1]) };
-    case "detail":
-      return { type: "detail", id: Number(argv._[1]) };
-    case "runs":
-      return { type: "runs" };
-    default:
-      throw new Error(`Unknown subcommand: ${String(argv._[0] ?? "")}`);
-  }
-}
-function normalizeInput(input) {
-  if (!input || typeof input !== "object" || !("type" in input)) throw new Error("Invalid subagent input");
-  const rawType = Reflect.get(input, "type");
-  if (typeof rawType !== "string") throw new Error("Unknown subcommand: ");
-  switch (input.type) {
-    case "run":
-      return { type: "run", agent: input.agent, task: input.task, main: Boolean(input.main), cwd: input.cwd };
-    case "batch":
-      return { type: "batch", items: input.items ?? [], main: Boolean(input.main) };
-    case "chain":
-      return { type: "chain", steps: input.steps ?? [], main: Boolean(input.main) };
-    case "continue":
-      return { type: "continue", id: input.id, task: input.task };
-    case "abort":
-      return { type: "abort", id: input.id };
-    case "detail":
-      return { type: "detail", id: input.id };
-    case "runs":
-      return { type: "runs" };
-    default:
-      throw new Error(`Unknown subcommand: ${rawType}`);
-  }
-}
-function subcommandToInput(cmd) {
-  switch (cmd.type) {
-    case "run":
-      return { type: "run", agent: cmd.agent, task: cmd.task, ...cmd.main ? { main: true } : {}, ...cmd.cwd ? { cwd: cmd.cwd } : {} };
-    case "batch":
-      return { type: "batch", items: cmd.items, ...cmd.main ? { main: true } : {} };
-    case "chain":
-      return { type: "chain", steps: cmd.steps, ...cmd.main ? { main: true } : {} };
-    case "continue":
-      return { type: "continue", id: cmd.id, task: cmd.task };
-    case "abort":
-      return { type: "abort", id: cmd.id };
-    case "detail":
-      return { type: "detail", id: cmd.id };
-    case "runs":
-      return { type: "runs" };
-  }
-}
-var quoteArg = (value) => JSON.stringify(value);
-function stringifyCommand(cmd) {
-  switch (cmd.type) {
-    case "run":
-      return `run ${cmd.agent}${cmd.main ? " --main" : ""}${cmd.cwd ? ` --cwd ${quoteArg(cmd.cwd)}` : ""} -- ${cmd.task}`;
-    case "batch":
-      return `batch${cmd.main ? " --main" : ""}${cmd.items.map((item) => ` --agent ${quoteArg(item.agent)} --task ${quoteArg(item.task)}`).join("")}`;
-    case "chain":
-      return `chain${cmd.main ? " --main" : ""}${cmd.steps.map((step) => ` --agent ${quoteArg(step.agent)} --task ${quoteArg(step.task)}`).join("")}`;
-    case "continue":
-      return `continue ${cmd.id} -- ${cmd.task}`;
-    case "abort":
-      return `abort ${cmd.id}`;
-    case "detail":
-      return `detail ${cmd.id}`;
-    case "runs":
-      return "runs";
-  }
-}
+import { existsSync as existsSync2, readdirSync, readFileSync } from "fs";
 
 // src/agents.ts
 function parseFrontmatter(raw) {
@@ -522,6 +346,15 @@ function isRunTree(value) {
   return true;
 }
 
+// src/tool-names.ts
+var SUBAGENT_TOOL_PREFIX = "subagent_";
+var suffixes = ["run", "batch", "chain", "continue", "abort", "detail", "runs"];
+var subagentToolKinds = [...suffixes];
+var subagentToolName = (kind) => `${SUBAGENT_TOOL_PREFIX}${kind}`;
+function isSubagentToolName(name) {
+  return typeof name === "string" && (name === "subagent" || suffixes.some((suffix) => name === subagentToolName(suffix)));
+}
+
 // src/run-progress.ts
 var MAX_RECENT_LINES = 8;
 function registerRun(id, agent, task, ctx, ac) {
@@ -567,7 +400,7 @@ function makeOnEvent(id, agent, task, ctx, collected, onUpdate) {
     if (evt.type === "tool_start" || evt.type === "tool_update") setCurrentTool(id, evt.toolName, evt.text);
     if (evt.type === "tool_end") setCurrentTool(id, void 0);
     if (["message_delta", "message", "agent_end"].includes(evt.type)) setCurrentMessage(id, evt.type === "message_delta" ? draft : evt.text);
-    if (evt.toolName === "subagent") {
+    if (isSubagentToolName(evt.toolName)) {
       if (evt.type === "tool_update") setNestedRuns(id, evt.nestedRuns);
       if (evt.type === "tool_end") {
         clearNestedRuns(id);
@@ -1059,19 +892,177 @@ function onSessionRestore() {
 
 // src/render.ts
 import { truncateToWidth as truncateToWidth2 } from "@mariozechner/pi-tui";
-function buildCallText(params) {
-  try {
-    const cmd = normalizeInput(params);
-    if (cmd.type === "run") return `\u25B6 subagent run ${cmd.agent} -- ${cmd.task}`;
-    if (cmd.type === "batch") return `\u25B6 subagent batch (${cmd.items.length} tasks)`;
-    if (cmd.type === "chain") return `\u25B6 subagent chain (${cmd.steps.length} steps)`;
-    if (cmd.type === "continue") return `\u25B6 subagent continue #${cmd.id} -- ${cmd.task}`;
-    if (cmd.type === "abort") return `\u25B6 subagent abort #${cmd.id}`;
-    if (cmd.type === "detail") return `\u25B6 subagent detail #${cmd.id}`;
-    return `\u25B6 subagent ${stringifyCommand(cmd)}`;
-  } catch {
-    return `\u25B6 subagent ${JSON.stringify(params)}`;
+
+// src/cli-args.ts
+function tokenize(input) {
+  const tokens = [];
+  let current = "";
+  let quote;
+  let escaping = false;
+  let tokenStarted = false;
+  const push = () => {
+    if (tokenStarted) tokens.push(current);
+    current = "";
+    tokenStarted = false;
+  };
+  for (const ch of input) {
+    if (escaping) {
+      current += ch;
+      escaping = false;
+      tokenStarted = true;
+      continue;
+    }
+    if (quote) {
+      if (quote === "single" && ch === "'" || quote === "double" && ch === '"') {
+        quote = void 0;
+        continue;
+      }
+      if (ch === "\\") {
+        escaping = true;
+        continue;
+      }
+      current += ch;
+      tokenStarted = true;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      push();
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch === "'" ? "single" : "double";
+      tokenStarted = true;
+      continue;
+    }
+    if (ch === "\\") {
+      escaping = true;
+      tokenStarted = true;
+      continue;
+    }
+    current += ch;
+    tokenStarted = true;
   }
+  if (escaping) throw new Error("Unterminated escape sequence");
+  if (quote) throw new Error(`Unterminated ${quote} quote`);
+  push();
+  return tokens;
+}
+function toArray(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (value !== void 0 && value !== true) return [String(value)];
+  return [];
+}
+function parseArgs(input) {
+  const parsed = { _: [] };
+  const tokens = tokenize(input);
+  for (const [index, token] of tokens.entries()) {
+    if (!token.startsWith("--")) {
+      parsed._.push(token);
+      continue;
+    }
+    const key = token.slice(2);
+    const next = tokens[index + 1];
+    if (!next || next.startsWith("--")) parsed[key] = true;
+  }
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (!token.startsWith("--")) continue;
+    const key = token.slice(2);
+    const next = tokens[i + 1];
+    if (!next || next.startsWith("--")) continue;
+    i++;
+    const prev = parsed[key];
+    if (Array.isArray(prev)) prev.push(next);
+    else if (prev !== void 0 && prev !== true) parsed[key] = [prev, next];
+    else parsed[key] = next;
+  }
+  return parsed;
+}
+function zipAgentTask(argv) {
+  const agents = toArray(argv.agent);
+  const tasks2 = toArray(argv.task);
+  return agents.map((agent, index) => ({ agent, task: tasks2[index] ?? "" }));
+}
+
+// src/cli.ts
+function parseCommand(command) {
+  const [head, ...rest] = command.split(" -- ");
+  const task = rest.join(" -- ").trim();
+  const argv = parseArgs(head);
+  switch (String(argv._[0] ?? "")) {
+    case "run":
+      return { type: "run", agent: String(argv._[1] ?? ""), task, main: Boolean(argv.main), cwd: argv.cwd ? String(argv.cwd) : void 0 };
+    case "batch":
+      return { type: "batch", items: zipAgentTask(argv), main: Boolean(argv.main) };
+    case "chain":
+      return { type: "chain", steps: zipAgentTask(argv), main: Boolean(argv.main) };
+    case "continue":
+      return { type: "continue", id: Number(argv._[1]), task };
+    case "abort":
+      return { type: "abort", id: Number(argv._[1]) };
+    case "detail":
+      return { type: "detail", id: Number(argv._[1]) };
+    case "runs":
+      return { type: "runs" };
+    default:
+      throw new Error(`Unknown subcommand: ${String(argv._[0] ?? "")}`);
+  }
+}
+function subcommandToToolCall(cmd) {
+  switch (cmd.type) {
+    case "run":
+      return { toolName: subagentToolName("run"), input: toRunInput(cmd) };
+    case "batch":
+      return { toolName: subagentToolName("batch"), input: toBatchInput(cmd) };
+    case "chain":
+      return { toolName: subagentToolName("chain"), input: toChainInput(cmd) };
+    case "continue":
+      return { toolName: subagentToolName("continue"), input: { id: cmd.id, task: cmd.task } };
+    case "abort":
+      return { toolName: subagentToolName("abort"), input: { id: cmd.id } };
+    case "detail":
+      return { toolName: subagentToolName("detail"), input: { id: cmd.id } };
+    case "runs":
+      return { toolName: subagentToolName("runs"), input: {} };
+  }
+}
+function stringifyCommand(cmd) {
+  switch (cmd.type) {
+    case "run":
+      return `run ${cmd.agent}${cmd.main ? " --main" : ""}${cmd.cwd ? ` --cwd ${JSON.stringify(cmd.cwd)}` : ""} -- ${cmd.task}`;
+    case "batch":
+      return `batch${cmd.main ? " --main" : ""}${cmd.items.map((item) => ` --agent ${JSON.stringify(item.agent)} --task ${JSON.stringify(item.task)}`).join("")}`;
+    case "chain":
+      return `chain${cmd.main ? " --main" : ""}${cmd.steps.map((step) => ` --agent ${JSON.stringify(step.agent)} --task ${JSON.stringify(step.task)}`).join("")}`;
+    case "continue":
+      return `continue ${cmd.id} -- ${cmd.task}`;
+    case "abort":
+      return `abort ${cmd.id}`;
+    case "detail":
+      return `detail ${cmd.id}`;
+    case "runs":
+      return "runs";
+  }
+}
+function toRunInput(cmd) {
+  return { agent: cmd.agent, task: cmd.task, ...cmd.main ? { main: true } : {}, ...cmd.cwd ? { cwd: cmd.cwd } : {} };
+}
+function toBatchInput(cmd) {
+  return { items: cmd.items, ...cmd.main ? { main: true } : {} };
+}
+function toChainInput(cmd) {
+  return { steps: cmd.steps, ...cmd.main ? { main: true } : {} };
+}
+
+// src/render.ts
+function buildCallText(cmd) {
+  if (cmd.type === "run") return `\u25B6 subagent run ${cmd.agent} -- ${cmd.task}`;
+  if (cmd.type === "batch") return `\u25B6 subagent batch (${cmd.items.length} tasks)`;
+  if (cmd.type === "chain") return `\u25B6 subagent chain (${cmd.steps.length} steps)`;
+  if (cmd.type === "continue") return `\u25B6 subagent continue #${cmd.id} -- ${cmd.task}`;
+  if (cmd.type === "abort") return `\u25B6 subagent abort #${cmd.id}`;
+  if (cmd.type === "detail") return `\u25B6 subagent detail #${cmd.id}`;
+  return `\u25B6 subagent ${stringifyCommand(cmd)}`;
 }
 function buildResultText(result2) {
   const header = `${result2.agent} #${result2.id}${result2.task ? ` \u2014 ${previewText(result2.task, 72)}` : ""}`;
@@ -1081,14 +1072,12 @@ function buildResultText(result2) {
 
 nested runs:
 ${tree.join("\n")}` : "";
-  if (result2.error) {
-    return `\u2717 ${header}
+  if (result2.error) return `\u2717 ${header}
 error: ${result2.error}${result2.output ? `
 
 ${result2.output}` : ""}${treeSection}
 
 ${footer}`;
-  }
   if (result2.escalation) return `\u26A0 ${header} needs your input:
 ${result2.escalation}${treeSection}
 
@@ -1098,23 +1087,13 @@ ${result2.output || "(no output)"}${treeSection}
 
 ${footer}`;
 }
-function textComponent(text) {
-  const lines = text.split("\n");
-  return {
-    render(width) {
-      const safeWidth = Math.max(0, width);
-      return lines.map((line) => truncateToWidth2(line, safeWidth));
-    },
-    invalidate() {
-    }
-  };
-}
-function renderCall(args) {
-  return textComponent(buildCallText(args));
-}
+var textComponent = (text) => ({ render(width) {
+  return text.split("\n").map((line) => truncateToWidth2(line, Math.max(0, width)));
+}, invalidate() {
+} });
+var renderCallForCommand = (cmd) => textComponent(buildCallText(cmd));
 function renderResult(result2) {
-  const text = result2.content.filter((c) => c.type === "text" && typeof c.text === "string").map((c) => c.text).join("\n");
-  return textComponent(text);
+  return textComponent(result2.content.filter((item) => item.type === "text" && typeof item.text === "string").map((item) => item.text).join("\n"));
 }
 
 // src/tool-report.ts
@@ -1167,110 +1146,113 @@ var AgentTaskItem = Type.Object({
   agent: Type.String({ description: "Subagent name" }),
   task: Type.String({ description: "Full task text for that subagent" })
 }, { additionalProperties: false });
-var RunParams = Type.Object({
-  type: Type.Literal("run"),
+var RunToolParams = Type.Object({
   agent: Type.String({ description: "Subagent name" }),
   task: Type.String({ description: "Full task text for the subagent" }),
   main: Type.Optional(Type.Boolean({ description: "Include summarized main-session context" })),
   cwd: Type.Optional(Type.String({ description: "Optional working directory override" }))
 }, { additionalProperties: false });
-var BatchParams = Type.Object({
-  type: Type.Literal("batch"),
+var BatchToolParams = Type.Object({
   items: Type.Array(AgentTaskItem, { description: "Parallel subagent tasks" }),
   main: Type.Optional(Type.Boolean({ description: "Include summarized main-session context" }))
 }, { additionalProperties: false });
-var ChainParams = Type.Object({
-  type: Type.Literal("chain"),
+var ChainToolParams = Type.Object({
   steps: Type.Array(AgentTaskItem, { description: "Sequential subagent steps" }),
   main: Type.Optional(Type.Boolean({ description: "Include summarized main-session context" }))
 }, { additionalProperties: false });
-var ContinueParams = Type.Object({
-  type: Type.Literal("continue"),
+var ContinueToolParams = Type.Object({
   id: Type.Number({ description: "Run ID to continue" }),
   task: Type.String({ description: "Follow-up message for the existing run" })
 }, { additionalProperties: false });
-var IdOnlyParams = (type, description) => Type.Object({
-  type: Type.Literal(type),
+var buildIdParams = (description) => Type.Object({
   id: Type.Number({ description })
 }, { additionalProperties: false });
-var SubagentParams = Type.Union([
-  RunParams,
-  BatchParams,
-  ChainParams,
-  ContinueParams,
-  IdOnlyParams("abort", "Run ID to abort"),
-  IdOnlyParams("detail", "Run ID to inspect"),
-  Type.Object({ type: Type.Literal("runs") }, { additionalProperties: false })
-]);
+var AbortToolParams = buildIdParams("Run ID to abort");
+var DetailToolParams = buildIdParams("Run ID to inspect");
+var RunsToolParams = Type.Object({}, { additionalProperties: false });
+
+// src/tool-specs.ts
+var str = (value, key) => String(Reflect.get(Object(value), key) ?? "");
+var num = (value, key) => Number(Reflect.get(Object(value), key));
+var bool = (value, key) => Boolean(Reflect.get(Object(value), key));
+var tasks = (value, key) => {
+  const list = Reflect.get(Object(value), key);
+  return Array.isArray(list) ? list.map((item) => ({ agent: str(item, "agent"), task: str(item, "task") })) : [];
+};
+var subagentToolSpecs = [
+  { name: subagentToolName("run"), label: "Subagent Run", description: "Run a single isolated subagent", parameters: RunToolParams, buildSubcommand: (params) => ({ type: "run", agent: str(params, "agent"), task: str(params, "task"), main: bool(params, "main"), cwd: str(params, "cwd") || void 0 }) },
+  { name: subagentToolName("batch"), label: "Subagent Batch", description: "Run multiple isolated subagents in parallel", parameters: BatchToolParams, buildSubcommand: (params) => ({ type: "batch", items: tasks(params, "items"), main: bool(params, "main") }) },
+  { name: subagentToolName("chain"), label: "Subagent Chain", description: "Run isolated subagents sequentially with previous output piping", parameters: ChainToolParams, buildSubcommand: (params) => ({ type: "chain", steps: tasks(params, "steps"), main: bool(params, "main") }) },
+  { name: subagentToolName("continue"), label: "Subagent Continue", description: "Continue an existing subagent session", parameters: ContinueToolParams, buildSubcommand: (params) => ({ type: "continue", id: num(params, "id"), task: str(params, "task") }) },
+  { name: subagentToolName("abort"), label: "Subagent Abort", description: "Abort an active subagent run", parameters: AbortToolParams, buildSubcommand: (params) => ({ type: "abort", id: num(params, "id") }) },
+  { name: subagentToolName("detail"), label: "Subagent Detail", description: "Show detailed history for a subagent run", parameters: DetailToolParams, buildSubcommand: (params) => ({ type: "detail", id: num(params, "id") }) },
+  { name: subagentToolName("runs"), label: "Subagent Runs", description: "List active and historical subagent runs", parameters: RunsToolParams, buildSubcommand: () => ({ type: "runs" }) }
+];
 
 // src/tool.ts
-var result = (text, isError = false, details) => ({
-  content: [{ type: "text", text }],
-  details: { isError, ...details }
-});
-var errorMsg2 = (e) => e instanceof Error ? e.message : String(e);
+var result = (text, isError = false, details) => ({ content: [{ type: "text", text }], details: { isError, ...details } });
+var errorMsg2 = (error) => error instanceof Error ? error.message : String(error);
 async function dispatch(cmd, agents, ctx, onUpdate, signal) {
   if (cmd.type === "runs") return result(formatRunsList());
   if (cmd.type === "detail") return result(formatDetail(cmd.id));
   if (cmd.type === "abort") return result(dispatchAbort(cmd.id));
   if (cmd.type === "run") return runSingle(cmd, agents, ctx, onUpdate, signal);
-  if (cmd.type === "batch") return runBatch(cmd, agents, ctx, onUpdate, signal);
+  if (cmd.type === "batch") return runMany(cmd, agents, ctx, onUpdate, signal);
   if (cmd.type === "chain") return runChain(cmd, agents, ctx, onUpdate, signal);
-  const cont = await dispatchContinue(cmd.id, cmd.task, agents, ctx, onUpdate, signal);
-  return typeof cont === "string" ? result(cont, cont.includes("not found")) : result(buildResultText(cont), !!cont.error, { runTrees: [resultToRunTree(cont)] });
+  const continued = await dispatchContinue(cmd.id, cmd.task, agents, ctx, onUpdate, signal);
+  return typeof continued === "string" ? result(continued, continued.includes("not found")) : result(buildResultText(continued), !!continued.error, { runTrees: [resultToRunTree(continued)] });
 }
 async function runSingle(cmd, agents, ctx, onUpdate, signal) {
   const agent = getAgent(cmd.agent, agents);
   if (!agent) return result(`Unknown agent: ${cmd.agent}`, true);
-  const out = await dispatchRun(agent, cmd.task, ctx, cmd.main, onUpdate, signal);
-  return result(buildResultText(out), !!out.error, { runTrees: [resultToRunTree(out)] });
+  const output = await dispatchRun(agent, cmd.task, ctx, cmd.main, onUpdate, signal);
+  return result(buildResultText(output), !!output.error, { runTrees: [resultToRunTree(output)] });
 }
-var runBatch = async (cmd, agents, ctx, onUpdate, signal) => {
-  const out = await dispatchBatch(cmd.items, agents, ctx, cmd.main, onUpdate, signal);
-  return result(out.map((r) => buildResultText(r)).join("\n---\n"), out.some((r) => !!r.error), { runTrees: out.map(resultToRunTree) });
-};
-var runChain = async (cmd, agents, ctx, onUpdate, signal) => {
-  const out = await dispatchChain(cmd.steps, agents, ctx, cmd.main, onUpdate, signal);
-  return result(buildResultText(out), !!out.error, { runTrees: [resultToRunTree(out)] });
-};
-var snippet = (agents) => `Dispatch subagents: ${agents.map((a) => `${a.name} (${a.description})`).join(", ") || "none loaded"}`;
-var guidelines = (agents) => [
-  "Available agents:",
-  ...agents.map((a) => `  - ${a.name}: ${a.description}`),
-  "Call the tool with parameters like:",
-  "  - { type: 'run', agent: 'scout', task: 'find auth code' }",
-  "  - { type: 'batch', items: [{ agent: 'worker', task: 'implement login' }, { agent: 'reviewer', task: 'review login change' }] }",
-  "  - { type: 'chain', steps: [{ agent: 'scout', task: 'find auth flow' }, { agent: 'worker', task: '{previous}' }] }",
-  "  - { type: 'continue', id: 12, task: 'answer the question above' }",
-  "  - { type: 'abort', id: 12 } / { type: 'detail', id: 12 } / { type: 'runs' }",
-  "The tool blocks until the subagent completes and returns the full result."
-];
-function createTool(pi, agentsDir) {
-  const agents = existsSync2(agentsDir) ? loadAgentsFromDir(agentsDir, (d) => readdirSync(d).map(String), readFileSync) : [];
+async function runMany(cmd, agents, ctx, onUpdate, signal) {
+  const output = await dispatchBatch(cmd.items, agents, ctx, cmd.main, onUpdate, signal);
+  return result(output.map(buildResultText).join("\n---\n"), output.some((item) => !!item.error), { runTrees: output.map(resultToRunTree) });
+}
+async function runChain(cmd, agents, ctx, onUpdate, signal) {
+  const output = await dispatchChain(cmd.steps, agents, ctx, cmd.main, onUpdate, signal);
+  return result(buildResultText(output), !!output.error, { runTrees: [resultToRunTree(output)] });
+}
+var snippet = (agents) => `Dispatch subagents: ${agents.map((agent) => `${agent.name} (${agent.description})`).join(", ") || "none loaded"}`;
+var guidelines = (agents) => ["Available agents:", ...agents.map((agent) => `  - ${agent.name}: ${agent.description}`), "Use subagent_run / subagent_batch / subagent_chain / subagent_continue / subagent_abort / subagent_detail / subagent_runs as appropriate."];
+function createNamedTool(name, pi, agentsDir) {
+  const spec = subagentToolSpecs.find((item) => item.name === name);
+  if (!spec) throw new Error(`Unknown subagent tool: ${name}`);
+  const agents = existsSync2(agentsDir) ? loadAgentsFromDir(agentsDir, (dir) => readdirSync(dir).map(String), readFileSync) : [];
   return defineTool({
-    name: "subagent",
-    label: "Subagent",
-    description: "Run isolated subagent processes in separate pi subprocesses with their own context window",
+    name: spec.name,
+    label: spec.label,
+    description: spec.description,
+    parameters: spec.parameters,
     promptSnippet: snippet(agents),
     promptGuidelines: guidelines(agents),
-    parameters: SubagentParams,
     async execute(_id, params, signal, onUpdate, ctx) {
       try {
-        return await dispatch(normalizeInput(params), agents, ctx, onUpdate, signal);
-      } catch (e) {
-        return result(`Error: ${errorMsg2(e)}`, true);
+        return await dispatch(spec.buildSubcommand(params), agents, ctx, onUpdate, signal);
+      } catch (error) {
+        return result(`Error: ${errorMsg2(error)}`, true);
       }
     },
-    renderCall: (args) => renderCall(args),
+    renderCall: (args) => renderCallForCommand(spec.buildSubcommand(args)),
     renderResult: (res) => renderResult(res)
   });
 }
+var createRunTool = (pi, agentsDir) => createNamedTool("subagent_run", pi, agentsDir);
+var createBatchTool = (pi, agentsDir) => createNamedTool("subagent_batch", pi, agentsDir);
+var createChainTool = (pi, agentsDir) => createNamedTool("subagent_chain", pi, agentsDir);
+var createContinueTool = (pi, agentsDir) => createNamedTool("subagent_continue", pi, agentsDir);
+var createAbortTool = (pi, agentsDir) => createNamedTool("subagent_abort", pi, agentsDir);
+var createDetailTool = (pi, agentsDir) => createNamedTool("subagent_detail", pi, agentsDir);
+var createRunsTool = (pi, agentsDir) => createNamedTool("subagent_runs", pi, agentsDir);
 
 // src/commands.ts
-import { readdirSync as readdirSync2, readFileSync as readFileSync2, existsSync as existsSync3 } from "fs";
+import { existsSync as existsSync3, readdirSync as readdirSync2, readFileSync as readFileSync2 } from "fs";
 function buildHelpText(agentsDir) {
-  const agents = existsSync3(agentsDir) ? loadAgentsFromDir(agentsDir, (d) => readdirSync2(d).map(String), readFileSync2) : [];
-  const lines = [
+  const agents = existsSync3(agentsDir) ? loadAgentsFromDir(agentsDir, (dir) => readdirSync2(dir).map(String), readFileSync2) : [];
+  return [
     "subagent \u2014 \uC11C\uBE0C\uC5D0\uC774\uC804\uD2B8 \uC624\uCF00\uC2A4\uD2B8\uB808\uC774\uC158",
     "",
     "\uC0AC\uC6A9\uBC95:",
@@ -1283,30 +1265,22 @@ function buildHelpText(agentsDir) {
     "  /sub runs                              \uC2E4\uD589 \uBAA9\uB85D",
     "",
     "\uC5D0\uC774\uC804\uD2B8:",
-    ...agents.map((a) => `  ${a.name.padEnd(18)} ${a.description}`)
-  ];
-  return lines.join("\n");
+    ...agents.map((agent) => `  ${agent.name.padEnd(18)} ${agent.description}`)
+  ].join("\n");
 }
 function buildInvocationMessage(args) {
-  const payload = JSON.stringify(subcommandToInput(parseCommand(args)), null, 2);
-  return [
-    "Call the subagent tool immediately with these exact parameters.",
-    "Do not rewrite, summarize, or re-quote any task text.",
-    payload
-  ].join("\n\n");
+  const call = subcommandToToolCall(parseCommand(args));
+  return [`Call the ${call.toolName} tool immediately with these exact parameters.`, "Do not rewrite, summarize, or re-quote any task text.", JSON.stringify(call.input, null, 2)].join("\n\n");
 }
 function buildSubCommand(agentsDir, sendUserMessage) {
   return {
     description: "\uC11C\uBE0C\uC5D0\uC774\uC804\uD2B8 \uBA85\uB839 (run, batch, chain, continue, abort, detail, runs)",
     handler: async (args, ctx) => {
-      if (!args.trim()) {
-        ctx.ui.notify(buildHelpText(agentsDir), "info");
-        return;
-      }
+      if (!args.trim()) return void ctx.ui.notify(buildHelpText(agentsDir), "info");
       try {
         sendUserMessage(buildInvocationMessage(args), { deliverAs: "steer" });
-      } catch (e) {
-        ctx.ui.notify(e instanceof Error ? e.message : String(e), "error");
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
       }
     }
   };
@@ -1322,7 +1296,13 @@ function index_default(pi) {
     pi.appendEntry("subagent-runs", buildRunsEntry());
     syncWidget(ctx, listRuns());
   });
-  pi.registerTool(createTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerTool(createRunTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerTool(createBatchTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerTool(createChainTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerTool(createContinueTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerTool(createAbortTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerTool(createDetailTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
+  pi.registerTool(createRunsTool(pi, join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents")));
   pi.registerCommand("sub", buildSubCommand(join4(dirname2(fileURLToPath(import.meta.url)), "..", "agents"), (c, o) => pi.sendUserMessage(c, o)));
 }
 export {

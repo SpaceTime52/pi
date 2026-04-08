@@ -23,7 +23,7 @@ describe("buildSubCommand", () => {
 		const cmd = buildSubCommand("/nonexistent", send);
 		const notify = vi.fn();
 		await cmd.handler("run scout -- hello world", { ui: { notify } });
-		expect(send).toHaveBeenCalledWith(expect.stringContaining('"type": "run"'), { deliverAs: "steer" });
+		expect(send).toHaveBeenCalledWith(expect.stringContaining("subagent_run"), { deliverAs: "steer" });
 		expect(send).toHaveBeenCalledWith(expect.stringContaining('"task": "hello world"'), { deliverAs: "steer" });
 		expect(notify).not.toHaveBeenCalled();
 	});

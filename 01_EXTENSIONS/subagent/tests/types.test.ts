@@ -1,21 +1,21 @@
-import { describe, it, expect } from "vitest";
-import { SubagentParams } from "../src/params.js";
+import { describe, expect, it } from "vitest";
 import { Value } from "@sinclair/typebox/value";
+import { BatchToolParams, RunToolParams, RunsToolParams } from "../src/params.js";
 
-describe("types", () => {
-	it("SubagentParams validates structured run input", () => {
-		expect(Value.Check(SubagentParams, { type: "run", agent: "scout", task: "find auth" })).toBe(true);
+describe("subagent schemas", () => {
+	it("validates run input", () => {
+		expect(Value.Check(RunToolParams, { agent: "scout", task: "find auth" })).toBe(true);
 	});
 
-	it("SubagentParams validates structured batch input", () => {
-		expect(Value.Check(SubagentParams, { type: "batch", items: [{ agent: "reviewer", task: "Review auth changes" }] })).toBe(true);
+	it("validates batch input", () => {
+		expect(Value.Check(BatchToolParams, { items: [{ agent: "reviewer", task: "Review auth changes" }] })).toBe(true);
 	});
 
-	it("SubagentParams rejects missing type", () => {
-		expect(Value.Check(SubagentParams, {})).toBe(false);
+	it("validates empty runs input", () => {
+		expect(Value.Check(RunsToolParams, {})).toBe(true);
 	});
 
-	it("SubagentParams rejects command-string input", () => {
-		expect(Value.Check(SubagentParams, { command: "run scout -- find auth" })).toBe(false);
+	it("rejects unexpected command fields", () => {
+		expect(Value.Check(RunToolParams, { command: "run scout -- find auth" })).toBe(false);
 	});
 });

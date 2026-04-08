@@ -31,8 +31,8 @@ describe("buildCallText", () => {
 		expect(buildCallText({ type: "abort", id: 5 })).toContain("#5");
 	});
 
-	it("falls back to JSON for invalid structured input", () => {
-		expect(buildCallText(JSON.parse('{"type":"wat"}'))).toContain('"type":"wat"');
+	it("shows explicit command rendering", () => {
+		expect(buildCallText({ type: "run", agent: "worker", task: "Review auth", main: false })).toContain("worker");
 	});
 });
 

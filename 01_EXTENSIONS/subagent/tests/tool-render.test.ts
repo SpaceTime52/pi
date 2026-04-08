@@ -1,20 +1,19 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 vi.mock("../src/spawn.js", () => ({ spawnAndCollect: vi.fn() }));
-import { createTool } from "../src/tool.js";
+import { createTools } from "../src/tool.js";
 
 const stubPi = () => ({ appendEntry: vi.fn() });
+const getTool = (name: string) => createTools(stubPi(), "/nonexistent").find((tool) => tool.name === name)!;
 
-describe("createTool renderCall/renderResult", () => {
+describe("tool renderers", () => {
 	it("renderCall returns component", () => {
-		const tool = createTool(stubPi(), "/nonexistent");
-		const comp = tool.renderCall({ type: "run", agent: "scout", task: "hello" });
+		const comp = getTool("subagent_run").renderCall({ agent: "scout", task: "hello" });
 		expect(comp.render(80)).toBeInstanceOf(Array);
 		expect(comp.render(80)[0]).toContain("scout");
 	});
 
 	it("renderResult returns component", () => {
-		const tool = createTool(stubPi(), "/nonexistent");
-		const comp = tool.renderResult({ content: [{ type: "text", text: "done" }] });
+		const comp = getTool("subagent_run").renderResult({ content: [{ type: "text", text: "done" }] });
 		expect(comp.render(80)).toEqual(["done"]);
 	});
 });
