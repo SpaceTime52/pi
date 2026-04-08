@@ -41,23 +41,46 @@ describe("subagent listing tools", () => {
 				{ type: "tool_update", toolName: "Bash", text: "partial" },
 				{ type: "tool_update", text: "orphan" },
 				{ type: "tool_end", toolName: "Bash", text: "done", isError: true },
+				{ type: "tool_start", toolName: "subagent_run", text: "{\"agent\":\"worker\"}" },
+				{ type: "tool_update", toolName: "subagent_run", text: "⏳ worker #1 — nested\ncurrent: running bash" },
+				{ type: "tool_update", toolName: "subagent_run", text: "⏳ worker #1 — nested\ncurrent: reply ready (stop)" },
+				{ type: "tool_end", toolName: "subagent_run", text: "done", isError: false },
 				{ type: "message_delta", text: "draft" },
 				{ type: "message", text: "final message" },
 				{ type: "agent_end", stopReason: "error" },
 				{ type: "noop" },
 			],
 		});
-		addToHistory({ id: 9, agent: "scout", events: [{ type: "tool_start", toolName: "Read" }, { type: "tool_update" }, { type: "tool_end", isError: false }] });
+		addToHistory({
+			id: 9,
+			agent: "scout",
+			events: [
+				{ type: "tool_start", toolName: "Read" },
+				{ type: "tool_update" },
+				{ type: "tool_end", isError: false },
+				{ type: "tool_start", toolName: "subagent_run", text: "nested" },
+				{ type: "tool_update", toolName: "subagent_run" },
+				{ type: "tool_update", toolName: "subagent_run", text: "plain nested status" },
+				{ type: "tool_start", toolName: "subagent_batch", text: "nested batch" },
+				{ type: "tool_update", toolName: "subagent_batch" },
+			],
+		});
 		const result = await exec("subagent_detail", { id: 7 });
 		const fallback = await exec("subagent_detail", { id: 9 });
 		expect(result?.content[0].text).toContain("session: /tmp/subagent.json");
 		expect(result?.content[0].text).toContain("↳ Bash: partial");
 		expect(result?.content[0].text).toContain("↳ tool: orphan");
 		expect(result?.content[0].text).toContain("✗ Bash: done");
-		expect(result?.content[0].text).toContain("… draft");
+		expect(result?.content[0].text).toContain("→ subagent_run: {\"agent\":\"worker\"}");
+		expect(result?.content[0].text).toContain("↳ subagent_run: current reply ready (stop) [2 updates]");
+		expect(result?.content[0].text).not.toContain("… draft");
 		expect(result?.content[0].text).toContain("done: error");
 		expect(result?.content[0].text).toContain("worker #8");
 		expect(fallback?.content[0].text).toContain("→ Read");
 		expect(fallback?.content[0].text).toContain("✓ tool");
+		expect(fallback?.content[0].text).toContain("→ subagent_run: nested");
+		expect(fallback?.content[0].text).toContain("↳ subagent_run: plain nested status [2 updates]");
+		expect(fallback?.content[0].text).toContain("→ subagent_batch: nested batch");
+		expect(fallback?.content[0].text).toContain("↳ subagent_batch: live progress");
 	});
 });
