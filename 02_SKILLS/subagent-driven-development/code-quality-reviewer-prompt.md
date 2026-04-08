@@ -7,14 +7,18 @@
 **반드시 스펙 준수 리뷰를 통과한 뒤에만 호출한다.**
 
 ```
-subagent tool (code-reviewer):
-  Use template at requesting-code-review/code-reviewer.md
+subagent tool:
+  parameters:
+    type: "run"
+    agent: "reviewer"
+    task: |
+      Use template at requesting-code-review/code-reviewer.md
 
-  WHAT_WAS_IMPLEMENTED: [from implementer's report]
-  PLAN_OR_REQUIREMENTS: Task N from [plan-file]
-  BASE_SHA: [commit before task]
-  HEAD_SHA: [current commit]
-  DESCRIPTION: [task summary]
+      WHAT_WAS_IMPLEMENTED: [from implementer's report]
+      PLAN_OR_REQUIREMENTS: Task N from [plan-file]
+      BASE_SHA: [commit before task]
+      HEAD_SHA: [current commit]
+      DESCRIPTION: [task summary]
 ```
 
 **표준적인 코드 품질 검토 항목 외에도, 리뷰어는 다음을 확인해야 한다:**

@@ -1,15 +1,15 @@
 import { defineTool } from "@mariozechner/pi-coding-agent";
 import type { AgentToolResult, AgentToolUpdateCallback, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { readdirSync, readFileSync, existsSync } from "fs";
-import { parseCommand } from "./cli.js";
+import { normalizeInput } from "./cli.js";
 import { dispatchAbort, dispatchBatch, dispatchChain, dispatchContinue, dispatchRun } from "./dispatch.js";
 import type { DispatchCtx } from "./dispatch.js";
 import { loadAgentsFromDir, getAgent } from "./agents.js";
 import { renderCall, renderResult, buildResultText } from "./render.js";
 import { resultToRunTree } from "./run-tree.js";
 import { formatDetail, formatRunsList } from "./tool-report.js";
-import type { AgentConfig, SubagentPi, SubagentToolDetails, Subcommand } from "./types.js";
-import { SubagentParams } from "./types.js";
+import type { AgentConfig, SubagentPi, SubagentToolDetails, SubagentToolInput, Subcommand } from "./types.js";
+import { SubagentParams } from "./params.js";
 
 const result = (text: string, isError = false, details?: Omit<SubagentToolDetails, "isError">): AgentToolResult<SubagentToolDetails> => ({
 	content: [{ type: "text", text }],
@@ -55,17 +55,27 @@ const runChain = async (
 };
 
 const snippet = (agents: AgentConfig[]) => `Dispatch subagents: ${agents.map((a) => `${a.name} (${a.description})`).join(", ") || "none loaded"}`;
-const guidelines = (agents: AgentConfig[]) => ["Available agents:", ...agents.map((a) => `  - ${a.name}: ${a.description}`), "Command: run <agent> [--main] -- <task>", "Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]", "Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'", "Manage: continue <id> -- <task>, abort <id>, detail <id>, runs", "The tool blocks until the subagent completes and returns the full result."];
+const guidelines = (agents: AgentConfig[]) => [
+	"Available agents:",
+	...agents.map((a) => `  - ${a.name}: ${a.description}`),
+	"Call the tool with parameters like:",
+	"  - { type: 'run', agent: 'scout', task: 'find auth code' }",
+	"  - { type: 'batch', items: [{ agent: 'worker', task: 'implement login' }, { agent: 'reviewer', task: 'review login change' }] }",
+	"  - { type: 'chain', steps: [{ agent: 'scout', task: 'find auth flow' }, { agent: 'worker', task: '{previous}' }] }",
+	"  - { type: 'continue', id: 12, task: 'answer the question above' }",
+	"  - { type: 'abort', id: 12 } / { type: 'detail', id: 12 } / { type: 'runs' }",
+	"The tool blocks until the subagent completes and returns the full result.",
+];
 
 export function createTool(pi: SubagentPi, agentsDir: string) {
 	const agents = existsSync(agentsDir) ? loadAgentsFromDir(agentsDir, (d) => readdirSync(d).map(String), readFileSync as (p: string, e: string) => string) : [];
 	return defineTool({
 		name: "subagent", label: "Subagent", description: "Run isolated subagent processes in separate pi subprocesses with their own context window",
 		promptSnippet: snippet(agents), promptGuidelines: guidelines(agents), parameters: SubagentParams,
-		async execute(_id: string, params: { command: string }, signal: AbortSignal | undefined, onUpdate: UpdateFn, ctx: ExtensionContext) {
-			try { return await dispatch(parseCommand(params.command), agents, ctx, onUpdate, signal); }
+		async execute(_id: string, params: SubagentToolInput, signal: AbortSignal | undefined, onUpdate: UpdateFn, ctx: ExtensionContext) {
+			try { return await dispatch(normalizeInput(params), agents, ctx, onUpdate, signal); }
 			catch (e) { return result(`Error: ${errorMsg(e)}`, true); }
 		},
-		renderCall: (args: { command: string }) => renderCall(args), renderResult: (res) => renderResult(res),
+		renderCall: (args: SubagentToolInput) => renderCall(args), renderResult: (res) => renderResult(res),
 	});
 }

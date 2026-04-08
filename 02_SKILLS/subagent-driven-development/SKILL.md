@@ -193,7 +193,7 @@ Code reviewer: ✅ 승인
 ...
 
 [모든 작업이 끝난 후]
-[최종 code-reviewer 디스패치]
+[최종 reviewer 디스패치]
 Final reviewer: 모든 요구사항 충족, 머지 준비 완료
 
 완료!

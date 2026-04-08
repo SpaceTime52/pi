@@ -99,7 +99,7 @@ function toClaudeToolInput(toolName, rawInput, cwd) {
   if (toolName === "find") return { tool_name: "Glob", tool_input: { pattern: rawInput.pattern, path: rawInput.path ? resolve2(cwd, String(rawInput.path)) : cwd } };
   if (toolName === "fetch_content") return { tool_name: "WebFetch", tool_input: { url: rawInput.url, prompt: rawInput.prompt } };
   if (toolName === "web_search") return { tool_name: "WebSearch", tool_input: { query: rawInput.query } };
-  if (toolName === "subagent") return { tool_name: "Agent", tool_input: { prompt: rawInput.command, subagent_type: extractSubagentType(rawInput.command) } };
+  if (toolName === "subagent") return { tool_name: "Agent", tool_input: { prompt: stringifySubagentInput(rawInput), subagent_type: extractSubagentType(rawInput) } };
   return void 0;
 }
 function mapEdit(rawInput, cwd) {
@@ -142,8 +142,20 @@ function activateConditionalRules(state, touchedPaths) {
   for (const rule of state.conditionalRules) if (!state.activeConditionalRuleIds.has(rule.id) && touchedPaths.some((path) => matchesAnyGlob(rule.ownerRoot, path, rule.conditionalGlobs))) state.activeConditionalRuleIds.add(rule.id), activated.push(rule);
   return activated;
 }
-function extractSubagentType(command) {
-  return command?.match(/^run\s+([^\s]+)\s+--/)?.[1];
+function stringifySubagentInput(input) {
+  if (input?.type === "run") return `run ${String(input.agent ?? "")} -- ${String(input.task ?? "")}`;
+  if (input?.type === "batch" || input?.type === "chain") return JSON.stringify(input);
+  if (input?.type === "continue") return `continue ${String(input.id ?? "")} -- ${String(input.task ?? "")}`;
+  if (input?.type === "abort") return `abort ${String(input.id ?? "")}`;
+  if (input?.type === "detail") return `detail ${String(input.id ?? "")}`;
+  if (input?.type === "runs") return "runs";
+  return JSON.stringify(input ?? {});
+}
+function extractSubagentType(input) {
+  if (!input || typeof input !== "object") return void 0;
+  const raw = input;
+  if (raw.type === "run" && typeof raw.agent === "string") return raw.agent;
+  return void 0;
 }
 
 // src/core/instructions.ts
@@ -1127,7 +1139,7 @@ function createToolCallHandler(pi) {
   };
 }
 async function onSubagentStart(pi, event, ctx) {
-  const type = event.input.command ? String(event.input.command).match(/^run\s+([^\s]+)\s+--/)?.[1] : void 0;
+  const type = extractSubagentType(event.input);
   const results = await runHandlers(pi, "SubagentStart", type, { ...buildClaudeInputBase(ctx, "SubagentStart"), agent_id: event.toolCallId, agent_type: type }, ctx);
   return results.map((result) => hookSpecificOutput(result, "SubagentStart")?.additionalContext).filter(Boolean);
 }
@@ -1166,7 +1178,7 @@ function createToolResultHandler(pi) {
     const hookEventName = event.isError ? "PostToolUseFailure" : "PostToolUse";
     const payload = { ...buildClaudeInputBase(ctx, hookEventName), tool_name: mapped.tool_name, tool_input: mapped.tool_input, tool_use_id: event.toolCallId, ...event.isError ? { error: textFromContent(event.content), is_interrupt: false } : { tool_response: { content: textFromContent(event.content), details: event.details } } };
     const patches = buildPatches(await runHandlers(pi, hookEventName, mapped.tool_name, payload, ctx), hookEventName);
-    if (mapped.tool_name === "Agent") patches.push(...buildSubagentPatches(await runHandlers(pi, "SubagentStop", extractSubagentType(event.input.command), { ...buildClaudeInputBase(ctx, "SubagentStop"), stop_hook_active: false, agent_id: event.toolCallId, agent_type: extractSubagentType(event.input.command), agent_transcript_path: void 0, last_assistant_message: textFromContent(event.content) }, ctx)));
+    if (mapped.tool_name === "Agent") patches.push(...buildSubagentPatches(await runHandlers(pi, "SubagentStop", extractSubagentType(event.input), { ...buildClaudeInputBase(ctx, "SubagentStop"), stop_hook_active: false, agent_id: event.toolCallId, agent_type: extractSubagentType(event.input), agent_transcript_path: void 0, last_assistant_message: textFromContent(event.content) }, ctx)));
     return applyPatches(event, patches);
   };
 }

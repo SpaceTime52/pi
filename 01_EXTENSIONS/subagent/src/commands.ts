@@ -1,4 +1,5 @@
 import { loadAgentsFromDir } from "./agents.js";
+import { parseCommand, subcommandToInput } from "./cli.js";
 import { readdirSync, readFileSync, existsSync } from "fs";
 
 function buildHelpText(agentsDir: string): string {
@@ -26,12 +27,25 @@ function buildHelpText(agentsDir: string): string {
 interface SendFn { (content: string, opts?: { deliverAs?: "steer" | "followUp" }): void }
 interface CommandCtx { ui: { notify(msg: string, type?: string): void } }
 
+function buildInvocationMessage(args: string) {
+	const payload = JSON.stringify(subcommandToInput(parseCommand(args)), null, 2);
+	return [
+		"Call the subagent tool immediately with these exact parameters.",
+		"Do not rewrite, summarize, or re-quote any task text.",
+		payload,
+	].join("\n\n");
+}
+
 export function buildSubCommand(agentsDir: string, sendUserMessage: SendFn) {
 	return {
 		description: "서브에이전트 명령 (run, batch, chain, continue, abort, detail, runs)",
 		handler: async (args: string, ctx: CommandCtx) => {
 			if (!args.trim()) { ctx.ui.notify(buildHelpText(agentsDir), "info"); return; }
-			sendUserMessage(`Use the subagent tool with command: ${args}`);
+			try {
+				sendUserMessage(buildInvocationMessage(args), { deliverAs: "steer" });
+			} catch (e) {
+				ctx.ui.notify(e instanceof Error ? e.message : String(e), "error");
+			}
 		},
 	};
 }

@@ -16,7 +16,7 @@ export function toClaudeToolInput(toolName: string, rawInput: any, cwd: string) 
 	if (toolName === "find") return { tool_name: "Glob", tool_input: { pattern: rawInput.pattern, path: rawInput.path ? resolve(cwd, String(rawInput.path)) : cwd } };
 	if (toolName === "fetch_content") return { tool_name: "WebFetch", tool_input: { url: rawInput.url, prompt: rawInput.prompt } };
 	if (toolName === "web_search") return { tool_name: "WebSearch", tool_input: { query: rawInput.query } };
-	if (toolName === "subagent") return { tool_name: "Agent", tool_input: { prompt: rawInput.command, subagent_type: extractSubagentType(rawInput.command) } };
+	if (toolName === "subagent") return { tool_name: "Agent", tool_input: { prompt: stringifySubagentInput(rawInput), subagent_type: extractSubagentType(rawInput) } };
 	return undefined;
 }
 
@@ -67,6 +67,19 @@ export function activateConditionalRules(state: Pick<BridgeState, "conditionalRu
 	return activated;
 }
 
-export function extractSubagentType(command: string | undefined): string | undefined {
-	return command?.match(/^run\s+([^\s]+)\s+--/)?.[1];
+function stringifySubagentInput(input: any): string {
+	if (input?.type === "run") return `run ${String(input.agent ?? "")} -- ${String(input.task ?? "")}`;
+	if (input?.type === "batch" || input?.type === "chain") return JSON.stringify(input);
+	if (input?.type === "continue") return `continue ${String(input.id ?? "")} -- ${String(input.task ?? "")}`;
+	if (input?.type === "abort") return `abort ${String(input.id ?? "")}`;
+	if (input?.type === "detail") return `detail ${String(input.id ?? "")}`;
+	if (input?.type === "runs") return "runs";
+	return JSON.stringify(input ?? {});
+}
+
+export function extractSubagentType(input: unknown): string | undefined {
+	if (!input || typeof input !== "object") return undefined;
+	const raw = input as { type?: string; agent?: string };
+	if (raw.type === "run" && typeof raw.agent === "string") return raw.agent;
+	return undefined;
 }

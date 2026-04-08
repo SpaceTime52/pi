@@ -3,12 +3,11 @@ vi.mock("../src/spawn.js", () => ({ spawnAndCollect: vi.fn() }));
 import { createTool } from "../src/tool.js";
 
 const stubPi = () => ({ appendEntry: vi.fn() });
-const stubCtx = () => ({ hasUI: false, ui: { setWidget: vi.fn() }, sessionManager: { getBranch: () => [] } });
 
 describe("createTool renderCall/renderResult", () => {
 	it("renderCall returns component", () => {
 		const tool = createTool(stubPi(), "/nonexistent");
-		const comp = tool.renderCall({ command: "run scout -- hello" });
+		const comp = tool.renderCall({ type: "run", agent: "scout", task: "hello" });
 		expect(comp.render(80)).toBeInstanceOf(Array);
 		expect(comp.render(80)[0]).toContain("scout");
 	});

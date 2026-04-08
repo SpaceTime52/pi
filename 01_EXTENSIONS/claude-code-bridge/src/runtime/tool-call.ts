@@ -1,5 +1,5 @@
 import type { Ctx } from "../core/types.js";
-import { activateConditionalRules, applyUpdatedInput, buildClaudeInputBase, extractTouchedPaths, toClaudeToolInput } from "../hooks/tools.js";
+import { activateConditionalRules, applyUpdatedInput, buildClaudeInputBase, extractSubagentType, extractTouchedPaths, toClaudeToolInput } from "../hooks/tools.js";
 import { hookSpecificOutput } from "./common.js";
 import { runHandlers } from "./handlers.js";
 import { getState, queueAdditionalContext, refreshState } from "./store.js";
@@ -27,7 +27,7 @@ export function createToolCallHandler(pi: any) {
 }
 
 async function onSubagentStart(pi: any, event: any, ctx: Ctx) {
-	const type = event.input.command ? String(event.input.command).match(/^run\s+([^\s]+)\s+--/)?.[1] : undefined;
+	const type = extractSubagentType(event.input);
 	const results = await runHandlers(pi, "SubagentStart", type, { ...buildClaudeInputBase(ctx, "SubagentStart"), agent_id: event.toolCallId, agent_type: type }, ctx);
 	return results.map((result) => hookSpecificOutput(result, "SubagentStart")?.additionalContext).filter(Boolean);
 }

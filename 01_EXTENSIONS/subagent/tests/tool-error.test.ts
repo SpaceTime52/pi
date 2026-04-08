@@ -11,11 +11,11 @@ vi.mock("../src/spawn.js", () => ({ spawnAndCollect: vi.fn().mockResolvedValue({
 
 import { createTool, errorMsg } from "../src/tool.js";
 import { spawnAndCollect } from "../src/spawn.js";
-import type { SubagentPi } from "../src/types.js";
+import type { SubagentPi, SubagentToolInput } from "../src/types.js";
 
 const stubPi = (): SubagentPi => ({ appendEntry: vi.fn() });
 const stubCtx = () => ({ hasUI: false, ui: { setWidget: vi.fn() }, sessionManager: { getBranch: (): unknown[] => [] } });
-const exec = async (cmd: string, signal?: AbortSignal) => createTool(stubPi(), "/agents").execute("", { command: cmd }, signal, undefined, stubCtx());
+const exec = async (input: SubagentToolInput, signal?: AbortSignal) => createTool(stubPi(), "/agents").execute("", input, signal, undefined, stubCtx());
 
 describe("createTool error handling", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
@@ -25,7 +25,7 @@ describe("createTool error handling", () => {
 			signal?.addEventListener("abort", () => reject(new Error("Aborted")), { once: true });
 		}));
 		const ac = new AbortController();
-		const pending = exec("run scout -- find auth", ac.signal);
+		const pending = exec({ type: "run", agent: "scout", task: "find auth" }, ac.signal);
 		ac.abort();
 		const result = await pending;
 		expect(result.content[0].text).toContain("Aborted");

@@ -13,7 +13,7 @@ export function createToolResultHandler(pi: any) {
 		const hookEventName = event.isError ? "PostToolUseFailure" : "PostToolUse";
 		const payload = { ...buildClaudeInputBase(ctx, hookEventName), tool_name: mapped.tool_name, tool_input: mapped.tool_input, tool_use_id: event.toolCallId, ...(event.isError ? { error: textFromContent(event.content), is_interrupt: false } : { tool_response: { content: textFromContent(event.content), details: event.details } }) };
 		const patches = buildPatches(await runHandlers(pi, hookEventName, mapped.tool_name, payload, ctx), hookEventName);
-		if (mapped.tool_name === "Agent") patches.push(...buildSubagentPatches(await runHandlers(pi, "SubagentStop", extractSubagentType(event.input.command), { ...buildClaudeInputBase(ctx, "SubagentStop"), stop_hook_active: false, agent_id: event.toolCallId, agent_type: extractSubagentType(event.input.command), agent_transcript_path: undefined, last_assistant_message: textFromContent(event.content) }, ctx)));
+		if (mapped.tool_name === "Agent") patches.push(...buildSubagentPatches(await runHandlers(pi, "SubagentStop", extractSubagentType(event.input), { ...buildClaudeInputBase(ctx, "SubagentStop"), stop_hook_active: false, agent_id: event.toolCallId, agent_type: extractSubagentType(event.input), agent_transcript_path: undefined, last_assistant_message: textFromContent(event.content) }, ctx)));
 		return applyPatches(event, patches);
 	};
 }

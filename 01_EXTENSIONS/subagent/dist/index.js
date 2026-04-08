@@ -2,51 +2,103 @@
 import { defineTool } from "@mariozechner/pi-coding-agent";
 import { readdirSync, readFileSync, existsSync as existsSync2 } from "fs";
 
-// src/cli.ts
-function parseArgs(input) {
-  const result2 = { _: [] };
-  const tokens = input.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (t.startsWith("--")) {
-      const key = t.slice(2);
-      const next = tokens[i + 1];
-      if (!next || next.startsWith("--")) {
-        result2[key] = true;
+// src/cli-args.ts
+function tokenize(input) {
+  const tokens = [];
+  let current = "";
+  let quote;
+  let escaping = false;
+  let tokenStarted = false;
+  const push = () => {
+    if (tokenStarted) tokens.push(current);
+    current = "";
+    tokenStarted = false;
+  };
+  for (const ch of input) {
+    if (escaping) {
+      current += ch;
+      escaping = false;
+      tokenStarted = true;
+      continue;
+    }
+    if (quote) {
+      if (quote === "single" && ch === "'" || quote === "double" && ch === '"') {
+        quote = void 0;
         continue;
       }
-      i++;
-      const val = next.replace(/^"|"$/g, "");
-      const prev = result2[key];
-      if (Array.isArray(prev)) {
-        prev.push(val);
-      } else if (prev !== void 0 && prev !== true) {
-        result2[key] = [prev, val];
-      } else {
-        result2[key] = val;
+      if (ch === "\\") {
+        escaping = true;
+        continue;
       }
-    } else {
-      result2._.push(t.replace(/^"|"$/g, ""));
+      current += ch;
+      tokenStarted = true;
+      continue;
     }
+    if (/\s/.test(ch)) {
+      push();
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch === "'" ? "single" : "double";
+      tokenStarted = true;
+      continue;
+    }
+    if (ch === "\\") {
+      escaping = true;
+      tokenStarted = true;
+      continue;
+    }
+    current += ch;
+    tokenStarted = true;
   }
-  return result2;
+  if (escaping) throw new Error("Unterminated escape sequence");
+  if (quote) throw new Error(`Unterminated ${quote} quote`);
+  push();
+  return tokens;
 }
-function toArray(val) {
-  if (Array.isArray(val)) return val.map(String);
-  if (val !== void 0 && val !== true) return [String(val)];
+function toArray(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (value !== void 0 && value !== true) return [String(value)];
   return [];
+}
+function parseArgs(input) {
+  const parsed = { _: [] };
+  const tokens = tokenize(input);
+  for (const [index, token] of tokens.entries()) {
+    if (!token.startsWith("--")) {
+      parsed._.push(token);
+      continue;
+    }
+    const key = token.slice(2);
+    const next = tokens[index + 1];
+    if (!next || next.startsWith("--")) parsed[key] = true;
+  }
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (!token.startsWith("--")) continue;
+    const key = token.slice(2);
+    const next = tokens[i + 1];
+    if (!next || next.startsWith("--")) continue;
+    i++;
+    const prev = parsed[key];
+    if (Array.isArray(prev)) prev.push(next);
+    else if (prev !== void 0 && prev !== true) parsed[key] = [prev, next];
+    else parsed[key] = next;
+  }
+  return parsed;
 }
 function zipAgentTask(argv) {
   const agents = toArray(argv.agent);
   const tasks = toArray(argv.task);
-  return agents.map((a, i) => ({ agent: a, task: tasks[i] ?? "" }));
+  return agents.map((agent, index) => ({ agent, task: tasks[index] ?? "" }));
 }
+
+// src/cli.ts
 function parseCommand(command) {
   const [head, ...rest] = command.split(" -- ");
   const task = rest.join(" -- ").trim();
   const argv = parseArgs(head);
-  const sub = String(argv._[0] ?? "");
-  switch (sub) {
+  switch (String(argv._[0] ?? "")) {
     case "run":
       return { type: "run", agent: String(argv._[1] ?? ""), task, main: Boolean(argv.main), cwd: argv.cwd ? String(argv.cwd) : void 0 };
     case "batch":
@@ -62,7 +114,67 @@ function parseCommand(command) {
     case "runs":
       return { type: "runs" };
     default:
-      throw new Error(`Unknown subcommand: ${sub}`);
+      throw new Error(`Unknown subcommand: ${String(argv._[0] ?? "")}`);
+  }
+}
+function normalizeInput(input) {
+  if (!input || typeof input !== "object" || !("type" in input)) throw new Error("Invalid subagent input");
+  const rawType = Reflect.get(input, "type");
+  if (typeof rawType !== "string") throw new Error("Unknown subcommand: ");
+  switch (input.type) {
+    case "run":
+      return { type: "run", agent: input.agent, task: input.task, main: Boolean(input.main), cwd: input.cwd };
+    case "batch":
+      return { type: "batch", items: input.items ?? [], main: Boolean(input.main) };
+    case "chain":
+      return { type: "chain", steps: input.steps ?? [], main: Boolean(input.main) };
+    case "continue":
+      return { type: "continue", id: input.id, task: input.task };
+    case "abort":
+      return { type: "abort", id: input.id };
+    case "detail":
+      return { type: "detail", id: input.id };
+    case "runs":
+      return { type: "runs" };
+    default:
+      throw new Error(`Unknown subcommand: ${rawType}`);
+  }
+}
+function subcommandToInput(cmd) {
+  switch (cmd.type) {
+    case "run":
+      return { type: "run", agent: cmd.agent, task: cmd.task, ...cmd.main ? { main: true } : {}, ...cmd.cwd ? { cwd: cmd.cwd } : {} };
+    case "batch":
+      return { type: "batch", items: cmd.items, ...cmd.main ? { main: true } : {} };
+    case "chain":
+      return { type: "chain", steps: cmd.steps, ...cmd.main ? { main: true } : {} };
+    case "continue":
+      return { type: "continue", id: cmd.id, task: cmd.task };
+    case "abort":
+      return { type: "abort", id: cmd.id };
+    case "detail":
+      return { type: "detail", id: cmd.id };
+    case "runs":
+      return { type: "runs" };
+  }
+}
+var quoteArg = (value) => JSON.stringify(value);
+function stringifyCommand(cmd) {
+  switch (cmd.type) {
+    case "run":
+      return `run ${cmd.agent}${cmd.main ? " --main" : ""}${cmd.cwd ? ` --cwd ${quoteArg(cmd.cwd)}` : ""} -- ${cmd.task}`;
+    case "batch":
+      return `batch${cmd.main ? " --main" : ""}${cmd.items.map((item) => ` --agent ${quoteArg(item.agent)} --task ${quoteArg(item.task)}`).join("")}`;
+    case "chain":
+      return `chain${cmd.main ? " --main" : ""}${cmd.steps.map((step) => ` --agent ${quoteArg(step.agent)} --task ${quoteArg(step.task)}`).join("")}`;
+    case "continue":
+      return `continue ${cmd.id} -- ${cmd.task}`;
+    case "abort":
+      return `abort ${cmd.id}`;
+    case "detail":
+      return `detail ${cmd.id}`;
+    case "runs":
+      return "runs";
   }
 }
 
@@ -949,16 +1061,16 @@ function onSessionRestore() {
 import { truncateToWidth as truncateToWidth2 } from "@mariozechner/pi-tui";
 function buildCallText(params) {
   try {
-    const cmd = parseCommand(params.command);
+    const cmd = normalizeInput(params);
     if (cmd.type === "run") return `\u25B6 subagent run ${cmd.agent} -- ${cmd.task}`;
     if (cmd.type === "batch") return `\u25B6 subagent batch (${cmd.items.length} tasks)`;
     if (cmd.type === "chain") return `\u25B6 subagent chain (${cmd.steps.length} steps)`;
     if (cmd.type === "continue") return `\u25B6 subagent continue #${cmd.id} -- ${cmd.task}`;
     if (cmd.type === "abort") return `\u25B6 subagent abort #${cmd.id}`;
     if (cmd.type === "detail") return `\u25B6 subagent detail #${cmd.id}`;
-    return `\u25B6 subagent ${params.command}`;
+    return `\u25B6 subagent ${stringifyCommand(cmd)}`;
   } catch {
-    return `\u25B6 subagent ${params.command}`;
+    return `\u25B6 subagent ${JSON.stringify(params)}`;
   }
 }
 function buildResultText(result2) {
@@ -1049,11 +1161,47 @@ function formatEvent(evt) {
   return [];
 }
 
-// src/types.ts
+// src/params.ts
 import { Type } from "@sinclair/typebox";
-var SubagentParams = Type.Object({
-  command: Type.String({ description: "Subcommand string (e.g. 'run scout -- find auth code')" })
-});
+var AgentTaskItem = Type.Object({
+  agent: Type.String({ description: "Subagent name" }),
+  task: Type.String({ description: "Full task text for that subagent" })
+}, { additionalProperties: false });
+var RunParams = Type.Object({
+  type: Type.Literal("run"),
+  agent: Type.String({ description: "Subagent name" }),
+  task: Type.String({ description: "Full task text for the subagent" }),
+  main: Type.Optional(Type.Boolean({ description: "Include summarized main-session context" })),
+  cwd: Type.Optional(Type.String({ description: "Optional working directory override" }))
+}, { additionalProperties: false });
+var BatchParams = Type.Object({
+  type: Type.Literal("batch"),
+  items: Type.Array(AgentTaskItem, { description: "Parallel subagent tasks" }),
+  main: Type.Optional(Type.Boolean({ description: "Include summarized main-session context" }))
+}, { additionalProperties: false });
+var ChainParams = Type.Object({
+  type: Type.Literal("chain"),
+  steps: Type.Array(AgentTaskItem, { description: "Sequential subagent steps" }),
+  main: Type.Optional(Type.Boolean({ description: "Include summarized main-session context" }))
+}, { additionalProperties: false });
+var ContinueParams = Type.Object({
+  type: Type.Literal("continue"),
+  id: Type.Number({ description: "Run ID to continue" }),
+  task: Type.String({ description: "Follow-up message for the existing run" })
+}, { additionalProperties: false });
+var IdOnlyParams = (type, description) => Type.Object({
+  type: Type.Literal(type),
+  id: Type.Number({ description })
+}, { additionalProperties: false });
+var SubagentParams = Type.Union([
+  RunParams,
+  BatchParams,
+  ChainParams,
+  ContinueParams,
+  IdOnlyParams("abort", "Run ID to abort"),
+  IdOnlyParams("detail", "Run ID to inspect"),
+  Type.Object({ type: Type.Literal("runs") }, { additionalProperties: false })
+]);
 
 // src/tool.ts
 var result = (text, isError = false, details) => ({
@@ -1086,7 +1234,17 @@ var runChain = async (cmd, agents, ctx, onUpdate, signal) => {
   return result(buildResultText(out), !!out.error, { runTrees: [resultToRunTree(out)] });
 };
 var snippet = (agents) => `Dispatch subagents: ${agents.map((a) => `${a.name} (${a.description})`).join(", ") || "none loaded"}`;
-var guidelines = (agents) => ["Available agents:", ...agents.map((a) => `  - ${a.name}: ${a.description}`), "Command: run <agent> [--main] -- <task>", "Batch: batch --agent <a> --task <t> [--agent <a> --task <t> ...]", "Chain: chain --agent <a> --task <t> --agent <a> --task '{previous}'", "Manage: continue <id> -- <task>, abort <id>, detail <id>, runs", "The tool blocks until the subagent completes and returns the full result."];
+var guidelines = (agents) => [
+  "Available agents:",
+  ...agents.map((a) => `  - ${a.name}: ${a.description}`),
+  "Call the tool with parameters like:",
+  "  - { type: 'run', agent: 'scout', task: 'find auth code' }",
+  "  - { type: 'batch', items: [{ agent: 'worker', task: 'implement login' }, { agent: 'reviewer', task: 'review login change' }] }",
+  "  - { type: 'chain', steps: [{ agent: 'scout', task: 'find auth flow' }, { agent: 'worker', task: '{previous}' }] }",
+  "  - { type: 'continue', id: 12, task: 'answer the question above' }",
+  "  - { type: 'abort', id: 12 } / { type: 'detail', id: 12 } / { type: 'runs' }",
+  "The tool blocks until the subagent completes and returns the full result."
+];
 function createTool(pi, agentsDir) {
   const agents = existsSync2(agentsDir) ? loadAgentsFromDir(agentsDir, (d) => readdirSync(d).map(String), readFileSync) : [];
   return defineTool({
@@ -1098,7 +1256,7 @@ function createTool(pi, agentsDir) {
     parameters: SubagentParams,
     async execute(_id, params, signal, onUpdate, ctx) {
       try {
-        return await dispatch(parseCommand(params.command), agents, ctx, onUpdate, signal);
+        return await dispatch(normalizeInput(params), agents, ctx, onUpdate, signal);
       } catch (e) {
         return result(`Error: ${errorMsg2(e)}`, true);
       }
@@ -1129,6 +1287,14 @@ function buildHelpText(agentsDir) {
   ];
   return lines.join("\n");
 }
+function buildInvocationMessage(args) {
+  const payload = JSON.stringify(subcommandToInput(parseCommand(args)), null, 2);
+  return [
+    "Call the subagent tool immediately with these exact parameters.",
+    "Do not rewrite, summarize, or re-quote any task text.",
+    payload
+  ].join("\n\n");
+}
 function buildSubCommand(agentsDir, sendUserMessage) {
   return {
     description: "\uC11C\uBE0C\uC5D0\uC774\uC804\uD2B8 \uBA85\uB839 (run, batch, chain, continue, abort, detail, runs)",
@@ -1137,7 +1303,11 @@ function buildSubCommand(agentsDir, sendUserMessage) {
         ctx.ui.notify(buildHelpText(agentsDir), "info");
         return;
       }
-      sendUserMessage(`Use the subagent tool with command: ${args}`);
+      try {
+        sendUserMessage(buildInvocationMessage(args), { deliverAs: "steer" });
+      } catch (e) {
+        ctx.ui.notify(e instanceof Error ? e.message : String(e), "error");
+      }
     }
   };
 }

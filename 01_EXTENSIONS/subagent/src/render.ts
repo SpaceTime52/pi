@@ -1,20 +1,22 @@
 import { truncateToWidth } from "@mariozechner/pi-tui";
-import type { RunResult } from "./types.js";
+import type { RunResult, SubagentToolInput } from "./types.js";
 import { formatUsage, previewText } from "./format.js";
-import { parseCommand } from "./cli.js";
+import { normalizeInput, stringifyCommand } from "./cli.js";
 import { formatRunTrees } from "./run-tree.js";
 
-export function buildCallText(params: { command: string }): string {
+export function buildCallText(params: SubagentToolInput): string {
 	try {
-		const cmd = parseCommand(params.command);
+		const cmd = normalizeInput(params);
 		if (cmd.type === "run") return `▶ subagent run ${cmd.agent} -- ${cmd.task}`;
 		if (cmd.type === "batch") return `▶ subagent batch (${cmd.items.length} tasks)`;
 		if (cmd.type === "chain") return `▶ subagent chain (${cmd.steps.length} steps)`;
 		if (cmd.type === "continue") return `▶ subagent continue #${cmd.id} -- ${cmd.task}`;
 		if (cmd.type === "abort") return `▶ subagent abort #${cmd.id}`;
 		if (cmd.type === "detail") return `▶ subagent detail #${cmd.id}`;
-		return `▶ subagent ${params.command}`;
-	} catch { return `▶ subagent ${params.command}`; }
+		return `▶ subagent ${stringifyCommand(cmd)}`;
+	} catch {
+		return `▶ subagent ${JSON.stringify(params)}`;
+	}
 }
 
 export function buildResultText(result: RunResult): string {
@@ -40,7 +42,7 @@ function textComponent(text: string) {
 	};
 }
 
-export function renderCall(args: { command: string }) {
+export function renderCall(args: SubagentToolInput) {
 	return textComponent(buildCallText(args));
 }
 

@@ -4,35 +4,35 @@ import { buildCallText, buildResultText, renderCall, renderResult } from "../src
 
 describe("buildCallText", () => {
 	it("shows run command", () => {
-		expect(buildCallText({ command: "run scout -- find auth" })).toContain("scout");
+		expect(buildCallText({ type: "run", agent: "scout", task: "find auth" })).toContain("scout");
 	});
 
 	it("shows batch count", () => {
-		expect(buildCallText({ command: "batch --agent w --task a --agent r --task b" })).toContain("2");
+		expect(buildCallText({ type: "batch", items: [{ agent: "w", task: "a" }, { agent: "r", task: "b" }] })).toContain("2");
 	});
 
 	it("shows chain steps", () => {
-		expect(buildCallText({ command: "chain --agent s --task a --agent w --task b" })).toContain("chain");
+		expect(buildCallText({ type: "chain", steps: [{ agent: "s", task: "a" }, { agent: "w", task: "b" }] })).toContain("chain");
 	});
 
 	it("shows continue", () => {
-		expect(buildCallText({ command: "continue 3 -- more work" })).toContain("#3");
+		expect(buildCallText({ type: "continue", id: 3, task: "more work" })).toContain("#3");
 	});
 
 	it("shows detail", () => {
-		expect(buildCallText({ command: "detail 5" })).toContain("#5");
+		expect(buildCallText({ type: "detail", id: 5 })).toContain("#5");
 	});
 
 	it("shows runs", () => {
-		expect(buildCallText({ command: "runs" })).toContain("runs");
+		expect(buildCallText({ type: "runs" })).toContain("runs");
 	});
 
 	it("shows abort", () => {
-		expect(buildCallText({ command: "abort 5" })).toContain("#5");
+		expect(buildCallText({ type: "abort", id: 5 })).toContain("#5");
 	});
 
-	it("handles invalid command gracefully", () => {
-		expect(buildCallText({ command: "invalid stuff" })).toContain("invalid stuff");
+	it("falls back to JSON for invalid structured input", () => {
+		expect(buildCallText(JSON.parse('{"type":"wat"}'))).toContain('"type":"wat"');
 	});
 });
 
@@ -59,14 +59,19 @@ describe("buildResultText", () => {
 
 describe("renderCall", () => {
 	it("returns component with render method", () => {
-		const comp = renderCall({ command: "run scout -- find auth" });
+		const comp = renderCall({ type: "run", agent: "scout", task: "find auth" });
 		expect(comp.render(80)).toBeInstanceOf(Array);
 		expect(comp.render(80)[0]).toContain("scout");
 		comp.invalidate();
 	});
 
+	it("renders structured calls", () => {
+		const comp = renderCall({ type: "run", agent: "reviewer", task: "Review auth changes" });
+		expect(comp.render(80)[0]).toContain("reviewer");
+	});
+
 	it("truncates wide characters by visible width", () => {
-		const comp = renderCall({ command: "run challenger -- 너는 가위바위보 선수 A다. 다른 선수의 선택은 모른다고 가정하고, 가위/바위/보 중 하나를 독립적으로 선택하라." });
+		const comp = renderCall({ type: "run", agent: "challenger", task: "너는 가위바위보 선수 A다. 다른 선수의 선택은 모른다고 가정하고, 가위/바위/보 중 하나를 독립적으로 선택하라." });
 		const line = comp.render(40)[0] ?? "";
 		expect(visibleWidth(line)).toBeLessThanOrEqual(40);
 	});

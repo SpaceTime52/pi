@@ -22,7 +22,7 @@ import { createTool } from "../src/tool.js";
 
 const stubPi = () => ({ appendEntry: vi.fn() });
 const stubCtx = () => ({ hasUI: false, ui: { setWidget: vi.fn() }, sessionManager: { getBranch: (): unknown[] => [] } });
-const exec = async (cmd: string) => createTool(stubPi(), "/agents").execute("", { command: cmd }, undefined, undefined, stubCtx());
+const exec = async (input: { type: "runs" } | { type: "detail"; id: number }) => createTool(stubPi(), "/agents").execute("", input, undefined, undefined, stubCtx());
 
 describe("tool extra coverage", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
@@ -30,7 +30,7 @@ describe("tool extra coverage", () => {
 	it("includes task snippets and nested tree summaries in runs", async () => {
 		addRun({ id: 1, agent: "scout", task: "find auth code in the repo", startedAt: Date.now(), abort: () => {} });
 		addToHistory({ id: 2, agent: "scout", task: "review patch", error: "boom", runTrees: [{ id: 3, agent: "reviewer", status: "ok", children: [{ id: 4, agent: "verifier", status: "error", error: "bad" }] }] });
-		const r = await exec("runs");
+		const r = await exec({ type: "runs" });
 		expect(r.content[0].text).toContain("find auth code in the repo");
 		expect(r.content[0].text).toContain("review patch");
 		expect(r.content[0].text).toContain("[error]");
@@ -59,7 +59,7 @@ describe("tool extra coverage", () => {
 				{ type: "noop" },
 			],
 		});
-		const r = await exec("detail 7");
+		const r = await exec({ type: "detail", id: 7 });
 		expect(r.content[0].text).toContain("task: investigate");
 		expect(r.content[0].text).toContain("session: /tmp/subagent.json");
 		expect(r.content[0].text).toContain("status: error — failed");

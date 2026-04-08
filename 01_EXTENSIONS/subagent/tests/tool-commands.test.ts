@@ -10,29 +10,35 @@ vi.mock("fs", async (orig) => {
 vi.mock("../src/spawn.js", () => ({ spawnAndCollect: vi.fn().mockResolvedValue({ id: 1, agent: "scout", output: "found", usage: { inputTokens: 10, outputTokens: 5, turns: 1 } }) }));
 
 import { createTool } from "../src/tool.js";
-import type { SubagentPi } from "../src/types.js";
+import type { SubagentPi, SubagentToolInput } from "../src/types.js";
 
 const stubPi = (): SubagentPi => ({ appendEntry: vi.fn() });
 const stubCtx = () => ({ hasUI: false, ui: { setWidget: vi.fn() }, sessionManager: { getBranch: (): unknown[] => [] } });
-const exec = async (cmd: string) => createTool(stubPi(), "/agents").execute("", { command: cmd }, undefined, undefined, stubCtx());
+const exec = async (input: SubagentToolInput) => createTool(stubPi(), "/agents").execute("", input, undefined, undefined, stubCtx());
 
 describe("createTool commands", () => {
 	beforeEach(() => { vi.clearAllMocks(); resetStore(); resetSession(); });
 
 	it("handles invalid, run, batch, chain, and continue commands", async () => {
-		expect((await exec("invalid")).details.isError).toBe(true);
-		expect((await exec("run unknown -- task")).content[0].text).toContain("Unknown agent");
-		expect((await exec("run scout -- find auth")).content[0].text).toContain("scout");
-		expect((await exec("batch --agent scout --task find")).content[0].text).toContain("scout");
-		expect((await exec("chain --agent scout --task find")).content[0].text).toContain("scout");
-		expect((await exec("continue 999 -- more")).content[0].text).toContain("not found");
+		expect((await exec({ type: "run", agent: "unknown", task: "task" })).details.isError).toBe(true);
+		expect((await exec({ type: "run", agent: "unknown", task: "task" })).content[0].text).toContain("Unknown agent");
+		expect((await exec({ type: "run", agent: "scout", task: "find auth" })).content[0].text).toContain("scout");
+		expect((await exec({ type: "batch", items: [{ agent: "scout", task: "find" }] })).content[0].text).toContain("scout");
+		expect((await exec({ type: "chain", steps: [{ agent: "scout", task: "find" }] })).content[0].text).toContain("scout");
+		expect((await exec({ type: "continue", id: 999, task: "more" })).content[0].text).toContain("not found");
 		addToHistory({ id: 1, agent: "scout", output: "ok", sessionFile: "/tmp/s.json" });
-		expect((await exec("continue 1 -- more")).content[0].text).toContain("scout");
+		expect((await exec({ type: "continue", id: 1, task: "more" })).content[0].text).toContain("scout");
+	});
+
+	it("supports structured tool inputs", async () => {
+		expect((await exec({ type: "run", agent: "scout", task: "find auth" })).content[0].text).toContain("scout");
+		expect((await exec({ type: "batch", items: [{ agent: "scout", task: "find auth" }] })).content[0].text).toContain("scout");
+		expect((await exec({ type: "chain", steps: [{ agent: "scout", task: "find auth" }] })).content[0].text).toContain("scout");
 	});
 
 	it("aborts active runs and reports missing ids", async () => {
 		addRun({ id: 10, agent: "scout", startedAt: Date.now(), abort: vi.fn() });
-		expect((await exec("abort 10")).content[0].text).toContain("aborted");
-		expect((await exec("abort 999")).content[0].text).toContain("not found");
+		expect((await exec({ type: "abort", id: 10 })).content[0].text).toContain("aborted");
+		expect((await exec({ type: "abort", id: 999 })).content[0].text).toContain("not found");
 	});
 });

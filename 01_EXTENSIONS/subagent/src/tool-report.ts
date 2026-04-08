@@ -2,6 +2,7 @@ import { previewText } from "./format.js";
 import { formatRunTrees } from "./run-tree.js";
 import { listRuns } from "./store.js";
 import { getRunHistory } from "./session.js";
+import type { RunTree } from "./types.js";
 
 export function formatRunsList(): string {
 	const active = listRuns();
@@ -16,7 +17,7 @@ function formatRunSummary(r: { id: number; agent: string; task?: string; error?:
 	return `  #${r.id} ${r.agent}${r.task ? ` — ${previewText(r.task, 80)}` : ""}${r.error ? " [error]" : ""}`;
 }
 
-function formatHistoryRun(r: { id: number; agent: string; task?: string; error?: string; runTrees?: unknown[] }) {
+function formatHistoryRun(r: { id: number; agent: string; task?: string; error?: string; runTrees?: RunTree[] }) {
 	const lines = [formatRunSummary(r)];
 	if (Array.isArray(r.runTrees) && r.runTrees.length > 0) {
 		lines.push(...formatRunTrees(r.runTrees).map((line) => `    ${line}`));
