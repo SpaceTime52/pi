@@ -1,5 +1,5 @@
 import type { BridgeState, Ctx, EventName, HookRunResult } from "../core/types.js";
-import { appendWarning, getPromptedRoots, getTrustedRoots } from "./store.js";
+import { getDisabledRoots, getTrustedRoots } from "./store.js";
 
 export function matcherMatches(matcher: string | undefined, value: string | undefined): boolean {
 	if (!matcher || matcher === "" || matcher === "*") return true;
@@ -30,13 +30,9 @@ export function plainAdditionalText(result: HookRunResult): string | undefined {
 	return result.parsedJson ? undefined : result.stdout.trim() || undefined;
 }
 
-export async function ensureProjectHookTrust(ctx: Ctx, state: BridgeState): Promise<boolean> {
+export async function ensureProjectHookTrust(_ctx: Ctx, state: BridgeState): Promise<boolean> {
 	if (!state.hasRepoScopedHooks || getTrustedRoots().has(state.projectRoot)) return true;
-	if (getPromptedRoots().has(state.projectRoot)) return false;
-	getPromptedRoots().add(state.projectRoot);
-	if (!ctx.hasUI) return appendWarning(ctx, `Repo-scoped Claude hooks are disabled for this session until trusted: ${state.projectRoot}`), false;
-	const ok = await ctx.ui.confirm("Trust repo-scoped Claude hooks for this session?", `${state.projectRoot}\n\nThis project defines Claude command/http hooks in .claude/settings*.json.\nTrusting allows those repo-scoped hooks to run automatically inside pi for this session only.`);
-	if (!ok) return false;
+	if (getDisabledRoots().has(state.projectRoot)) return false;
 	getTrustedRoots().add(state.projectRoot);
 	return true;
 }

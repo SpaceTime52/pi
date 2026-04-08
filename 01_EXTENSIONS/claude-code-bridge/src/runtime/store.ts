@@ -8,7 +8,7 @@ let queuedHookContext: string[] = [];
 let stopHookActive = false;
 const warned = new Set<string>();
 const trustedRoots = new Set<string>();
-const promptedRoots = new Set<string>();
+const disabledRoots = new Set<string>();
 
 export function getState() {
 	return activeState;
@@ -17,6 +17,7 @@ export function getState() {
 export async function refreshState(ctx: Ctx): Promise<BridgeState> {
 	const next = await loadState(ctx.cwd);
 	if (activeState) next.activeConditionalRuleIds = activeState.activeConditionalRuleIds;
+	if (next.hasRepoScopedHooks && !disabledRoots.has(next.projectRoot)) trustedRoots.add(next.projectRoot);
 	activeState = next;
 	for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
 	return next;
@@ -57,13 +58,13 @@ export function getTrustedRoots() {
 	return trustedRoots;
 }
 
-export function getPromptedRoots() {
-	return promptedRoots;
+export function getDisabledRoots() {
+	return disabledRoots;
 }
 
 export function clearTrustState() {
 	trustedRoots.clear();
-	promptedRoots.clear();
+	disabledRoots.clear();
 }
 
 export function clearSessionState() {

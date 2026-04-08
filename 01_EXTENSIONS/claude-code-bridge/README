@@ -28,19 +28,19 @@ FEATURES
   - user scope Claude env를 bash / ! 명령 앞에 주입
   - user-scope HTTP hook의 allowedHttpHookUrls / httpHookAllowedEnvVars 제한 반영
   - FileChanged top-level watchPaths 반영
-  - repo-scoped hook은 세션 단위 trust 확인 후 실행
+  - repo-scoped hook은 기본적으로 자동 실행되고, 필요하면 세션 단위로 비활성화 가능
 
 SAFETY
   - ~/.pi 아래에 자체 파일을 쓰지 않음
   - project/local Claude env는 무시
   - project/local httpHookAllowedEnvVars / allowedHttpHookUrls / claudeMdExcludes 는 무시
   - project/local import는 repo 경로 밖으로 못 나감
-  - repo-scoped command/http/prompt/agent hook은 기본 비신뢰 상태
+  - repo-scoped command/http/prompt/agent hook은 기본 활성 상태이며, 세션 단위로 비활성화 가능
 
 COMMANDS
   /claude-bridge                현재 탐지 상태 표시
-  /claude-bridge-trust-hooks    현재 프로젝트 hook을 이번 세션에서 신뢰
-  /claude-bridge-untrust-hooks  현재 프로젝트 hook 신뢰 해제
+  /claude-bridge-trust-hooks    현재 프로젝트 hook을 이번 세션에서 활성화
+  /claude-bridge-untrust-hooks  현재 프로젝트 hook을 이번 세션에서 비활성화
 
 LIMITS
   - Claude Code 전체 스펙 완전 호환은 아님

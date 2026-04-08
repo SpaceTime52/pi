@@ -548,13 +548,14 @@ var queuedHookContext = [];
 var stopHookActive = false;
 var warned = /* @__PURE__ */ new Set();
 var trustedRoots = /* @__PURE__ */ new Set();
-var promptedRoots = /* @__PURE__ */ new Set();
+var disabledRoots = /* @__PURE__ */ new Set();
 function getState() {
   return activeState;
 }
 async function refreshState(ctx) {
   const next = await loadState(ctx.cwd);
   if (activeState) next.activeConditionalRuleIds = activeState.activeConditionalRuleIds;
+  if (next.hasRepoScopedHooks && !disabledRoots.has(next.projectRoot)) trustedRoots.add(next.projectRoot);
   activeState = next;
   for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
   return next;
@@ -588,12 +589,12 @@ function setStopHookActive(value) {
 function getTrustedRoots() {
   return trustedRoots;
 }
-function getPromptedRoots() {
-  return promptedRoots;
+function getDisabledRoots() {
+  return disabledRoots;
 }
 function clearTrustState() {
   trustedRoots.clear();
-  promptedRoots.clear();
+  disabledRoots.clear();
 }
 function clearSessionState() {
   activeState = null;
@@ -628,16 +629,9 @@ function hookSpecificOutput(result, eventName) {
 function plainAdditionalText(result) {
   return result.parsedJson ? void 0 : result.stdout.trim() || void 0;
 }
-async function ensureProjectHookTrust(ctx, state) {
+async function ensureProjectHookTrust(_ctx, state) {
   if (!state.hasRepoScopedHooks || getTrustedRoots().has(state.projectRoot)) return true;
-  if (getPromptedRoots().has(state.projectRoot)) return false;
-  getPromptedRoots().add(state.projectRoot);
-  if (!ctx.hasUI) return appendWarning(ctx, `Repo-scoped Claude hooks are disabled for this session until trusted: ${state.projectRoot}`), false;
-  const ok = await ctx.ui.confirm("Trust repo-scoped Claude hooks for this session?", `${state.projectRoot}
-
-This project defines Claude command/http hooks in .claude/settings*.json.
-Trusting allows those repo-scoped hooks to run automatically inside pi for this session only.`);
-  if (!ok) return false;
+  if (getDisabledRoots().has(state.projectRoot)) return false;
   getTrustedRoots().add(state.projectRoot);
   return true;
 }
@@ -1056,16 +1050,17 @@ function createClaudeBridgeCommand() {
   } };
 }
 function createTrustHooksCommand() {
-  return { description: "Trust repo-scoped Claude hooks for the current project in this session", handler: async (_args, ctx) => {
+  return { description: "Enable repo-scoped Claude hooks for the current project in this session", handler: async (_args, ctx) => {
     const state = await refreshState(ctx);
+    getDisabledRoots().delete(state.projectRoot);
     getTrustedRoots().add(state.projectRoot);
   } };
 }
 function createUntrustHooksCommand() {
   return { description: "Disable repo-scoped Claude hooks for the current project in this session", handler: async (_args, ctx) => {
     const state = await refreshState(ctx);
+    getDisabledRoots().add(state.projectRoot);
     getTrustedRoots().delete(state.projectRoot);
-    getPromptedRoots().delete(state.projectRoot);
     clearDynamicWatchPaths(state.projectRoot, state.fileWatchBasenames);
   } };
 }

@@ -1,6 +1,6 @@
 import type { Ctx } from "../core/types.js";
 import { clearDynamicWatchPaths } from "./watch-reset.js";
-import { compactWarnings, getPromptedRoots, getTrustedRoots, refreshState } from "./store.js";
+import { compactWarnings, getDisabledRoots, getTrustedRoots, refreshState } from "./store.js";
 
 export function createClaudeBridgeCommand() {
 	return { description: "Show Claude Code bridge status for the current cwd", handler: async (_args: string, ctx: Ctx) => {
@@ -14,8 +14,9 @@ export function createClaudeBridgeCommand() {
 }
 
 export function createTrustHooksCommand() {
-	return { description: "Trust repo-scoped Claude hooks for the current project in this session", handler: async (_args: string, ctx: Ctx) => {
+	return { description: "Enable repo-scoped Claude hooks for the current project in this session", handler: async (_args: string, ctx: Ctx) => {
 		const state = await refreshState(ctx);
+		getDisabledRoots().delete(state.projectRoot);
 		getTrustedRoots().add(state.projectRoot);
 	} };
 }
@@ -23,8 +24,8 @@ export function createTrustHooksCommand() {
 export function createUntrustHooksCommand() {
 	return { description: "Disable repo-scoped Claude hooks for the current project in this session", handler: async (_args: string, ctx: Ctx) => {
 		const state = await refreshState(ctx);
+		getDisabledRoots().add(state.projectRoot);
 		getTrustedRoots().delete(state.projectRoot);
-		getPromptedRoots().delete(state.projectRoot);
 		clearDynamicWatchPaths(state.projectRoot, state.fileWatchBasenames);
 	} };
 }
