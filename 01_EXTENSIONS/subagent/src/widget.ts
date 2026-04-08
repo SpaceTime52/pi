@@ -1,10 +1,10 @@
 import { previewText } from "./format.js";
-import { buildCompletedWidgetComponent, buildCompletedWidgetLines, buildNestedRunSnapshots, buildNestedRunSnapshotsForRun, buildWidgetComponent, buildWidgetLinesWithFrame, type CompletedRun, type MinimalRun } from "./widget-view.js";
+import { buildNestedRunSnapshots, buildNestedRunSnapshotsForRun, buildWidgetComponent, buildWidgetLinesWithFrame, type MinimalRun } from "./widget-view.js";
 import { clearNestedRunsState, clearToolStateState, resetWidgetStore, setActivity, setNestedRunsState } from "./widget-state.js";
 import type { NestedRunSnapshot } from "./types.js";
 
 interface MinimalCtx { hasUI: boolean; ui: { setWidget(key: string, content: unknown, opts?: unknown): void } }
-let frame = 0, timerCtx: MinimalCtx | undefined, timerRuns: (() => MinimalRun[]) | undefined, timerId: ReturnType<typeof setInterval> | undefined, completedWidget: unknown | undefined;
+let frame = 0, timerCtx: MinimalCtx | undefined, timerRuns: (() => MinimalRun[]) | undefined, timerId: ReturnType<typeof setInterval> | undefined;
 
 export function setCurrentTool(runId: number, toolName: string | undefined, preview?: string): void {
 	if (!toolName) { setActivity(runId, undefined); return; }
@@ -18,19 +18,10 @@ export const buildNestedRunSnapshotsForRunId = buildNestedRunSnapshotsForRun;
 export const buildNestedRunSnapshotsFromRuns = buildNestedRunSnapshots;
 export const advanceFrame = () => void frame++;
 export const buildWidgetLines = (runs: MinimalRun[], now: number) => buildWidgetLinesWithFrame(runs, now, frame);
-export { buildCompletedWidgetLines };
-
-export function rememberCompletedRun(run: CompletedRun): void {
-	completedWidget = buildCompletedWidgetComponent(run);
-}
 
 export function syncWidget(ctx: MinimalCtx, runs: MinimalRun[]): void {
 	if (!ctx.hasUI) return;
-	if (runs.length === 0) {
-		ctx.ui.setWidget("subagent-status", completedWidget, completedWidget ? { placement: "belowEditor" } : undefined);
-		return;
-	}
-	completedWidget = undefined;
+	if (runs.length === 0) { ctx.ui.setWidget("subagent-status", undefined); return; }
 	ctx.ui.setWidget("subagent-status", buildWidgetComponent(runs, Date.now(), frame), { placement: "belowEditor" });
 }
 
@@ -51,5 +42,5 @@ export function stopWidgetTimer(): void {
 }
 
 export function clearToolState(runId: number): void { clearToolStateState(runId); }
-export function resetWidgetState(): void { resetWidgetStore(); frame = 0; completedWidget = undefined; stopWidgetTimer(); }
+export function resetWidgetState(): void { resetWidgetStore(); frame = 0; stopWidgetTimer(); }
 export { buildNestedRunSnapshotsFromRuns as buildNestedRunSnapshots, buildNestedRunSnapshotsForRunId as buildNestedRunSnapshotsForRun };
