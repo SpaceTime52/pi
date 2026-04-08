@@ -1,5 +1,5 @@
 import { previewText } from "./format.js";
-import { buildNestedRunSnapshots, buildNestedRunSnapshotsForRun, buildWidgetComponent, buildWidgetLinesWithFrame, type MinimalRun } from "./widget-view.js";
+import { buildCompletedWidgetComponent, buildCompletedWidgetLines, buildNestedRunSnapshots, buildNestedRunSnapshotsForRun, buildWidgetComponent, buildWidgetLinesWithFrame, type CompletedRun, type MinimalRun } from "./widget-view.js";
 import { clearNestedRunsState, clearToolStateState, resetWidgetStore, setActivity, setNestedRunsState } from "./widget-state.js";
 import type { NestedRunSnapshot } from "./types.js";
 
@@ -18,10 +18,10 @@ export const buildNestedRunSnapshotsForRunId = buildNestedRunSnapshotsForRun;
 export const buildNestedRunSnapshotsFromRuns = buildNestedRunSnapshots;
 export const advanceFrame = () => void frame++;
 export const buildWidgetLines = (runs: MinimalRun[], now: number) => buildWidgetLinesWithFrame(runs, now, frame);
+export { buildCompletedWidgetLines };
 
-export function rememberCompletedWidget(runs: MinimalRun[]): void {
-	if (runs.length === 0) return;
-	completedWidget = buildWidgetComponent(runs, Date.now(), frame);
+export function rememberCompletedRun(run: CompletedRun): void {
+	completedWidget = buildCompletedWidgetComponent(run);
 }
 
 export function syncWidget(ctx: MinimalCtx, runs: MinimalRun[]): void {

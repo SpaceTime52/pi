@@ -165,130 +165,6 @@ function previewText(text, max = 80) {
 // src/widget-view.ts
 import { truncateToWidth } from "@mariozechner/pi-tui";
 
-// src/widget-state.ts
-var activity = /* @__PURE__ */ new Map();
-var lastEvent = /* @__PURE__ */ new Map();
-var nested = /* @__PURE__ */ new Map();
-var getActivity = (runId) => activity.get(runId);
-var getLastEventTime = (runId) => lastEvent.get(runId);
-var getNestedRuns = (runId) => nested.get(runId) ?? [];
-function setActivity(runId, value) {
-  lastEvent.set(runId, Date.now());
-  if (value) activity.set(runId, value);
-  else activity.delete(runId);
-}
-function setNestedRunsState(runId, runs) {
-  if (!runs?.length) {
-    nested.delete(runId);
-    return;
-  }
-  nested.set(runId, runs.map((run) => ({ ...run })));
-}
-var clearNestedRunsState = (runId) => void nested.delete(runId);
-function clearToolStateState(runId) {
-  activity.delete(runId);
-  lastEvent.delete(runId);
-}
-
-// src/widget-view.ts
-var VISIBLE_ROOTS = 3;
-var SCROLL_FRAMES_PER_STEP = 10;
-var IDLE_MS = 12e4;
-var SPINNER = "\u280B\u2819\u2839\u2838\u283C\u2834\u2826\u2827\u2807\u280F";
-var offset = (runs, depth) => runs.map((run) => ({ ...run, depth: run.depth + depth }));
-var snapshots = (run) => [{
-  id: run.id,
-  agent: run.agent,
-  task: run.task,
-  startedAt: run.startedAt,
-  depth: 1,
-  activity: getActivity(run.id),
-  lastEventAt: getLastEventTime(run.id)
-}, ...offset(getNestedRuns(run.id), 1)];
-var visibleRoots = (runs, frame2) => runs.length <= VISIBLE_ROOTS ? runs : Array.from({ length: VISIBLE_ROOTS }, (_, i) => runs[(Math.floor(frame2 / SCROLL_FRAMES_PER_STEP) + i) % runs.length]).filter(Boolean);
-function display(run, now, spin) {
-  const last = run.depth > 0 ? run.lastEventAt ?? run.startedAt : run.lastEventAt ?? getLastEventTime(run.id) ?? run.startedAt;
-  const idle = now - last > IDLE_MS, branch = run.depth > 0 ? `${"  ".repeat(run.depth - 1)}\u21B3 ` : "";
-  const activity2 = run.depth > 0 ? run.activity : run.activity ?? getActivity(run.id);
-  const task = run.task ? ` \u2014 ${previewText(run.task, 28)}` : "", prefix = idle ? "\u23F8" : spin;
-  const suffix = idle ? ` idle ${formatDuration(now - last)}` : activity2 ? ` \u2192 ${activity2}` : "";
-  return { text: `${branch}${prefix} ${run.agent} #${run.id}${task} (${formatDuration(now - run.startedAt)})${suffix}`, depth: run.depth, idle };
-}
-function entries(runs, now, frame2) {
-  const roots = visibleRoots(runs, frame2), spin = SPINNER[frame2 % SPINNER.length];
-  const shown = roots.flatMap((run) => [{ ...run, depth: 0, activity: getActivity(run.id), lastEventAt: getLastEventTime(run.id) }, ...getNestedRuns(run.id)]);
-  const info = runs.length <= VISIBLE_ROOTS || roots.length === 0 ? void 0 : { text: `\u21C5 roots ${roots.map((_, i) => (runs.findIndex((run) => run.id === roots[0]?.id) + i) % runs.length + 1).join(",")} / ${runs.length}`, depth: 0, idle: false, meta: true };
-  return [...shown.map((run) => display(run, now, spin)), ...info ? [info] : []];
-}
-var tone = (entry) => entry.meta ? "dim" : entry.idle ? entry.depth === 0 ? "warning" : "dim" : entry.depth === 0 ? "accent" : entry.depth === 1 ? "muted" : "dim";
-var buildNestedRunSnapshotsForRun = (run) => run ? snapshots(run) : [];
-function buildWidgetComponent(runs, now, frame2) {
-  const rendered = entries(runs, now, frame2);
-  return (_tui, theme) => ({
-    render(width) {
-      return rendered.map((entry) => truncateToWidth(theme.fg(tone(entry), entry.text), Math.max(0, width)));
-    },
-    invalidate() {
-    }
-  });
-}
-
-// src/widget.ts
-var frame = 0;
-var timerCtx;
-var timerRuns;
-var timerId;
-var completedWidget;
-function setCurrentTool(runId, toolName2, preview) {
-  if (!toolName2) {
-    setActivity(runId, void 0);
-    return;
-  }
-  setActivity(runId, preview ? `${toolName2}: ${previewText(preview, 30)}` : toolName2);
-}
-var setCurrentMessage = (runId, preview) => setActivity(runId, preview ? `reply: ${previewText(preview, 30)}` : void 0);
-var setNestedRuns = (runId, runs) => setNestedRunsState(runId, runs);
-var clearNestedRuns = (runId) => clearNestedRunsState(runId);
-var buildNestedRunSnapshotsForRunId = buildNestedRunSnapshotsForRun;
-function rememberCompletedWidget(runs) {
-  if (runs.length === 0) return;
-  completedWidget = buildWidgetComponent(runs, Date.now(), frame);
-}
-function syncWidget(ctx, runs) {
-  if (!ctx.hasUI) return;
-  if (runs.length === 0) {
-    ctx.ui.setWidget("subagent-status", completedWidget, completedWidget ? { placement: "belowEditor" } : void 0);
-    return;
-  }
-  completedWidget = void 0;
-  ctx.ui.setWidget("subagent-status", buildWidgetComponent(runs, Date.now(), frame), { placement: "belowEditor" });
-}
-function startWidgetTimer(ctx, getRuns) {
-  stopWidgetTimer();
-  timerCtx = ctx;
-  timerRuns = getRuns;
-  timerId = setInterval(() => {
-    frame++;
-    if (timerCtx && timerRuns) syncWidget(timerCtx, timerRuns());
-  }, 150);
-}
-function stopWidgetTimer() {
-  if (timerId) {
-    clearInterval(timerId);
-    timerId = void 0;
-  }
-  timerCtx = void 0;
-  timerRuns = void 0;
-}
-function clearToolState(runId) {
-  clearToolStateState(runId);
-}
-
-// src/run-factory.ts
-import { writeFileSync } from "fs";
-import { tmpdir as tmpdir2 } from "os";
-import { join as join3 } from "path";
-
 // src/run-tree.ts
 function statusForResult(result2) {
   if (result2.error) return "error";
@@ -352,6 +228,163 @@ function isRunTree(value) {
   return true;
 }
 
+// src/widget-state.ts
+var activity = /* @__PURE__ */ new Map();
+var lastEvent = /* @__PURE__ */ new Map();
+var nested = /* @__PURE__ */ new Map();
+var getActivity = (runId) => activity.get(runId);
+var getLastEventTime = (runId) => lastEvent.get(runId);
+var getNestedRuns = (runId) => nested.get(runId) ?? [];
+function setActivity(runId, value) {
+  lastEvent.set(runId, Date.now());
+  if (value) activity.set(runId, value);
+  else activity.delete(runId);
+}
+function setNestedRunsState(runId, runs) {
+  if (!runs?.length) {
+    nested.delete(runId);
+    return;
+  }
+  nested.set(runId, runs.map((run) => ({ ...run })));
+}
+var clearNestedRunsState = (runId) => void nested.delete(runId);
+function clearToolStateState(runId) {
+  activity.delete(runId);
+  lastEvent.delete(runId);
+}
+
+// src/widget-view.ts
+var VISIBLE_ROOTS = 3;
+var SCROLL_FRAMES_PER_STEP = 10;
+var IDLE_MS = 12e4;
+var SPINNER = "\u280B\u2819\u2839\u2838\u283C\u2834\u2826\u2827\u2807\u280F";
+var offset = (runs, depth) => runs.map((run) => ({ ...run, depth: run.depth + depth }));
+var snapshots = (run) => [{
+  id: run.id,
+  agent: run.agent,
+  task: run.task,
+  startedAt: run.startedAt,
+  depth: 1,
+  activity: getActivity(run.id),
+  lastEventAt: getLastEventTime(run.id)
+}, ...offset(getNestedRuns(run.id), 1)];
+var visibleRoots = (runs, frame2) => runs.length <= VISIBLE_ROOTS ? runs : Array.from({ length: VISIBLE_ROOTS }, (_, i) => runs[(Math.floor(frame2 / SCROLL_FRAMES_PER_STEP) + i) % runs.length]).filter(Boolean);
+function display(run, now, spin) {
+  const last = run.depth > 0 ? run.lastEventAt ?? run.startedAt : run.lastEventAt ?? getLastEventTime(run.id) ?? run.startedAt;
+  const idle = now - last > IDLE_MS, branch = run.depth > 0 ? `${"  ".repeat(run.depth - 1)}\u21B3 ` : "";
+  const activity2 = run.depth > 0 ? run.activity : run.activity ?? getActivity(run.id);
+  const task = run.task ? ` \u2014 ${previewText(run.task, 28)}` : "", prefix = idle ? "\u23F8" : spin;
+  const suffix = idle ? ` idle ${formatDuration(now - last)}` : activity2 ? ` \u2192 ${activity2}` : "";
+  return { text: `${branch}${prefix} ${run.agent} #${run.id}${task} (${formatDuration(now - run.startedAt)})${suffix}`, depth: run.depth, idle };
+}
+function entries(runs, now, frame2) {
+  const roots = visibleRoots(runs, frame2), spin = SPINNER[frame2 % SPINNER.length];
+  const shown = roots.flatMap((run) => [{ ...run, depth: 0, activity: getActivity(run.id), lastEventAt: getLastEventTime(run.id) }, ...getNestedRuns(run.id)]);
+  const info = runs.length <= VISIBLE_ROOTS || roots.length === 0 ? void 0 : { text: `\u21C5 roots ${roots.map((_, i) => (runs.findIndex((run) => run.id === roots[0]?.id) + i) % runs.length + 1).join(",")} / ${runs.length}`, depth: 0, idle: false, meta: true };
+  return [...shown.map((run) => display(run, now, spin)), ...info ? [info] : []];
+}
+function tone(entry) {
+  if (entry.meta) return "dim";
+  if (entry.status) return entry.status === "ok" ? "accent" : "warning";
+  if (entry.idle) return entry.depth === 0 ? "warning" : "dim";
+  return entry.depth === 0 ? "accent" : entry.depth === 1 ? "muted" : "dim";
+}
+function completedIcon(status) {
+  if (status === "error") return "\u2717";
+  if (status === "escalation") return "\u26A0";
+  return "\u2713";
+}
+function completedSummary(run) {
+  return run.summary ? ` \u2014 ${previewText(run.summary, 36)}` : "";
+}
+function completedEntries(run) {
+  const task = run.task ? ` \u2014 ${previewText(run.task, 28)}` : "";
+  const lines = [{
+    text: `${completedIcon(run.status)} ${run.agent} #${run.id}${task} (${formatDuration(Math.max(0, run.finishedAt - run.startedAt))})${completedSummary(run)}`,
+    depth: 0,
+    idle: false,
+    status: run.status
+  }];
+  for (const line of formatRunTrees(run.runTrees).slice(0, 4)) lines.push({ text: `  ${line}`, depth: 1, idle: false });
+  return lines;
+}
+var buildNestedRunSnapshotsForRun = (run) => run ? snapshots(run) : [];
+function buildWidgetComponent(runs, now, frame2) {
+  const rendered = entries(runs, now, frame2);
+  return (_tui, theme) => ({
+    render(width) {
+      return rendered.map((entry) => truncateToWidth(theme.fg(tone(entry), entry.text), Math.max(0, width)));
+    },
+    invalidate() {
+    }
+  });
+}
+function buildCompletedWidgetComponent(run) {
+  const rendered = completedEntries(run);
+  return (_tui, theme) => ({
+    render(width) {
+      return rendered.map((entry) => truncateToWidth(theme.fg(tone(entry), entry.text), Math.max(0, width)));
+    },
+    invalidate() {
+    }
+  });
+}
+
+// src/widget.ts
+var frame = 0;
+var timerCtx;
+var timerRuns;
+var timerId;
+var completedWidget;
+function setCurrentTool(runId, toolName2, preview) {
+  if (!toolName2) {
+    setActivity(runId, void 0);
+    return;
+  }
+  setActivity(runId, preview ? `${toolName2}: ${previewText(preview, 30)}` : toolName2);
+}
+var setCurrentMessage = (runId, preview) => setActivity(runId, preview ? `reply: ${previewText(preview, 30)}` : void 0);
+var setNestedRuns = (runId, runs) => setNestedRunsState(runId, runs);
+var clearNestedRuns = (runId) => clearNestedRunsState(runId);
+var buildNestedRunSnapshotsForRunId = buildNestedRunSnapshotsForRun;
+function rememberCompletedRun(run) {
+  completedWidget = buildCompletedWidgetComponent(run);
+}
+function syncWidget(ctx, runs) {
+  if (!ctx.hasUI) return;
+  if (runs.length === 0) {
+    ctx.ui.setWidget("subagent-status", completedWidget, completedWidget ? { placement: "belowEditor" } : void 0);
+    return;
+  }
+  completedWidget = void 0;
+  ctx.ui.setWidget("subagent-status", buildWidgetComponent(runs, Date.now(), frame), { placement: "belowEditor" });
+}
+function startWidgetTimer(ctx, getRuns) {
+  stopWidgetTimer();
+  timerCtx = ctx;
+  timerRuns = getRuns;
+  timerId = setInterval(() => {
+    frame++;
+    if (timerCtx && timerRuns) syncWidget(timerCtx, timerRuns());
+  }, 150);
+}
+function stopWidgetTimer() {
+  if (timerId) {
+    clearInterval(timerId);
+    timerId = void 0;
+  }
+  timerCtx = void 0;
+  timerRuns = void 0;
+}
+function clearToolState(runId) {
+  clearToolStateState(runId);
+}
+
+// src/run-factory.ts
+import { writeFileSync } from "fs";
+import { tmpdir as tmpdir2 } from "os";
+import { join as join3 } from "path";
+
 // src/tool-names.ts
 var SUBAGENT_TOOL_PREFIX = "subagent_";
 var suffixes = ["run", "batch", "chain", "continue", "abort", "detail", "runs"];
@@ -368,8 +401,6 @@ function registerRun(id, agent, task, ctx, ac) {
   if (listRuns().length === 1) startWidgetTimer(ctx, listRuns);
 }
 function unregisterRun(id) {
-  const runs = listRuns();
-  if (runs.length === 1 && runs[0]?.id === id) rememberCompletedWidget(runs);
   clearNestedRuns(id);
   clearToolState(id);
   removeRun(id);
@@ -786,13 +817,43 @@ function ensureSessionDir(file) {
   const dir = dirname(file);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
+function statusForRun(result2) {
+  if (result2.error) return "error";
+  if (result2.escalation) return "escalation";
+  return "ok";
+}
 function finishRun(result2, sessionFile, events) {
+  const active2 = getRun(result2.id);
+  if (active2) {
+    rememberCompletedRun({
+      id: result2.id,
+      agent: result2.agent,
+      task: result2.task,
+      startedAt: active2.startedAt,
+      finishedAt: Date.now(),
+      status: statusForRun(result2),
+      summary: result2.error ?? result2.escalation ?? result2.stopReason,
+      runTrees: result2.runTrees
+    });
+  }
   addToHistory({ id: result2.id, agent: result2.agent, task: result2.task, output: result2.output, error: result2.error, sessionFile, events, runTrees: result2.runTrees });
   unregisterRun(result2.id);
   return result2;
 }
 function failRun(e, id, agent, task, sessionFile, events) {
-  addToHistory({ id, agent, task, output: "", error: errorMsg(e), sessionFile, events, runTrees: void 0 });
+  const active2 = getRun(id), message = errorMsg(e);
+  if (active2) {
+    rememberCompletedRun({
+      id,
+      agent,
+      task,
+      startedAt: active2.startedAt,
+      finishedAt: Date.now(),
+      status: "error",
+      summary: message
+    });
+  }
+  addToHistory({ id, agent, task, output: "", error: message, sessionFile, events, runTrees: void 0 });
   unregisterRun(id);
   throw e;
 }

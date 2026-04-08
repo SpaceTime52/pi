@@ -11,7 +11,6 @@ import {
 	clearNestedRuns,
 	clearToolState,
 	setCurrentMessage,
-	rememberCompletedWidget,
 	setCurrentTool,
 	setNestedRuns,
 	startWidgetTimer,
@@ -29,8 +28,6 @@ export function registerRun(id: number, agent: string, task: string, ctx: Dispat
 }
 
 export function unregisterRun(id: number) {
-	const runs = listRuns();
-	if (runs.length === 1 && runs[0]?.id === id) rememberCompletedWidget(runs);
 	clearNestedRuns(id);
 	clearToolState(id);
 	removeRun(id);

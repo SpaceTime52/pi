@@ -93,4 +93,5 @@ describe("buildWidgetLines", () => {
 		expect(lines[0]).not.toContain("⏸");
 		expect(SPINNER).toContain(lines[0][0]);
 	});
+
 });
