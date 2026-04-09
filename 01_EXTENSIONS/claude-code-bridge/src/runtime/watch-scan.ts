@@ -1,13 +1,15 @@
 import { lstatSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { listInstructionWatchFiles } from "../state/instructions.js";
 import { listConfigFiles } from "../state/settings-discovery.js";
 import { findProjectRoot, isHomeGitRoot, isHomePath } from "../core/instructions.js";
-import type { ConfigSource } from "../core/types.js";
+import type { BridgeState, ConfigSource } from "../core/types.js";
 
-export function scanConfigSnapshot(cwd: string): Map<string, string> {
+export function scanConfigSnapshot(cwd: string, state?: Pick<BridgeState, "instructionFiles" | "claudeMdExcludes">): Map<string, string> {
 	const out = new Map<string, string>();
 	for (const entry of listConfigFiles(cwd)) out.set(entry.path, signature(entry.path));
 	for (const path of listSkillFiles(cwd)) out.set(path, signature(path));
+	for (const path of listInstructionWatchFiles(cwd, state?.instructionFiles || [], state?.claudeMdExcludes)) out.set(path, signature(path));
 	return out;
 }
 

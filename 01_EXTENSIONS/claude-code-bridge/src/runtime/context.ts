@@ -1,6 +1,6 @@
 import type { Ctx } from "../core/types.js";
 import { buildClaudeInputBase } from "../hooks/tools.js";
-import { buildDynamicContext, getState, queueAdditionalContext, refreshState } from "./store.js";
+import { buildDynamicContext, ensureState, queueAdditionalContext, refreshState } from "./store.js";
 import { hookSpecificOutput, plainAdditionalText } from "./common.js";
 import { runHandlers } from "./handlers.js";
 import { emitInstructionLoads } from "./instructions-loaded.js";
@@ -19,13 +19,13 @@ export function createSessionStartHandler(pi: any) {
 }
 
 export async function handleBeforeAgentStart(event: any, ctx: Ctx) {
-	const state = await refreshState(ctx);
+	const state = await ensureState(ctx);
 	if (!state.enabled || !state.unconditionalPromptText.trim()) return;
 	return { systemPrompt: `${event.systemPrompt}\n\n## Claude Code Bridge\nThe current project contains Claude Code instructions. Follow them as project policy.\n\n${state.unconditionalPromptText}` };
 }
 
 export async function handleContext(event: any, ctx: Ctx) {
-	const state = getState() ?? (await refreshState(ctx));
+	const state = await ensureState(ctx);
 	const dynamicContext = state.enabled ? buildDynamicContext(state) : undefined;
 	if (!dynamicContext) return;
 	return { messages: [...event.messages, { role: "custom", customType: "claude-bridge", content: dynamicContext, display: false, timestamp: Date.now() }] };

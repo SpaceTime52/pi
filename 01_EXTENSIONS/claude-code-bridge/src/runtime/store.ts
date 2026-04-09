@@ -6,6 +6,8 @@ import { loadState } from "../state/collect.js";
 let activeState: BridgeState | null = null;
 let queuedHookContext: string[] = [];
 let stopHookActive = false;
+let stateDirty = true;
+let lastAssistantMessage = "";
 const warned = new Set<string>();
 const trustedRoots = new Set<string>();
 const disabledRoots = new Set<string>();
@@ -14,13 +16,24 @@ export function getState() {
 	return activeState;
 }
 
+export async function ensureState(ctx: Ctx): Promise<BridgeState> {
+	if (activeState && !stateDirty && activeState.cwd === ctx.cwd) return activeState;
+	return await refreshState(ctx);
+}
+
 export async function refreshState(ctx: Ctx): Promise<BridgeState> {
+	const previousState = activeState;
 	const next = await loadState(ctx.cwd);
-	if (activeState) next.activeConditionalRuleIds = activeState.activeConditionalRuleIds;
+	if (previousState && previousState.projectRoot === next.projectRoot) next.activeConditionalRuleIds = previousState.activeConditionalRuleIds;
 	if (next.hasRepoScopedHooks && !disabledRoots.has(next.projectRoot)) trustedRoots.add(next.projectRoot);
 	activeState = next;
+	stateDirty = false;
 	for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
 	return next;
+}
+
+export function markStateDirty() {
+	stateDirty = true;
 }
 
 export function appendWarning(_ctx: Ctx | undefined, message: string) {
@@ -54,6 +67,14 @@ export function setStopHookActive(value: boolean) {
 	stopHookActive = value;
 }
 
+export function getLastAssistantMessage() {
+	return lastAssistantMessage;
+}
+
+export function setLastAssistantMessage(value: string) {
+	lastAssistantMessage = value;
+}
+
 export function getTrustedRoots() {
 	return trustedRoots;
 }
@@ -71,6 +92,8 @@ export function clearSessionState() {
 	activeState = null;
 	queuedHookContext = [];
 	stopHookActive = false;
+	stateDirty = true;
+	lastAssistantMessage = "";
 	warned.clear();
 	clearTrustState();
 }

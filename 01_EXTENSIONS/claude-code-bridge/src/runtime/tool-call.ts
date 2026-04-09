@@ -2,13 +2,13 @@ import type { Ctx } from "../core/types.js";
 import { activateConditionalRules, applyUpdatedInput, buildClaudeInputBase, extractSubagentType, extractTouchedPaths, toClaudeToolInput } from "../hooks/tools.js";
 import { hookSpecificOutput } from "./common.js";
 import { runHandlers } from "./handlers.js";
-import { getState, queueAdditionalContext, refreshState } from "./store.js";
+import { ensureState, queueAdditionalContext } from "./store.js";
 import { emitInstructionLoads } from "./instructions-loaded.js";
 import { blockToLoads } from "../state/instructions.js";
 
 export function createToolCallHandler(pi: any) {
 	return async (event: any, ctx: Ctx) => {
-		const state = getState() ?? (await refreshState(ctx));
+		const state = await ensureState(ctx);
 		if (!state.enabled) return;
 		const touchedPaths = extractTouchedPaths(event.toolName, event.input, ctx.cwd);
 		const activated = activateConditionalRules(state, touchedPaths);

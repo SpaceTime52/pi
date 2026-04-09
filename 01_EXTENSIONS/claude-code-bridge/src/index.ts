@@ -1,5 +1,5 @@
 import type { ExtensionAPI as PiApi } from "@mariozechner/pi-coding-agent";
-import { createAgentEndHandler, createSessionBeforeCompactHandler, createSessionCompactHandler, createSessionShutdownHandler } from "./runtime/agent.js";
+import { createAgentEndHandler, createAssistantMessageEndHandler, createSessionBeforeCompactHandler, createSessionCompactHandler, createSessionShutdownHandler } from "./runtime/agent.js";
 import { createClaudeBridgeCommand, createTrustHooksCommand, createUntrustHooksCommand } from "./runtime/commands.js";
 import { handleBeforeAgentStart, handleContext, createSessionStartHandler } from "./runtime/context.js";
 import { createInputHandler } from "./runtime/input.js";
@@ -15,6 +15,7 @@ export default function (pi: PiApi) {
 	pi.on("tool_call", createToolCallHandler(pi));
 	pi.on("user_bash", createUserBashHandler(pi));
 	pi.on("tool_result", createToolResultHandler(pi));
+	pi.on("message_end", createAssistantMessageEndHandler());
 	pi.on("agent_end", createAgentEndHandler(pi));
 	pi.on("session_before_compact", createSessionBeforeCompactHandler(pi));
 	pi.on("session_compact", createSessionCompactHandler(pi));

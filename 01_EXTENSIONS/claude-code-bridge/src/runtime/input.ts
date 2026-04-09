@@ -2,11 +2,11 @@ import type { Ctx } from "../core/types.js";
 import { buildClaudeInputBase } from "../hooks/tools.js";
 import { hookSpecificOutput, plainAdditionalText } from "./common.js";
 import { runHandlers } from "./handlers.js";
-import { queueAdditionalContext, refreshState } from "./store.js";
+import { ensureState, queueAdditionalContext } from "./store.js";
 
 export function createInputHandler(pi: any) {
 	return async (event: any, ctx: Ctx) => {
-		const state = await refreshState(ctx);
+		const state = await ensureState(ctx);
 		if (!state.enabled) return { action: "continue" as const };
 		const results = await runHandlers(pi, "UserPromptSubmit", undefined, { ...buildClaudeInputBase(ctx, "UserPromptSubmit"), prompt: event.text }, ctx);
 		for (const result of results) {

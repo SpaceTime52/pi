@@ -1,10 +1,10 @@
 import type { Ctx, EventName, HookRunResult, PiBridge } from "../core/types.js";
 import { runHook } from "../hooks/run.js";
 import { ensureProjectHookTrust, hookSpecificOutput, matcherMatches, plainAdditionalText } from "./common.js";
-import { appendWarning, getState, refreshState } from "./store.js";
+import { appendWarning, ensureState } from "./store.js";
 
 export async function runHandlers(pi: PiBridge, eventName: EventName, matcherValue: string | undefined, input: any, ctx: Ctx): Promise<HookRunResult[]> {
-	const state = getState() ?? (await refreshState(ctx));
+	const state = await ensureState(ctx);
 	if (!state.enabled || state.disableAllHooks) return [];
 	const matched = (state.hooksByEvent.get(eventName) || []).filter((handler) => matcherMatches(handler.matcher, matcherValue));
 	const needsTrust = matched.some((handler) => handler.scope !== "user");

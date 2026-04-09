@@ -2,11 +2,11 @@ import type { Ctx } from "../core/types.js";
 import { buildClaudeInputBase, extractSubagentType, toClaudeToolInput } from "../hooks/tools.js";
 import { hookSpecificOutput, plainAdditionalText, textFromContent } from "./common.js";
 import { runHandlers } from "./handlers.js";
-import { getState, refreshState } from "./store.js";
+import { ensureState } from "./store.js";
 
 export function createToolResultHandler(pi: any) {
 	return async (event: any, ctx: Ctx) => {
-		const state = getState() ?? (await refreshState(ctx));
+		const state = await ensureState(ctx);
 		if (!state.enabled) return;
 		const mapped = toClaudeToolInput(event.toolName, event.input, ctx.cwd);
 		if (!mapped) return;

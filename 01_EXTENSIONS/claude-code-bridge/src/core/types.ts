@@ -20,10 +20,7 @@ export type EventName =
 	| "ConfigChange"
 	| "FileChanged";
 
-export interface IncludeRef {
-	path: string;
-	parentPath: string;
-}
+export interface IncludeRef { path: string; parentPath: string; }
 
 export interface InstructionLoad {
 	filePath: string;
@@ -94,4 +91,7 @@ export interface HookRunResult {
 
 export interface PiBridge { sendMessage(message: any, options?: any): unknown; sendUserMessage(message: string): unknown; }
 
-export type Ctx = ExtensionContext;
+export interface Ctx {
+	cwd: string; hasUI: boolean; modelRegistry: ExtensionContext["modelRegistry"]; model: ExtensionContext["model"];
+	ui: Pick<ExtensionContext["ui"], "confirm" | "notify">; sessionManager: Pick<ExtensionContext["sessionManager"], "getSessionFile">;
+}

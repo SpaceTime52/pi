@@ -57,4 +57,18 @@ describe("claude bridge watcher helpers", () => {
 		await mkdir(join(home, ".git"), { recursive: true });
 		expect(Array.from(scanFileSnapshot(home, ["*"], []).keys())).toContain(join(home, "nested", "tracked.env"));
 	});
+
+	it("detects CLAUDE.md creation through config snapshots", async () => {
+		const root = await makeTempTree();
+		const home = join(root, "home-real");
+		const repo = join(root, "repo");
+		process.env.HOME = home;
+		await mkdir(repo, { recursive: true });
+
+		const before = scanConfigSnapshot(repo);
+		await writeFile(join(repo, "CLAUDE.md"), "Project instructions", "utf8");
+		const after = scanConfigSnapshot(repo);
+
+		expect(diffSnapshots(before, after)).toContainEqual({ path: join(repo, "CLAUDE.md"), event: "change" });
+	});
 });

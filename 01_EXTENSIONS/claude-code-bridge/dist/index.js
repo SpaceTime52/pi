@@ -350,6 +350,7 @@ function collectInstructions(cwd, excludes) {
   };
   loadUserFiles(add, excludes);
   loadAncestorFiles(cwd, projectRoot, add, excludes);
+  for (const path of listImportedInstructionFiles(instructions)) if (!instructionFiles.includes(path)) instructionFiles.push(path);
   const unconditionalPromptText = instructions.filter((item) => item.conditionalGlobs.length === 0).map((item) => buildInstructionSection(item.kind === "rule" ? `Claude rule (${scopeLabel(item.scope)})` : `Claude instructions (${scopeLabel(item.scope)})`, item.path, item.content)).join("\n\n");
   const conditionalRules = instructions.filter((item) => item.conditionalGlobs.length > 0);
   const eagerLoads = instructions.filter((item) => item.conditionalGlobs.length === 0).flatMap((item) => blockToLoads(item, "session_start"));
@@ -359,25 +360,49 @@ function blockToLoads(block, loadReason, triggerFilePath) {
   const base = [{ filePath: block.path, scope: block.scope, loadReason, globs: block.conditionalGlobs.length > 0 ? block.conditionalGlobs : void 0, triggerFilePath }];
   return [...base, ...block.includes.map((item) => ({ filePath: item.path, scope: block.scope, loadReason: "include", triggerFilePath, parentFilePath: item.parentPath }))];
 }
+function listInstructionWatchFiles(cwd, currentInstructionFiles = [], excludes = []) {
+  const projectRoot = findProjectRoot(cwd);
+  const paths = new Set(currentInstructionFiles);
+  for (const path of listUserInstructionCandidates()) if (!shouldSkip(path, excludes)) paths.add(path);
+  for (const path of listAncestorInstructionCandidates(cwd, projectRoot)) if (!shouldSkip(path, excludes)) paths.add(path);
+  return [...paths];
+}
 function loadUserFiles(add, excludes) {
   const home = process.env.HOME || "";
   if (!home) return;
   const claude = join5(home, ".claude", "CLAUDE.md");
   if (fileExists(claude) && !shouldSkip(claude, excludes)) add(claude, "user", "claude", home, readText(claude) || "");
-  for (const path of listMarkdownFiles(join5(home, ".claude", "rules")).filter((item) => !shouldSkip(item, excludes))) {
+  for (const path of listUserRuleFiles().filter((item) => !shouldSkip(item, excludes))) {
     const parsed = parseFrontmatter(readText(path) || "");
     add(path, "user", "rule", home, parsed.body, parsed.paths);
   }
 }
 function loadAncestorFiles(cwd, projectRoot, add, excludes) {
-  const allowHome = isHomeGitRoot(projectRoot);
-  for (const dir of projectAncestorDirs(cwd).filter((item) => (allowHome || !isHomePath(item)) && (item === projectRoot || isPathInside(projectRoot, item)))) {
+  for (const dir of listInstructionAncestorDirs(cwd, projectRoot)) {
     for (const [path, scope] of [[join5(dir, "CLAUDE.md"), "project"], [join5(dir, ".claude", "CLAUDE.md"), "project"], [join5(dir, "CLAUDE.local.md"), "local"]]) if (fileExists(path) && !shouldSkip(path, excludes)) add(path, scope, "claude", projectRoot, readText(path) || "");
     for (const path of listMarkdownFiles(join5(dir, ".claude", "rules")).filter((item) => !shouldSkip(item, excludes))) {
       const parsed = parseFrontmatter(readText(path) || "");
       add(path, "project", "rule", projectRoot, parsed.body, parsed.paths);
     }
   }
+}
+function listImportedInstructionFiles(instructions) {
+  return instructions.flatMap((item) => item.includes.map((include) => include.path));
+}
+function listUserInstructionCandidates() {
+  const home = process.env.HOME || "";
+  return home ? [join5(home, ".claude", "CLAUDE.md"), ...listUserRuleFiles()] : [];
+}
+function listUserRuleFiles() {
+  const home = process.env.HOME || "";
+  return home ? listMarkdownFiles(join5(home, ".claude", "rules")) : [];
+}
+function listAncestorInstructionCandidates(cwd, projectRoot) {
+  return listInstructionAncestorDirs(cwd, projectRoot).flatMap((dir) => [join5(dir, "CLAUDE.md"), join5(dir, ".claude", "CLAUDE.md"), join5(dir, "CLAUDE.local.md"), ...listMarkdownFiles(join5(dir, ".claude", "rules"))]);
+}
+function listInstructionAncestorDirs(cwd, projectRoot) {
+  const allowHome = isHomeGitRoot(projectRoot);
+  return projectAncestorDirs(cwd).filter((item) => (allowHome || !isHomePath(item)) && (item === projectRoot || isPathInside(projectRoot, item)));
 }
 function shouldSkip(path, excludes) {
   return Array.isArray(excludes) && excludes.length > 0 && matchesAbsoluteGlobs(path, excludes);
@@ -586,19 +611,30 @@ async function loadState(cwd) {
 var activeState = null;
 var queuedHookContext = [];
 var stopHookActive = false;
+var stateDirty = true;
+var lastAssistantMessage = "";
 var warned = /* @__PURE__ */ new Set();
 var trustedRoots = /* @__PURE__ */ new Set();
 var disabledRoots = /* @__PURE__ */ new Set();
 function getState() {
   return activeState;
 }
+async function ensureState(ctx) {
+  if (activeState && !stateDirty && activeState.cwd === ctx.cwd) return activeState;
+  return await refreshState(ctx);
+}
 async function refreshState(ctx) {
+  const previousState = activeState;
   const next = await loadState(ctx.cwd);
-  if (activeState) next.activeConditionalRuleIds = activeState.activeConditionalRuleIds;
+  if (previousState && previousState.projectRoot === next.projectRoot) next.activeConditionalRuleIds = previousState.activeConditionalRuleIds;
   if (next.hasRepoScopedHooks && !disabledRoots.has(next.projectRoot)) trustedRoots.add(next.projectRoot);
   activeState = next;
+  stateDirty = false;
   for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
   return next;
+}
+function markStateDirty() {
+  stateDirty = true;
 }
 function appendWarning(_ctx, message) {
   if (warned.has(message)) return;
@@ -626,6 +662,12 @@ function getStopHookActive() {
 function setStopHookActive(value) {
   stopHookActive = value;
 }
+function getLastAssistantMessage() {
+  return lastAssistantMessage;
+}
+function setLastAssistantMessage(value) {
+  lastAssistantMessage = value;
+}
 function getTrustedRoots() {
   return trustedRoots;
 }
@@ -640,6 +682,8 @@ function clearSessionState() {
   activeState = null;
   queuedHookContext = [];
   stopHookActive = false;
+  stateDirty = true;
+  lastAssistantMessage = "";
   warned.clear();
   clearTrustState();
 }
@@ -824,7 +868,7 @@ function urlAllowed(url, patterns) {
 
 // src/runtime/handlers.ts
 async function runHandlers(pi, eventName, matcherValue, input, ctx) {
-  const state = getState() ?? await refreshState(ctx);
+  const state = await ensureState(ctx);
   if (!state.enabled || state.disableAllHooks) return [];
   const matched = (state.hooksByEvent.get(eventName) || []).filter((handler) => matcherMatches(handler.matcher, matcherValue));
   const needsTrust = matched.some((handler) => handler.scope !== "user");
@@ -864,10 +908,11 @@ function compactLoads() {
 // src/runtime/watch-scan.ts
 import { lstatSync, readdirSync as readdirSync4 } from "node:fs";
 import { basename as basename4, join as join8, resolve as resolve6 } from "node:path";
-function scanConfigSnapshot(cwd) {
+function scanConfigSnapshot(cwd, state) {
   const out = /* @__PURE__ */ new Map();
   for (const entry of listConfigFiles(cwd)) out.set(entry.path, signature(entry.path));
   for (const path of listSkillFiles(cwd)) out.set(path, signature(path));
+  for (const path of listInstructionWatchFiles(cwd, state?.instructionFiles || [], state?.claudeMdExcludes)) out.set(path, signature(path));
   return out;
 }
 function diffSnapshots(before, after) {
@@ -932,19 +977,27 @@ function safeReadDir(path) {
 
 // src/runtime/config-change.ts
 async function handleConfigChanges(pi, ctx, paths) {
+  const blockedPaths = [];
   for (const path of paths) {
     const source = classifyConfigSource(path);
-    if (!source) continue;
+    if (!source) {
+      markStateDirty();
+      await refreshState(ctx);
+      continue;
+    }
     const state = getState();
     if (state?.enabled) {
       const results = await runHandlers(pi, "ConfigChange", source, { ...buildClaudeInputBase(ctx, "ConfigChange"), source, file_path: path }, ctx);
       if (isBlocked(results)) {
         appendWarning(ctx, `Blocked Claude config change for ${path}`);
+        blockedPaths.push(path);
         continue;
       }
     }
+    markStateDirty();
     await refreshState(ctx);
   }
+  return { blockedPaths };
 }
 function isBlocked(results) {
   return results.some((result) => result.code === 2 || result.parsedJson?.decision === "block");
@@ -1017,8 +1070,8 @@ function currentWatchedPaths() {
 
 // src/runtime/watch.ts
 async function startWatchLoop(pi, ctx) {
-  setConfigSnapshot(scanConfigSnapshot(ctx.cwd));
   const state = getState();
+  setConfigSnapshot(scanConfigSnapshot(ctx.cwd, state || void 0));
   setFileSnapshot(scanFileSnapshot(state?.projectRoot || ctx.cwd, state?.fileWatchBasenames || [], currentWatchedPaths()));
   const timer2 = setInterval(() => void tick(pi, ctx), 1e3);
   timer2.unref?.();
@@ -1029,22 +1082,35 @@ function stopBridgeWatchLoop() {
 }
 async function tick(pi, ctx) {
   const beforeConfig = getConfigSnapshot();
-  const nextConfig = scanConfigSnapshot(ctx.cwd);
-  setConfigSnapshot(nextConfig);
-  await handleConfigChanges(pi, ctx, diffSnapshots(beforeConfig, nextConfig).map((item) => item.path));
+  const stateBeforeConfig = getState();
+  const nextConfig = scanConfigSnapshot(ctx.cwd, stateBeforeConfig || void 0);
+  const configChanges = diffSnapshots(beforeConfig, nextConfig).map((item) => item.path);
+  const { blockedPaths } = await handleConfigChanges(pi, ctx, configChanges);
+  setConfigSnapshot(restoreBlockedSnapshotPaths(beforeConfig, nextConfig, blockedPaths));
   const state = getState();
   const beforeFile = getFileSnapshot();
   const nextFile = scanFileSnapshot(state?.projectRoot || ctx.cwd, state?.fileWatchBasenames || [], currentWatchedPaths());
   setFileSnapshot(nextFile);
   await handleFileChanges(pi, ctx, diffSnapshots(beforeFile, nextFile).filter((item) => item.event !== "unlink" || beforeFile.get(item.path) !== void 0));
 }
+function restoreBlockedSnapshotPaths(before, next, blockedPaths) {
+  if (blockedPaths.length === 0) return next;
+  const restored = new Map(next);
+  for (const path of blockedPaths) {
+    const previous = before.get(path);
+    if (previous === void 0) restored.delete(path);
+    else restored.set(path, previous);
+  }
+  return restored;
+}
 
 // src/runtime/agent.ts
 function createAgentEndHandler(pi) {
   return async (event, ctx) => {
-    const state = getState() ?? await refreshState(ctx);
+    const state = await ensureState(ctx);
     if (!state.enabled) return;
-    const results = await runHandlers(pi, "Stop", void 0, { ...buildClaudeInputBase(ctx, "Stop"), stop_hook_active: getStopHookActive(), last_assistant_message: extractLastAssistantMessage(event.messages || []) }, ctx);
+    const lastAssistantMessage2 = getLastAssistantMessage() || extractLastAssistantMessage(event.messages || []);
+    const results = await runHandlers(pi, "Stop", void 0, { ...buildClaudeInputBase(ctx, "Stop"), stop_hook_active: getStopHookActive(), last_assistant_message: lastAssistantMessage2 }, ctx);
     for (const result of results) {
       if (result.code !== 2 && result.parsedJson?.decision !== "block") continue;
       setStopHookActive(true);
@@ -1063,6 +1129,12 @@ function createSessionCompactHandler(pi) {
     await emitInstructionLoads(pi, ctx, compactLoads());
   };
 }
+function createAssistantMessageEndHandler() {
+  return async (event) => {
+    if (event.message?.role !== "assistant") return;
+    setLastAssistantMessage(extractLastAssistantMessage([event.message]));
+  };
+}
 function createSessionShutdownHandler(pi) {
   return async (_event, ctx) => {
     stopBridgeWatchLoop();
@@ -1072,7 +1144,7 @@ function createSessionShutdownHandler(pi) {
   };
 }
 async function runCompactHook(pi, eventName, extra, ctx) {
-  const state = getState() ?? await refreshState(ctx);
+  const state = await ensureState(ctx);
   if (!state.enabled) return;
   await runHandlers(pi, eventName, eventName === "SessionEnd" ? "other" : "manual", { ...buildClaudeInputBase(ctx, eventName), ...extra }, ctx);
 }
@@ -1123,7 +1195,7 @@ function createSessionStartHandler(pi) {
   };
 }
 async function handleBeforeAgentStart(event, ctx) {
-  const state = await refreshState(ctx);
+  const state = await ensureState(ctx);
   if (!state.enabled || !state.unconditionalPromptText.trim()) return;
   return { systemPrompt: `${event.systemPrompt}
 
@@ -1133,7 +1205,7 @@ The current project contains Claude Code instructions. Follow them as project po
 ${state.unconditionalPromptText}` };
 }
 async function handleContext(event, ctx) {
-  const state = getState() ?? await refreshState(ctx);
+  const state = await ensureState(ctx);
   const dynamicContext = state.enabled ? buildDynamicContext(state) : void 0;
   if (!dynamicContext) return;
   return { messages: [...event.messages, { role: "custom", customType: "claude-bridge", content: dynamicContext, display: false, timestamp: Date.now() }] };
@@ -1142,7 +1214,7 @@ async function handleContext(event, ctx) {
 // src/runtime/input.ts
 function createInputHandler(pi) {
   return async (event, ctx) => {
-    const state = await refreshState(ctx);
+    const state = await ensureState(ctx);
     if (!state.enabled) return { action: "continue" };
     const results = await runHandlers(pi, "UserPromptSubmit", void 0, { ...buildClaudeInputBase(ctx, "UserPromptSubmit"), prompt: event.text }, ctx);
     for (const result of results) {
@@ -1158,7 +1230,7 @@ function createInputHandler(pi) {
 // src/runtime/tool-call.ts
 function createToolCallHandler(pi) {
   return async (event, ctx) => {
-    const state = getState() ?? await refreshState(ctx);
+    const state = await ensureState(ctx);
     if (!state.enabled) return;
     const touchedPaths = extractTouchedPaths(event.toolName, event.input, ctx.cwd);
     const activated = activateConditionalRules(state, touchedPaths);
@@ -1208,7 +1280,7 @@ function buildShellPreamble(state) {
 // src/runtime/tool-result.ts
 function createToolResultHandler(pi) {
   return async (event, ctx) => {
-    const state = getState() ?? await refreshState(ctx);
+    const state = await ensureState(ctx);
     if (!state.enabled) return;
     const mapped = toClaudeToolInput(event.toolName, event.input, ctx.cwd);
     if (!mapped) return;
@@ -1242,7 +1314,7 @@ function applyPatches(event, patches) {
 import { createLocalBashOperations } from "@mariozechner/pi-coding-agent";
 function createUserBashHandler(pi) {
   return async (event, ctx) => {
-    const state = getState() ?? await refreshState(ctx);
+    const state = await ensureState(ctx);
     if (!state.enabled) return;
     const results = await runHandlers(pi, "PreToolUse", "Bash", { ...buildClaudeInputBase(ctx, "PreToolUse"), tool_name: "Bash", tool_input: { command: event.command }, tool_use_id: `user-bash-${Date.now()}` }, ctx);
     for (const result of results) {
@@ -1277,6 +1349,7 @@ function index_default(pi) {
   pi.on("tool_call", createToolCallHandler(pi));
   pi.on("user_bash", createUserBashHandler(pi));
   pi.on("tool_result", createToolResultHandler(pi));
+  pi.on("message_end", createAssistantMessageEndHandler());
   pi.on("agent_end", createAgentEndHandler(pi));
   pi.on("session_before_compact", createSessionBeforeCompactHandler(pi));
   pi.on("session_compact", createSessionCompactHandler(pi));

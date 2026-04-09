@@ -3,11 +3,11 @@ import type { Ctx } from "../core/types.js";
 import { buildClaudeInputBase } from "../hooks/tools.js";
 import { hookSpecificOutput } from "./common.js";
 import { runHandlers } from "./handlers.js";
-import { getState, refreshState } from "./store.js";
+import { ensureState } from "./store.js";
 
 export function createUserBashHandler(pi: any) {
 	return async (event: any, ctx: Ctx) => {
-		const state = getState() ?? (await refreshState(ctx));
+		const state = await ensureState(ctx);
 		if (!state.enabled) return;
 		const results = await runHandlers(pi, "PreToolUse", "Bash", { ...buildClaudeInputBase(ctx, "PreToolUse"), tool_name: "Bash", tool_input: { command: event.command }, tool_use_id: `user-bash-${Date.now()}` }, ctx);
 		for (const result of results) {
