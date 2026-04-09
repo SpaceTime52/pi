@@ -1,7 +1,7 @@
 import type { BridgeState, Ctx } from "../core/types.js";
-import { buildInstructionSection } from "../core/instructions.js";
-import { scopeLabel } from "../core/pathing.js";
 import { loadState } from "../state/collect.js";
+import { clearAsyncBridgeMessages, filterFreshAsyncBridgeMessages } from "./async-bridge-messages.js";
+import { getActiveRuleSection, resetDynamicContextCache } from "./dynamic-context-cache.js";
 
 let activeState: BridgeState | null = null;
 let queuedHookContext: string[] = [];
@@ -11,6 +11,8 @@ let lastAssistantMessage = "";
 const warned = new Set<string>();
 const trustedRoots = new Set<string>();
 const disabledRoots = new Set<string>();
+
+export { filterFreshAsyncBridgeMessages };
 
 export function getState() {
 	return activeState;
@@ -28,6 +30,7 @@ export async function refreshState(ctx: Ctx): Promise<BridgeState> {
 	if (next.hasRepoScopedHooks && !disabledRoots.has(next.projectRoot)) trustedRoots.add(next.projectRoot);
 	activeState = next;
 	stateDirty = false;
+	resetDynamicContextCache();
 	for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
 	return next;
 }
@@ -50,38 +53,17 @@ export function queueAdditionalContext(texts: Array<string | undefined>) {
 }
 
 export function buildDynamicContext(state: BridgeState): string | undefined {
-	const activeRules = state.conditionalRules.filter((rule) => state.activeConditionalRuleIds.has(rule.id));
-	const sections = [
-		activeRules.length > 0 ? "## Active path-scoped Claude rules\n" + activeRules.map((rule) => buildInstructionSection(`Conditional rule (${scopeLabel(rule.scope)})`, rule.path, rule.content)).join("\n\n") : "",
-		queuedHookContext.length > 0 ? `## Claude hook context\n${queuedHookContext.join("\n\n")}` : "",
-	].filter(Boolean);
+	const sections = [getActiveRuleSection(state) || "", queuedHookContext.length > 0 ? `## Claude hook context\n${queuedHookContext.join("\n\n")}` : ""].filter(Boolean);
 	queuedHookContext = [];
 	return sections.length > 0 ? sections.join("\n\n") : undefined;
 }
 
-export function getStopHookActive() {
-	return stopHookActive;
-}
-
-export function setStopHookActive(value: boolean) {
-	stopHookActive = value;
-}
-
-export function getLastAssistantMessage() {
-	return lastAssistantMessage;
-}
-
-export function setLastAssistantMessage(value: string) {
-	lastAssistantMessage = value;
-}
-
-export function getTrustedRoots() {
-	return trustedRoots;
-}
-
-export function getDisabledRoots() {
-	return disabledRoots;
-}
+export const getStopHookActive = () => stopHookActive;
+export const setStopHookActive = (value: boolean) => void (stopHookActive = value);
+export const getLastAssistantMessage = () => lastAssistantMessage;
+export const setLastAssistantMessage = (value: string) => void (lastAssistantMessage = value);
+export const getTrustedRoots = () => trustedRoots;
+export const getDisabledRoots = () => disabledRoots;
 
 export function clearTrustState() {
 	trustedRoots.clear();
@@ -95,5 +77,7 @@ export function clearSessionState() {
 	stateDirty = true;
 	lastAssistantMessage = "";
 	warned.clear();
+	clearAsyncBridgeMessages();
+	resetDynamicContextCache();
 	clearTrustState();
 }

@@ -1,6 +1,6 @@
 import type { Ctx } from "../core/types.js";
 import { buildClaudeInputBase } from "../hooks/tools.js";
-import { buildDynamicContext, ensureState, queueAdditionalContext, refreshState } from "./store.js";
+import { buildDynamicContext, ensureState, filterFreshAsyncBridgeMessages, queueAdditionalContext, refreshState } from "./store.js";
 import { hookSpecificOutput, plainAdditionalText } from "./common.js";
 import { runHandlers } from "./handlers.js";
 import { emitInstructionLoads } from "./instructions-loaded.js";
@@ -26,7 +26,9 @@ export async function handleBeforeAgentStart(event: any, ctx: Ctx) {
 
 export async function handleContext(event: any, ctx: Ctx) {
 	const state = await ensureState(ctx);
+	const originalMessages = event.messages || [];
+	const filteredMessages = filterFreshAsyncBridgeMessages(originalMessages);
 	const dynamicContext = state.enabled ? buildDynamicContext(state) : undefined;
-	if (!dynamicContext) return;
-	return { messages: [...event.messages, { role: "custom", customType: "claude-bridge", content: dynamicContext, display: false, timestamp: Date.now() }] };
+	if (!dynamicContext) return filteredMessages.length === originalMessages.length ? undefined : { messages: filteredMessages };
+	return { messages: [...filteredMessages, { role: "custom", customType: "claude-bridge", content: dynamicContext, display: false, timestamp: Date.now() }] };
 }

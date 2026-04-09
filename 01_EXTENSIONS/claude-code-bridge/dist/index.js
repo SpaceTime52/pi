@@ -226,9 +226,29 @@ function extractSubagentType(toolName, input) {
   return toolName === "subagent_run" && typeof input === "object" && input !== null && typeof Reflect.get(input, "agent") === "string" ? String(Reflect.get(input, "agent")) : void 0;
 }
 
+// src/state/env.ts
+import { existsSync as existsSync2 } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as join3 } from "node:path";
+async function ensureEnvFile(projectRoot) {
+  const dir = join3(tmpdir(), "pi-claude-code-bridge", sha(projectRoot));
+  await mkdir(dir, { recursive: true });
+  const path = join3(dir, "claude-env.sh");
+  if (!existsSync2(path)) await writeFile(path, "", "utf8");
+  return path;
+}
+function mergeStringArrays(base, next) {
+  if (!base && !next) return void 0;
+  return [.../* @__PURE__ */ new Set([...base || [], ...next || []])];
+}
+
+// src/state/instructions.ts
+import { join as join5 } from "node:path";
+
 // src/core/instructions.ts
 import { readdirSync as readdirSync2 } from "node:fs";
-import { join as join3, resolve as resolve4 } from "node:path";
+import { join as join4, resolve as resolve4 } from "node:path";
 function stripHtmlComments(content) {
   return content.replace(/<!--([\s\S]*?)-->/g, "");
 }
@@ -277,11 +297,11 @@ function parseFrontmatter(content) {
 }
 function findProjectRoot(cwd) {
   const ancestors = [...projectAncestorDirs(cwd)].reverse();
-  for (const dir of ancestors) if (fileExists(join3(dir, ".git"))) return dir;
+  for (const dir of ancestors) if (fileExists(join4(dir, ".git"))) return dir;
   for (const dir of ancestors) {
     if (isHomePath(dir)) continue;
     const names = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md"];
-    if (names.some((name) => fileExists(join3(dir, name))) || hasClaudeSettings(dir)) return dir;
+    if (names.some((name) => fileExists(join4(dir, name))) || hasClaudeSettings(dir)) return dir;
   }
   return resolve4(cwd);
 }
@@ -290,7 +310,7 @@ function isHomePath(path) {
   return !!home && resolveRealPath(path) === resolveRealPath(home);
 }
 function isHomeGitRoot(path) {
-  return isHomePath(path) && fileExists(join3(path, ".git"));
+  return isHomePath(path) && fileExists(join4(path, ".git"));
 }
 function projectAncestorDirs(cwd) {
   const ancestors = walkAncestors(cwd);
@@ -298,7 +318,7 @@ function projectAncestorDirs(cwd) {
   return homeIndex >= 0 ? ancestors.slice(homeIndex) : ancestors;
 }
 function hasClaudeSettings(dir) {
-  const claudeDir = join3(dir, ".claude");
+  const claudeDir = join4(dir, ".claude");
   if (!fileExists(claudeDir)) return false;
   try {
     return readdirSync2(claudeDir).some((name) => /^settings.*\.json$/u.test(name));
@@ -313,25 +333,7 @@ Source: ${path}
 ${content.trim()}`;
 }
 
-// src/state/env.ts
-import { existsSync as existsSync2 } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join as join4 } from "node:path";
-async function ensureEnvFile(projectRoot) {
-  const dir = join4(tmpdir(), "pi-claude-code-bridge", sha(projectRoot));
-  await mkdir(dir, { recursive: true });
-  const path = join4(dir, "claude-env.sh");
-  if (!existsSync2(path)) await writeFile(path, "", "utf8");
-  return path;
-}
-function mergeStringArrays(base, next) {
-  if (!base && !next) return void 0;
-  return [.../* @__PURE__ */ new Set([...base || [], ...next || []])];
-}
-
 // src/state/instructions.ts
-import { join as join5 } from "node:path";
 function collectInstructions(cwd, excludes) {
   const projectRoot = findProjectRoot(cwd);
   const instructionFiles = [];
@@ -607,6 +609,67 @@ async function loadState(cwd) {
   };
 }
 
+// src/runtime/async-bridge-messages.ts
+var seenAsyncBridgeMessages = /* @__PURE__ */ new Set();
+var seenAsyncBridgeMessageOrder = [];
+var MAX_SEEN_ASYNC_BRIDGE_MESSAGES = 512;
+function filterFreshAsyncBridgeMessages(messages) {
+  const fresh = [];
+  const nextKeys = [];
+  for (const message of messages) {
+    if (message?.role === "custom" && message?.customType === "claude-bridge-async") {
+      const key = messageKey(message);
+      if (seenAsyncBridgeMessages.has(key)) continue;
+      nextKeys.push(key);
+    }
+    fresh.push(message);
+  }
+  for (const key of nextKeys) rememberAsyncBridgeMessage(key);
+  return fresh;
+}
+function clearAsyncBridgeMessages() {
+  seenAsyncBridgeMessages.clear();
+  seenAsyncBridgeMessageOrder.length = 0;
+}
+function rememberAsyncBridgeMessage(key) {
+  if (seenAsyncBridgeMessages.has(key)) return;
+  seenAsyncBridgeMessages.add(key);
+  seenAsyncBridgeMessageOrder.push(key);
+  while (seenAsyncBridgeMessageOrder.length > MAX_SEEN_ASYNC_BRIDGE_MESSAGES) {
+    const oldest = seenAsyncBridgeMessageOrder.shift();
+    if (oldest) seenAsyncBridgeMessages.delete(oldest);
+  }
+}
+function messageKey(message) {
+  const bridgeMessageId = typeof message?.details?.bridgeMessageId === "string" ? message.details.bridgeMessageId : void 0;
+  if (bridgeMessageId) return bridgeMessageId;
+  const contentKey = typeof message?.content === "string" ? message.content : JSON.stringify(message?.content ?? "");
+  return `${Number(message?.timestamp) || 0}:${contentKey}`;
+}
+
+// src/runtime/dynamic-context-cache.ts
+var cachedActiveRuleIdsKey = "";
+var cachedActiveRuleSection;
+function getActiveRuleSection(state) {
+  if (state.activeConditionalRuleIds.size === 0) {
+    resetDynamicContextCache();
+    return void 0;
+  }
+  const nextKey = Array.from(state.activeConditionalRuleIds).join("\n");
+  if (cachedActiveRuleIdsKey === nextKey) return cachedActiveRuleSection;
+  const activeRules = state.conditionalRules.filter((rule) => state.activeConditionalRuleIds.has(rule.id));
+  cachedActiveRuleIdsKey = nextKey;
+  cachedActiveRuleSection = activeRules.length > 0 ? renderRuleSection(activeRules) : void 0;
+  return cachedActiveRuleSection;
+}
+function resetDynamicContextCache() {
+  cachedActiveRuleIdsKey = "";
+  cachedActiveRuleSection = void 0;
+}
+function renderRuleSection(rules) {
+  return "## Active path-scoped Claude rules\n" + rules.map((rule) => buildInstructionSection(`Conditional rule (${scopeLabel(rule.scope)})`, rule.path, rule.content)).join("\n\n");
+}
+
 // src/runtime/store.ts
 var activeState = null;
 var queuedHookContext = [];
@@ -630,6 +693,7 @@ async function refreshState(ctx) {
   if (next.hasRepoScopedHooks && !disabledRoots.has(next.projectRoot)) trustedRoots.add(next.projectRoot);
   activeState = next;
   stateDirty = false;
+  resetDynamicContextCache();
   for (const warning of compactWarnings(next.warnings)) appendWarning(ctx, warning);
   return next;
 }
@@ -647,33 +711,17 @@ function queueAdditionalContext(texts) {
   for (const text of texts) if (text?.trim()) queuedHookContext.push(text.trim());
 }
 function buildDynamicContext(state) {
-  const activeRules = state.conditionalRules.filter((rule) => state.activeConditionalRuleIds.has(rule.id));
-  const sections = [
-    activeRules.length > 0 ? "## Active path-scoped Claude rules\n" + activeRules.map((rule) => buildInstructionSection(`Conditional rule (${scopeLabel(rule.scope)})`, rule.path, rule.content)).join("\n\n") : "",
-    queuedHookContext.length > 0 ? `## Claude hook context
-${queuedHookContext.join("\n\n")}` : ""
-  ].filter(Boolean);
+  const sections = [getActiveRuleSection(state) || "", queuedHookContext.length > 0 ? `## Claude hook context
+${queuedHookContext.join("\n\n")}` : ""].filter(Boolean);
   queuedHookContext = [];
   return sections.length > 0 ? sections.join("\n\n") : void 0;
 }
-function getStopHookActive() {
-  return stopHookActive;
-}
-function setStopHookActive(value) {
-  stopHookActive = value;
-}
-function getLastAssistantMessage() {
-  return lastAssistantMessage;
-}
-function setLastAssistantMessage(value) {
-  lastAssistantMessage = value;
-}
-function getTrustedRoots() {
-  return trustedRoots;
-}
-function getDisabledRoots() {
-  return disabledRoots;
-}
+var getStopHookActive = () => stopHookActive;
+var setStopHookActive = (value) => void (stopHookActive = value);
+var getLastAssistantMessage = () => lastAssistantMessage;
+var setLastAssistantMessage = (value) => void (lastAssistantMessage = value);
+var getTrustedRoots = () => trustedRoots;
+var getDisabledRoots = () => disabledRoots;
 function clearTrustState() {
   trustedRoots.clear();
   disabledRoots.clear();
@@ -685,6 +733,8 @@ function clearSessionState() {
   stateDirty = true;
   lastAssistantMessage = "";
   warned.clear();
+  clearAsyncBridgeMessages();
+  resetDynamicContextCache();
   clearTrustState();
 }
 
@@ -719,6 +769,9 @@ async function ensureProjectHookTrust(_ctx, state) {
   getTrustedRoots().add(state.projectRoot);
   return true;
 }
+
+// src/runtime/handlers.ts
+import { randomUUID } from "node:crypto";
 
 // src/hooks/run.ts
 import { spawn } from "node:child_process";
@@ -877,7 +930,7 @@ async function runHandlers(pi, eventName, matcherValue, input, ctx) {
   const results = [];
   for (const handler of handlers) {
     if (handler.async && handler.type === "command") {
-      void runHook(handler, input, state, ctx.cwd, ctx).then((result) => sendAsyncHookMessage(pi, { ...result, scope: handler.scope }, eventName));
+      void runHook(handler, input, state, ctx.cwd, ctx).then((result) => sendAsyncHookMessage(pi, { ...result, scope: handler.scope }, eventName)).catch((error) => appendWarning(ctx, `Hook failed open for ${eventName}: ${error?.message || String(error)}`));
       continue;
     }
     try {
@@ -891,7 +944,7 @@ async function runHandlers(pi, eventName, matcherValue, input, ctx) {
 function sendAsyncHookMessage(pi, result, eventName) {
   const extra = hookSpecificOutput(result, eventName)?.additionalContext || result.parsedJson?.systemMessage || plainAdditionalText(result);
   if (!extra) return;
-  pi.sendMessage({ customType: "claude-bridge-async", content: extra, display: false }, { deliverAs: "followUp", triggerTurn: false });
+  pi.sendMessage({ customType: "claude-bridge-async", content: extra, display: false, details: { bridgeMessageId: randomUUID() } }, { deliverAs: "followUp", triggerTurn: false });
 }
 
 // src/runtime/instructions-loaded.ts
@@ -1206,9 +1259,11 @@ ${state.unconditionalPromptText}` };
 }
 async function handleContext(event, ctx) {
   const state = await ensureState(ctx);
+  const originalMessages = event.messages || [];
+  const filteredMessages = filterFreshAsyncBridgeMessages(originalMessages);
   const dynamicContext = state.enabled ? buildDynamicContext(state) : void 0;
-  if (!dynamicContext) return;
-  return { messages: [...event.messages, { role: "custom", customType: "claude-bridge", content: dynamicContext, display: false, timestamp: Date.now() }] };
+  if (!dynamicContext) return filteredMessages.length === originalMessages.length ? void 0 : { messages: filteredMessages };
+  return { messages: [...filteredMessages, { role: "custom", customType: "claude-bridge", content: dynamicContext, display: false, timestamp: Date.now() }] };
 }
 
 // src/runtime/input.ts

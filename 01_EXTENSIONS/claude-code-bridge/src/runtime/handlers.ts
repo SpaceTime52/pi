@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Ctx, EventName, HookRunResult, PiBridge } from "../core/types.js";
 import { runHook } from "../hooks/run.js";
 import { ensureProjectHookTrust, hookSpecificOutput, matcherMatches, plainAdditionalText } from "./common.js";
@@ -13,7 +14,9 @@ export async function runHandlers(pi: PiBridge, eventName: EventName, matcherVal
 	const results: HookRunResult[] = [];
 	for (const handler of handlers) {
 		if (handler.async && handler.type === "command") {
-			void runHook(handler, input, state, ctx.cwd, ctx).then((result) => sendAsyncHookMessage(pi, { ...result, scope: handler.scope }, eventName));
+			void runHook(handler, input, state, ctx.cwd, ctx)
+				.then((result) => sendAsyncHookMessage(pi, { ...result, scope: handler.scope }, eventName))
+				.catch((error: any) => appendWarning(ctx, `Hook failed open for ${eventName}: ${error?.message || String(error)}`));
 			continue;
 		}
 		try {
@@ -28,5 +31,5 @@ export async function runHandlers(pi: PiBridge, eventName: EventName, matcherVal
 function sendAsyncHookMessage(pi: PiBridge, result: HookRunResult, eventName: EventName) {
 	const extra = hookSpecificOutput(result, eventName)?.additionalContext || result.parsedJson?.systemMessage || plainAdditionalText(result);
 	if (!extra) return;
-	pi.sendMessage({ customType: "claude-bridge-async", content: extra, display: false }, { deliverAs: "followUp", triggerTurn: false });
+	pi.sendMessage({ customType: "claude-bridge-async", content: extra, display: false, details: { bridgeMessageId: randomUUID() } }, { deliverAs: "followUp", triggerTurn: false });
 }

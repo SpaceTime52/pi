@@ -58,6 +58,24 @@ describe("claude bridge watcher helpers", () => {
 		expect(Array.from(scanFileSnapshot(home, ["*"], []).keys())).toContain(join(home, "nested", "tracked.env"));
 	});
 
+	it("detects nested skill file creation anywhere inside the repo", async () => {
+		const root = await makeTempTree();
+		const home = join(root, "home-real");
+		const repo = join(root, "repo");
+		const app = join(repo, "apps", "web");
+		const nestedSkill = join(repo, "packages", "other", ".claude", "skills", "nested.md");
+		process.env.HOME = home;
+		await mkdir(app, { recursive: true });
+		await mkdir(join(repo, ".git"), { recursive: true });
+		await mkdir(join(repo, "packages", "other", ".claude", "skills"), { recursive: true });
+
+		const before = scanConfigSnapshot(app);
+		await writeFile(nestedSkill, "nested skill", "utf8");
+		const after = scanConfigSnapshot(app);
+
+		expect(diffSnapshots(before, after)).toContainEqual({ path: nestedSkill, event: "add" });
+	});
+
 	it("detects CLAUDE.md creation through config snapshots", async () => {
 		const root = await makeTempTree();
 		const home = join(root, "home-real");
