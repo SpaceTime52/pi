@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { collectSettings, loadState } from "../src/test-api.js";
@@ -65,6 +65,7 @@ describe("claude bridge settings safety", () => {
 		expect(state.hooksByEvent.get("PreToolUse") || []).toHaveLength(0);
 		expect(state.unconditionalPromptText).not.toContain("outer instructions");
 	});
+
 
 	it("keeps only supported prompt and agent hook combinations", async () => {
 		const root = await makeTempTree();

@@ -1,8 +1,79 @@
 // src/hooks/tools.ts
-import { resolve as resolve2 } from "node:path";
+import { resolve as resolve3 } from "node:path";
+
+// src/core/fs-utils.ts
+import { accessSync, constants, existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+function fileExists(path) {
+  try {
+    accessSync(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function readText(path) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return void 0;
+  }
+}
+function readJson(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return void 0;
+  }
+}
+function resolveRealPath(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+function resolveRealPathLoose(path) {
+  let current = resolve(path);
+  let suffix = "";
+  while (true) {
+    try {
+      const real = realpathSync(current);
+      return suffix ? join(real, suffix) : real;
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return resolve(path);
+      suffix = suffix ? join(basename(current), suffix) : basename(current);
+      current = parent;
+    }
+  }
+}
+function listMarkdownFiles(dir) {
+  if (!existsSync(dir)) return [];
+  const out = [];
+  const walk2 = (current) => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const next = join(current, entry.name);
+      if (entry.isDirectory()) walk2(next);
+      else if (entry.isFile() && entry.name.endsWith(".md")) out.push(next);
+    }
+  };
+  walk2(dir);
+  return out.sort();
+}
+function walkAncestors(start) {
+  const out = [];
+  let current = resolve(start);
+  while (true) {
+    out.push(current);
+    const parent = dirname(current);
+    if (parent === current) return out.reverse();
+    current = parent;
+  }
+}
 
 // src/core/pathing.ts
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname as dirname2, isAbsolute, join as join2, relative, resolve as resolve2 } from "node:path";
 import crypto from "node:crypto";
 function normalizePath(value) {
   return value.replace(/\\/g, "/");
@@ -21,9 +92,9 @@ function isPathInside(root, target) {
   return rel === "" || !rel.startsWith("..") && !isAbsolute(rel);
 }
 function resolveImportPath(token, baseFile) {
-  if (token.startsWith("~/")) return join(process.env.HOME || "", token.slice(2));
+  if (token.startsWith("~/")) return join2(process.env.HOME || "", token.slice(2));
   if (isAbsolute(token)) return token;
-  return resolve(dirname(baseFile), token);
+  return resolve2(dirname2(baseFile), token);
 }
 function isImportAllowed(scope, ownerRoot, resolvedPath) {
   return scope === "user" || isPathInside(ownerRoot, resolvedPath);
@@ -77,7 +148,7 @@ function globShape(value) {
   return { root, ext };
 }
 function matchesAnyGlob(ownerRoot, targetPath, globs) {
-  const rel = relativePosix(ownerRoot, targetPath);
+  const rel = relativePosix(resolveRealPathLoose(ownerRoot), resolveRealPathLoose(targetPath));
   if (!rel || rel.startsWith("..")) return false;
   return matchesGlobs(rel, globs);
 }
@@ -93,11 +164,11 @@ function buildClaudeInputBase(ctx, eventName) {
 }
 function toClaudeToolInput(toolName, rawInput, cwd) {
   if (toolName === "bash") return { tool_name: "Bash", tool_input: { command: rawInput.command, timeout: typeof rawInput.timeout === "number" ? rawInput.timeout * 1e3 : void 0 } };
-  if (toolName === "read") return { tool_name: "Read", tool_input: { file_path: resolve2(cwd, String(rawInput.path || "")), offset: rawInput.offset, limit: rawInput.limit } };
-  if (toolName === "write") return { tool_name: "Write", tool_input: { file_path: resolve2(cwd, String(rawInput.path || "")), content: rawInput.content } };
+  if (toolName === "read") return { tool_name: "Read", tool_input: { file_path: resolve3(cwd, String(rawInput.path || "")), offset: rawInput.offset, limit: rawInput.limit } };
+  if (toolName === "write") return { tool_name: "Write", tool_input: { file_path: resolve3(cwd, String(rawInput.path || "")), content: rawInput.content } };
   if (toolName === "edit") return mapEdit(rawInput, cwd);
-  if (toolName === "grep") return { tool_name: "Grep", tool_input: { pattern: rawInput.pattern, path: rawInput.path ? resolve2(cwd, String(rawInput.path)) : void 0, glob: rawInput.glob, ignoreCase: rawInput.ignoreCase, literal: rawInput.literal, context: rawInput.context, limit: rawInput.limit } };
-  if (toolName === "find") return { tool_name: "Glob", tool_input: { pattern: rawInput.pattern, path: rawInput.path ? resolve2(cwd, String(rawInput.path)) : cwd } };
+  if (toolName === "grep") return { tool_name: "Grep", tool_input: { pattern: rawInput.pattern, path: rawInput.path ? resolve3(cwd, String(rawInput.path)) : void 0, glob: rawInput.glob, ignoreCase: rawInput.ignoreCase, literal: rawInput.literal, context: rawInput.context, limit: rawInput.limit } };
+  if (toolName === "find") return { tool_name: "Glob", tool_input: { pattern: rawInput.pattern, path: rawInput.path ? resolve3(cwd, String(rawInput.path)) : cwd } };
   if (toolName === "fetch_content") return { tool_name: "WebFetch", tool_input: { url: rawInput.url, prompt: rawInput.prompt } };
   if (toolName === "web_search") return { tool_name: "WebSearch", tool_input: { query: rawInput.query } };
   if (isSubagentToolName(toolName)) return { tool_name: "Agent", tool_input: { prompt: stringifySubagentInput(toolName, rawInput), subagent_type: extractSubagentType(toolName, rawInput) } };
@@ -105,7 +176,7 @@ function toClaudeToolInput(toolName, rawInput, cwd) {
 }
 function mapEdit(rawInput, cwd) {
   const firstEdit = Array.isArray(rawInput.edits) ? rawInput.edits[0] : void 0;
-  return { tool_name: "Edit", tool_input: { file_path: resolve2(cwd, String(rawInput.path || "")), old_string: firstEdit?.oldText, new_string: firstEdit?.newText, replace_all: Array.isArray(rawInput.edits) && rawInput.edits.length > 1 ? true : void 0 } };
+  return { tool_name: "Edit", tool_input: { file_path: resolve3(cwd, String(rawInput.path || "")), old_string: firstEdit?.oldText, new_string: firstEdit?.newText, replace_all: Array.isArray(rawInput.edits) && rawInput.edits.length > 1 ? true : void 0 } };
 }
 function applyUpdatedInput(toolName, eventInput, updatedInput) {
   if (!updatedInput || typeof updatedInput !== "object") return;
@@ -129,13 +200,13 @@ function updateFileInput(eventInput, updatedInput, includeContent = false) {
   if (includeContent && typeof updatedInput.content === "string") eventInput.content = updatedInput.content;
 }
 function extractTouchedPaths(toolName, rawInput, cwd) {
-  if (["read", "write", "edit"].includes(toolName)) return rawInput.path ? [resolve2(cwd, String(rawInput.path))] : [];
-  if (toolName === "grep") return withExpressions(resolve2(cwd, String(rawInput.path || cwd)), [rawInput.glob]);
-  if (toolName === "find") return withExpressions(resolve2(cwd, String(rawInput.path || cwd)), [rawInput.pattern]);
+  if (["read", "write", "edit"].includes(toolName)) return rawInput.path ? [resolve3(cwd, String(rawInput.path))] : [];
+  if (toolName === "grep") return withExpressions(resolve3(cwd, String(rawInput.path || cwd)), [rawInput.glob]);
+  if (toolName === "find") return withExpressions(resolve3(cwd, String(rawInput.path || cwd)), [rawInput.pattern]);
   return [];
 }
 function withExpressions(base, expressions) {
-  const extras = expressions.filter((value) => typeof value === "string" && value.length > 0).map((value) => resolve2(base, value));
+  const extras = expressions.filter((value) => typeof value === "string" && value.length > 0).map((value) => resolve3(base, value));
   return [base, ...extras];
 }
 function activateConditionalRules(state, touchedPaths) {
@@ -158,64 +229,6 @@ function extractSubagentType(toolName, input) {
 // src/core/instructions.ts
 import { readdirSync as readdirSync2 } from "node:fs";
 import { join as join3, resolve as resolve4 } from "node:path";
-
-// src/core/fs-utils.ts
-import { accessSync, constants, existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
-import { dirname as dirname2, join as join2, resolve as resolve3 } from "node:path";
-function fileExists(path) {
-  try {
-    accessSync(path, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-function readText(path) {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return void 0;
-  }
-}
-function readJson(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return void 0;
-  }
-}
-function resolveRealPath(path) {
-  try {
-    return realpathSync(path);
-  } catch {
-    return resolve3(path);
-  }
-}
-function listMarkdownFiles(dir) {
-  if (!existsSync(dir)) return [];
-  const out = [];
-  const walk2 = (current) => {
-    for (const entry of readdirSync(current, { withFileTypes: true })) {
-      const next = join2(current, entry.name);
-      if (entry.isDirectory()) walk2(next);
-      else if (entry.isFile() && entry.name.endsWith(".md")) out.push(next);
-    }
-  };
-  walk2(dir);
-  return out.sort();
-}
-function walkAncestors(start) {
-  const out = [];
-  let current = resolve3(start);
-  while (true) {
-    out.push(current);
-    const parent = dirname2(current);
-    if (parent === current) return out.reverse();
-    current = parent;
-  }
-}
-
-// src/core/instructions.ts
 function stripHtmlComments(content) {
   return content.replace(/<!--([\s\S]*?)-->/g, "");
 }
@@ -263,13 +276,26 @@ function parseFrontmatter(content) {
   return { body: content.slice(end + 5), paths: paths.filter(Boolean) };
 }
 function findProjectRoot(cwd) {
-  const ancestors = [...walkAncestors(cwd)].reverse();
+  const ancestors = [...projectAncestorDirs(cwd)].reverse();
   for (const dir of ancestors) if (fileExists(join3(dir, ".git"))) return dir;
   for (const dir of ancestors) {
+    if (isHomePath(dir)) continue;
     const names = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md"];
     if (names.some((name) => fileExists(join3(dir, name))) || hasClaudeSettings(dir)) return dir;
   }
   return resolve4(cwd);
+}
+function isHomePath(path) {
+  const home = process.env.HOME;
+  return !!home && resolveRealPath(path) === resolveRealPath(home);
+}
+function isHomeGitRoot(path) {
+  return isHomePath(path) && fileExists(join3(path, ".git"));
+}
+function projectAncestorDirs(cwd) {
+  const ancestors = walkAncestors(cwd);
+  const homeIndex = ancestors.findIndex((dir) => isHomePath(dir));
+  return homeIndex >= 0 ? ancestors.slice(homeIndex) : ancestors;
 }
 function hasClaudeSettings(dir) {
   const claudeDir = join3(dir, ".claude");
@@ -310,11 +336,15 @@ function collectInstructions(cwd, excludes) {
   const projectRoot = findProjectRoot(cwd);
   const instructionFiles = [];
   const instructions = [];
+  const seen = /* @__PURE__ */ new Set();
   const add = (path, scope, kind, ownerRoot, content, globs = []) => {
     if (shouldSkip(path, excludes)) return;
+    const key = `${resolveRealPath(path)}:${kind}:${globs.join(",")}`;
+    if (seen.has(key)) return;
     const expanded = expandImportsWithTrace(stripHtmlComments(content), path, scope, ownerRoot);
     const text = expanded.text.trim();
     if (!text) return;
+    seen.add(key);
     instructions.push({ id: sha(`${path}:${globs.join(",")}`), path, scope, kind, ownerRoot, content: text, conditionalGlobs: globs, includes: expanded.includes });
     instructionFiles.push(path);
   };
@@ -340,7 +370,8 @@ function loadUserFiles(add, excludes) {
   }
 }
 function loadAncestorFiles(cwd, projectRoot, add, excludes) {
-  for (const dir of walkAncestors(cwd).filter((item) => item === projectRoot || isPathInside(projectRoot, item))) {
+  const allowHome = isHomeGitRoot(projectRoot);
+  for (const dir of projectAncestorDirs(cwd).filter((item) => (allowHome || !isHomePath(item)) && (item === projectRoot || isPathInside(projectRoot, item)))) {
     for (const [path, scope] of [[join5(dir, "CLAUDE.md"), "project"], [join5(dir, ".claude", "CLAUDE.md"), "project"], [join5(dir, "CLAUDE.local.md"), "local"]]) if (fileExists(path) && !shouldSkip(path, excludes)) add(path, scope, "claude", projectRoot, readText(path) || "");
     for (const path of listMarkdownFiles(join5(dir, ".claude", "rules")).filter((item) => !shouldSkip(item, excludes))) {
       const parsed = parseFrontmatter(readText(path) || "");
@@ -420,13 +451,13 @@ function isHookType(value) {
 
 // src/state/settings-discovery.ts
 import { readdirSync as readdirSync3 } from "node:fs";
-import { basename, join as join6 } from "node:path";
+import { basename as basename2, join as join6 } from "node:path";
 function discoverSettingsEntries(cwd) {
   const entries = [];
   const home = process.env.HOME || "";
   if (home) entries.push(...readUserSettings(home));
   for (const dir of projectDirs(cwd)) entries.push(...readProjectSettings(dir));
-  return entries.filter((entry) => fileExists(entry.path));
+  return dedupe(entries.filter((entry) => fileExists(entry.path)));
 }
 function listConfigFiles(cwd) {
   const entries = [];
@@ -446,15 +477,24 @@ function readSettings(dir, overrideScope) {
   return readdirSync3(dir).filter((name) => /^settings.*\.json$/u.test(name)).sort().map((name) => ({ path: join6(dir, name), scope: overrideScope || classifyScope(name) }));
 }
 function classifyScope(name) {
-  return basename(name).includes(".local.") || name === "settings.local.json" ? "local" : "project";
+  return basename2(name).includes(".local.") || name === "settings.local.json" ? "local" : "project";
 }
 function projectDirs(cwd) {
   const projectRoot = findProjectRoot(cwd);
-  return walkAncestors(cwd).filter((dir) => dir === projectRoot || isPathInside(projectRoot, dir));
+  const allowHome = isHomeGitRoot(projectRoot);
+  return projectAncestorDirs(cwd).filter((dir) => (allowHome || !isHomePath(dir)) && (dir === projectRoot || isPathInside(projectRoot, dir)));
 }
 function dedupe(entries) {
-  const seen = /* @__PURE__ */ new Set();
-  return entries.filter((entry) => seen.has(entry.path) ? false : (seen.add(entry.path), true));
+  const byPath = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    const key = resolveRealPath(entry.path);
+    const existing = byPath.get(key);
+    if (!existing || scopePriority(entry.scope) < scopePriority(existing.scope)) byPath.set(key, entry);
+  }
+  return entries.filter((entry) => byPath.get(resolveRealPath(entry.path)) === entry);
+}
+function scopePriority(scope) {
+  return scope === "user" ? 0 : scope === "local" ? 1 : 2;
 }
 
 // src/state/settings.ts
@@ -490,7 +530,7 @@ function mergeAllowlist(base, value, path, scope, warnings, ignoredPrefix) {
 }
 
 // src/runtime/watch-config.ts
-import { basename as basename2, isAbsolute as isAbsolute2, resolve as resolve5 } from "node:path";
+import { basename as basename3, isAbsolute as isAbsolute2, resolve as resolve5 } from "node:path";
 function extractFileWatchBasenames(hooks) {
   const tokens = hooks.flatMap((hook) => literalBasenames(hook.matcher));
   return [...new Set(tokens.length > 0 ? tokens : [])];
@@ -498,7 +538,7 @@ function extractFileWatchBasenames(hooks) {
 function literalBasenames(matcher) {
   if (!matcher || matcher === "" || matcher === "*") return ["*"];
   const tokens = matcher.split("|").map((item) => item.trim()).filter(Boolean);
-  return tokens.every(isLiteralFileName) ? [...new Set(tokens.map((item) => basename2(item)))] : ["*"];
+  return tokens.every(isLiteralFileName) ? [...new Set(tokens.map((item) => basename3(item)))] : ["*"];
 }
 function replaceDynamicWatchPaths(results, cwd) {
   for (const result of results) {
@@ -823,7 +863,7 @@ function compactLoads() {
 
 // src/runtime/watch-scan.ts
 import { lstatSync, readdirSync as readdirSync4 } from "node:fs";
-import { basename as basename3, join as join8, resolve as resolve6 } from "node:path";
+import { basename as basename4, join as join8, resolve as resolve6 } from "node:path";
 function scanConfigSnapshot(cwd) {
   const out = /* @__PURE__ */ new Map();
   for (const entry of listConfigFiles(cwd)) out.set(entry.path, signature(entry.path));
@@ -844,13 +884,16 @@ function classifyConfigSource(path) {
 function scanFileSnapshot(projectRoot, basenames, dynamicWatchPaths) {
   const out = /* @__PURE__ */ new Map();
   const watchAll = basenames.includes("*");
-  if (watchAll || basenames.length > 0) walk(projectRoot, (path) => watchAll || basenames.includes(basename3(path)), (path) => out.set(path, signature(path)));
+  const allowHomeWalk = !isHomePath(projectRoot) || isHomeGitRoot(projectRoot);
+  if (allowHomeWalk && (watchAll || basenames.length > 0)) walk(projectRoot, (path) => watchAll || basenames.includes(basename4(path)), (path) => out.set(path, signature(path)));
   for (const path of dynamicWatchPaths.map((item) => resolve6(item))) collect(path, out);
   return out;
 }
 function listSkillFiles(cwd) {
   const out = [];
-  walk(findProjectRoot(cwd), (path) => path.includes("/.claude/skills/"), (path) => out.push(path));
+  const projectRoot = findProjectRoot(cwd);
+  if (isHomePath(projectRoot) && !isHomeGitRoot(projectRoot)) return out;
+  walk(projectRoot, (path) => path.includes("/.claude/skills/"), (path) => out.push(path));
   return out;
 }
 function walk(root, keep, onFile) {
@@ -908,7 +951,7 @@ function isBlocked(results) {
 }
 
 // src/runtime/file-change.ts
-import { basename as basename4 } from "node:path";
+import { basename as basename5 } from "node:path";
 
 // src/runtime/watch-store.ts
 var timer;
@@ -958,7 +1001,7 @@ async function handleFileChanges(pi, ctx, changes) {
   const state = getState();
   if (!state?.enabled || (state.hooksByEvent.get("FileChanged") || []).length === 0) return;
   for (const change of changes) {
-    const results = await runHandlers(pi, "FileChanged", basename4(change.path), { ...buildClaudeInputBase(ctx, "FileChanged"), file_path: change.path, event: change.event }, ctx);
+    const results = await runHandlers(pi, "FileChanged", basename5(change.path), { ...buildClaudeInputBase(ctx, "FileChanged"), file_path: change.path, event: change.event }, ctx);
     applyDynamicWatchPaths(results, ctx.cwd);
   }
 }
@@ -977,7 +1020,9 @@ async function startWatchLoop(pi, ctx) {
   setConfigSnapshot(scanConfigSnapshot(ctx.cwd));
   const state = getState();
   setFileSnapshot(scanFileSnapshot(state?.projectRoot || ctx.cwd, state?.fileWatchBasenames || [], currentWatchedPaths()));
-  setWatchLoop(setInterval(() => void tick(pi, ctx), 1e3));
+  const timer2 = setInterval(() => void tick(pi, ctx), 1e3);
+  timer2.unref?.();
+  setWatchLoop(timer2);
 }
 function stopBridgeWatchLoop() {
   stopWatchLoop();

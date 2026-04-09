@@ -76,4 +76,5 @@ describe("claude bridge imports and state", () => {
 		expect(state.warnings.join("\n")).toContain("Ignoring project/local Claude env");
 		expect(state.warnings.join("\n")).toContain("Ignoring project/local httpHookAllowedEnvVars");
 	});
+
 });

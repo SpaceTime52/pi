@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { listMarkdownFiles, readText, fileExists, walkAncestors } from "../core/fs-utils.js";
-import { buildInstructionSection, expandImportsWithTrace, findProjectRoot, parseFrontmatter, stripHtmlComments } from "../core/instructions.js";
+import { listMarkdownFiles, readText, fileExists, resolveRealPath } from "../core/fs-utils.js";
+import { buildInstructionSection, expandImportsWithTrace, findProjectRoot, isHomeGitRoot, isHomePath, parseFrontmatter, projectAncestorDirs, stripHtmlComments } from "../core/instructions.js";
 import { matchesAbsoluteGlobs } from "../core/globs.js";
 import { isPathInside, scopeLabel, sha } from "../core/pathing.js";
 import type { Block, InstructionLoad, Scope } from "../core/types.js";
@@ -17,11 +17,15 @@ export function collectInstructions(cwd: string, excludes: string[] | undefined)
 	const projectRoot = findProjectRoot(cwd);
 	const instructionFiles: string[] = [];
 	const instructions: Block[] = [];
+	const seen = new Set<string>();
 	const add = (path: string, scope: Scope, kind: Block["kind"], ownerRoot: string, content: string, globs: string[] = []) => {
 		if (shouldSkip(path, excludes)) return;
+		const key = `${resolveRealPath(path)}:${kind}:${globs.join(",")}`;
+		if (seen.has(key)) return;
 		const expanded = expandImportsWithTrace(stripHtmlComments(content), path, scope, ownerRoot);
 		const text = expanded.text.trim();
 		if (!text) return;
+		seen.add(key);
 		instructions.push({ id: sha(`${path}:${globs.join(",")}`), path, scope, kind, ownerRoot, content: text, conditionalGlobs: globs, includes: expanded.includes });
 		instructionFiles.push(path);
 	};
@@ -50,7 +54,8 @@ function loadUserFiles(add: any, excludes: string[] | undefined) {
 }
 
 function loadAncestorFiles(cwd: string, projectRoot: string, add: any, excludes: string[] | undefined) {
-	for (const dir of walkAncestors(cwd).filter((item) => item === projectRoot || isPathInside(projectRoot, item))) {
+	const allowHome = isHomeGitRoot(projectRoot);
+	for (const dir of projectAncestorDirs(cwd).filter((item) => (allowHome || !isHomePath(item)) && (item === projectRoot || isPathInside(projectRoot, item)))) {
 		for (const [path, scope] of [[join(dir, "CLAUDE.md"), "project"], [join(dir, ".claude", "CLAUDE.md"), "project"], [join(dir, "CLAUDE.local.md"), "local"]] as const) if (fileExists(path) && !shouldSkip(path, excludes)) add(path, scope, "claude", projectRoot, readText(path) || "");
 		for (const path of listMarkdownFiles(join(dir, ".claude", "rules")).filter((item) => !shouldSkip(item, excludes))) {
 			const parsed = parseFrontmatter(readText(path) || "");

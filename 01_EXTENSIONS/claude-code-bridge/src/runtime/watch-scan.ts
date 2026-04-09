@@ -1,7 +1,7 @@
 import { lstatSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { listConfigFiles } from "../state/settings-discovery.js";
-import { findProjectRoot } from "../core/instructions.js";
+import { findProjectRoot, isHomeGitRoot, isHomePath } from "../core/instructions.js";
 import type { ConfigSource } from "../core/types.js";
 
 export function scanConfigSnapshot(cwd: string): Map<string, string> {
@@ -27,14 +27,17 @@ export function classifyConfigSource(path: string): ConfigSource | undefined {
 export function scanFileSnapshot(projectRoot: string, basenames: string[], dynamicWatchPaths: string[]): Map<string, string> {
 	const out = new Map<string, string>();
 	const watchAll = basenames.includes("*");
-	if (watchAll || basenames.length > 0) walk(projectRoot, (path) => watchAll || basenames.includes(basename(path)), (path) => out.set(path, signature(path)));
+	const allowHomeWalk = !isHomePath(projectRoot) || isHomeGitRoot(projectRoot);
+	if (allowHomeWalk && (watchAll || basenames.length > 0)) walk(projectRoot, (path) => watchAll || basenames.includes(basename(path)), (path) => out.set(path, signature(path)));
 	for (const path of dynamicWatchPaths.map((item) => resolve(item))) collect(path, out);
 	return out;
 }
 
 function listSkillFiles(cwd: string) {
 	const out: string[] = [];
-	walk(findProjectRoot(cwd), (path) => path.includes("/.claude/skills/"), (path) => out.push(path));
+	const projectRoot = findProjectRoot(cwd);
+	if (isHomePath(projectRoot) && !isHomeGitRoot(projectRoot)) return out;
+	walk(projectRoot, (path) => path.includes("/.claude/skills/"), (path) => out.push(path));
 	return out;
 }
 

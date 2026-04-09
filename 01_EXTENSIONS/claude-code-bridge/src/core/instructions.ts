@@ -59,13 +59,29 @@ export function parseFrontmatter(content: string): { body: string; paths: string
 }
 
 export function findProjectRoot(cwd: string): string {
-	const ancestors = [...walkAncestors(cwd)].reverse();
+	const ancestors = [...projectAncestorDirs(cwd)].reverse();
 	for (const dir of ancestors) if (fileExists(join(dir, ".git"))) return dir;
 	for (const dir of ancestors) {
+		if (isHomePath(dir)) continue;
 		const names = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md"];
 		if (names.some((name) => fileExists(join(dir, name))) || hasClaudeSettings(dir)) return dir;
 	}
 	return resolve(cwd);
+}
+
+export function isHomePath(path: string): boolean {
+	const home = process.env.HOME;
+	return !!home && resolveRealPath(path) === resolveRealPath(home);
+}
+
+export function isHomeGitRoot(path: string): boolean {
+	return isHomePath(path) && fileExists(join(path, ".git"));
+}
+
+export function projectAncestorDirs(cwd: string): string[] {
+	const ancestors = walkAncestors(cwd);
+	const homeIndex = ancestors.findIndex((dir) => isHomePath(dir));
+	return homeIndex >= 0 ? ancestors.slice(homeIndex) : ancestors;
 }
 
 function hasClaudeSettings(dir: string) {

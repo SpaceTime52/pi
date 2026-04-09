@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { basename, join } from "node:path";
-import { fileExists, walkAncestors } from "../core/fs-utils.js";
-import { findProjectRoot } from "../core/instructions.js";
+import { fileExists, resolveRealPath } from "../core/fs-utils.js";
+import { findProjectRoot, isHomeGitRoot, isHomePath, projectAncestorDirs } from "../core/instructions.js";
 import { isPathInside } from "../core/pathing.js";
 import type { Scope } from "../core/types.js";
 
@@ -15,7 +15,7 @@ export function discoverSettingsEntries(cwd: string): SettingsEntry[] {
 	const home = process.env.HOME || "";
 	if (home) entries.push(...readUserSettings(home));
 	for (const dir of projectDirs(cwd)) entries.push(...readProjectSettings(dir));
-	return entries.filter((entry) => fileExists(entry.path));
+	return dedupe(entries.filter((entry) => fileExists(entry.path)));
 }
 
 export function listConfigFiles(cwd: string): SettingsEntry[] {
@@ -45,10 +45,20 @@ function classifyScope(name: string): Scope {
 
 function projectDirs(cwd: string) {
 	const projectRoot = findProjectRoot(cwd);
-	return walkAncestors(cwd).filter((dir) => dir === projectRoot || isPathInside(projectRoot, dir));
+	const allowHome = isHomeGitRoot(projectRoot);
+	return projectAncestorDirs(cwd).filter((dir) => (allowHome || !isHomePath(dir)) && (dir === projectRoot || isPathInside(projectRoot, dir)));
 }
 
 function dedupe(entries: SettingsEntry[]): SettingsEntry[] {
-	const seen = new Set<string>();
-	return entries.filter((entry) => seen.has(entry.path) ? false : (seen.add(entry.path), true));
+	const byPath = new Map<string, SettingsEntry>();
+	for (const entry of entries) {
+		const key = resolveRealPath(entry.path);
+		const existing = byPath.get(key);
+		if (!existing || scopePriority(entry.scope) < scopePriority(existing.scope)) byPath.set(key, entry);
+	}
+	return entries.filter((entry) => byPath.get(resolveRealPath(entry.path)) === entry);
+}
+
+function scopePriority(scope: Scope): number {
+	return scope === "user" ? 0 : scope === "local" ? 1 : 2;
 }

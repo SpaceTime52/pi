@@ -1,5 +1,5 @@
 import { accessSync, constants, existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 export function fileExists(path: string): boolean {
 	try {
@@ -31,6 +31,22 @@ export function resolveRealPath(path: string): string {
 		return realpathSync(path);
 	} catch {
 		return resolve(path);
+	}
+}
+
+export function resolveRealPathLoose(path: string): string {
+	let current = resolve(path);
+	let suffix = "";
+	while (true) {
+		try {
+			const real = realpathSync(current);
+			return suffix ? join(real, suffix) : real;
+		} catch {
+			const parent = dirname(current);
+			if (parent === current) return resolve(path);
+			suffix = suffix ? join(basename(current), suffix) : basename(current);
+			current = parent;
+		}
 	}
 }
 

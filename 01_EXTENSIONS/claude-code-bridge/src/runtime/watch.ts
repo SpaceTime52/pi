@@ -9,7 +9,9 @@ export async function startWatchLoop(pi: PiBridge, ctx: Ctx) {
 	setConfigSnapshot(scanConfigSnapshot(ctx.cwd));
 	const state = getState();
 	setFileSnapshot(scanFileSnapshot(state?.projectRoot || ctx.cwd, state?.fileWatchBasenames || [], currentWatchedPaths()));
-	setWatchLoop(setInterval(() => void tick(pi, ctx), 1000));
+	const timer = setInterval(() => void tick(pi, ctx), 1000);
+	timer.unref?.();
+	setWatchLoop(timer);
 }
 
 export function stopBridgeWatchLoop() {

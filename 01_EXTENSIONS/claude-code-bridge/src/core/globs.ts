@@ -1,3 +1,4 @@
+import { resolveRealPathLoose } from "./fs-utils.js";
 import { normalizePath, relativePosix } from "./pathing.js";
 
 export function braceExpand(pattern: string): string[] {
@@ -55,7 +56,7 @@ function globShape(value: string) {
 }
 
 export function matchesAnyGlob(ownerRoot: string, targetPath: string, globs: string[]): boolean {
-	const rel = relativePosix(ownerRoot, targetPath);
+	const rel = relativePosix(resolveRealPathLoose(ownerRoot), resolveRealPathLoose(targetPath));
 	if (!rel || rel.startsWith("..")) return false;
 	return matchesGlobs(rel, globs);
 }
