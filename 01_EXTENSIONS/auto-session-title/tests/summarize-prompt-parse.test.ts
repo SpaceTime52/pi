@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { buildOverviewPrompt, parseOverviewResponse } from "../src/summarize.js";
 
 describe("buildOverviewPrompt", () => {
-	it("tells the model to produce cohesive current-state prose instead of a turn log", () => {
+	it("tells the model to produce cohesive current-state prose for future recall", () => {
 		const prompt = buildOverviewPrompt("Recent updates", { title: "기존 제목", summary: ["오버레이 배치를 정리함", "resume 복원을 붙임"] });
 		expect(prompt).toContain("Update the previous summary into a cohesive current-state brief, not a turn-by-turn log.");
+		expect(prompt).toContain("prioritize what they would want to remember when resuming later");
 		expect(prompt).toContain("Preserve still-relevant goals, decisions, constraints, blockers, and completed work");
-		expect(prompt).toContain("Fold recent updates into the current state instead of listing events in order.");
+		expect(prompt).toContain("Ignore routine greetings, acknowledgements, current-branch checks");
+		expect(prompt).toContain("If the recent updates contain no durable change, keep the previous title and summary unchanged.");
 		expect(prompt).toContain("Previous title: 기존 제목");
 		expect(prompt).toContain("rewrite them into cohesive prose if needed");
 		expect(prompt).toContain("resume 복원을 붙임");

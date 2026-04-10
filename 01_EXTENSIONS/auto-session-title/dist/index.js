@@ -101,8 +101,11 @@ function buildOverviewPrompt(recentText, previous) {
   const previousSection = previous ? [`Previous title: ${previous.title}`, "Previous summary (older versions may contain legacy line breaks; rewrite them into cohesive prose if needed):", formatPreviousSummary(previous.summary)].join("\n") : "Previous summary: (none)";
   return [
     "Update the previous summary into a cohesive current-state brief, not a turn-by-turn log.",
+    "Write it for quick future recall by the user, so prioritize what they would want to remember when resuming later.",
     "Preserve still-relevant goals, decisions, constraints, blockers, and completed work unless recent updates clearly replace them.",
     "Fold recent updates into the current state instead of listing events in order.",
+    "Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
+    "If the recent updates contain no durable change, keep the previous title and summary unchanged.",
     "Prefer one dense paragraph. Use multiple paragraphs only for clearly separate concerns.",
     previousSection,
     "",
@@ -156,8 +159,12 @@ var OVERVIEW_PROMPT = [
   "Treat the previous summary as the baseline state for the session.",
   "Carry forward still-relevant context unless recent updates clearly resolve or replace it.",
   "Do not overwrite the whole summary with only the latest turn.",
+  "Write this as a quick reference for a user resuming the session later.",
+  "Prioritize durable context: the current goal, important decisions, meaningful progress, blockers, and the next important step.",
+  "Ignore routine greetings, acknowledgements, branch-name checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially change the task.",
+  "If the recent updates contain no durable change, keep the previous title and summary unchanged.",
   "Return exactly this format:",
-  "TITLE: <short title in the user's language, max 8 words>",
+  "TITLE: <short title in the user's language, max 8 words, naming the durable task rather than chatty or incidental details>",
   "SUMMARY: <a cohesive current-state summary in the user's language>",
   "Prefer one dense paragraph; use a second paragraph only when it materially improves clarity.",
   "Describe the current state rather than retelling events in chronological order.",
@@ -174,13 +181,34 @@ function truncateSection(text, maxLength = MAX_SECTION_LENGTH) {
   const collapsed = collapseWhitespace2(text);
   return collapsed.length <= maxLength ? collapsed : `${collapsed.slice(0, maxLength - 1).trimEnd()}\u2026`;
 }
+function isRoutineSocialText(text) {
+  return /^(?:안녕(?:하세요)?|반가워(?:요)?|hi|hello|hey|thanks|thank you|고마워(?:요)?|감사(?:합니다|해요)?)$/iu.test(collapseWhitespace2(text).replace(/[.!?~]+$/u, ""));
+}
 function extractTextContent(content) {
   if (typeof content === "string") return [content];
   return Array.isArray(content) ? content.filter((part) => Boolean(part) && typeof part === "object" && part.type === "text" && typeof part.text === "string").map((part) => part.text) : [];
 }
+function normalizeTextContent(content) {
+  return collapseWhitespace2(extractTextContent(content).join(" "));
+}
+function hasBashCommandArguments(value) {
+  if (!value || typeof value !== "object" || !("command" in value)) return false;
+  return typeof value.command === "string";
+}
+function isRoutineBashCommand(argumentsValue) {
+  if (!hasBashCommandArguments(argumentsValue)) return false;
+  return /^(?:cd\s+.+?\s*&&\s*)*git\s+branch\s+--show-current$/iu.test(collapseWhitespace2(argumentsValue.command));
+}
 function extractToolCalls(content) {
   if (!Array.isArray(content)) return [];
-  return content.filter((part) => Boolean(part) && typeof part === "object" && part.type === "toolCall" && typeof part.name === "string").map((part) => truncateSection(`Tool ${part.name}: ${typeof part.arguments === "object" && part.arguments !== null ? JSON.stringify(part.arguments) : "{}"}`, 180));
+  return content.filter((part) => Boolean(part) && typeof part === "object" && part.type === "toolCall" && typeof part.name === "string").map((part) => {
+    const skipResult = part.name === "bash" && isRoutineBashCommand(part.arguments);
+    return {
+      toolName: part.name,
+      skipResult,
+      line: skipResult ? "" : truncateSection(`Tool ${part.name}: ${typeof part.arguments === "object" && part.arguments !== null ? JSON.stringify(part.arguments) : "{}"}`, 180)
+    };
+  });
 }
 function clipTranscript(text) {
   if (text.length <= MAX_TRANSCRIPT_LENGTH) return text;
@@ -197,18 +225,30 @@ function extractSummaryLines(raw) {
 }
 function buildConversationTranscript(entries) {
   const lines = [];
+  const pendingSkippedResults = {};
   for (const entry of entries) {
     if ((entry.type === "compaction" || entry.type === "branch_summary") && entry.summary) lines.push(`${entry.type === "compaction" ? "Compaction" : "Branch"} summary: ${truncateSection(entry.summary)}`);
     if (entry.type !== "message" || !entry.message?.role) continue;
-    if (entry.message.role === "user") lines.push(...extractTextContent(entry.message.content).join(" ") ? [`User: ${truncateSection(extractTextContent(entry.message.content).join(" "))}`] : []);
+    if (entry.message.role === "user") {
+      const text = normalizeTextContent(entry.message.content);
+      if (text && !isRoutineSocialText(text)) lines.push(`User: ${truncateSection(text)}`);
+    }
     if (entry.message.role === "assistant") {
-      const text = truncateSection(extractTextContent(entry.message.content).join(" "));
-      if (text) lines.push(`Assistant: ${text}`);
-      lines.push(...extractToolCalls(entry.message.content));
+      const text = normalizeTextContent(entry.message.content);
+      if (text && !isRoutineSocialText(text)) lines.push(`Assistant: ${truncateSection(text)}`);
+      for (const toolCall of extractToolCalls(entry.message.content)) {
+        if (toolCall.skipResult) pendingSkippedResults[toolCall.toolName] = (pendingSkippedResults[toolCall.toolName] ?? 0) + 1;
+        if (toolCall.line) lines.push(toolCall.line);
+      }
     }
     if (entry.message.role === "toolResult") {
-      const text = truncateSection(extractTextContent(entry.message.content).join(" "), 180);
-      if (text) lines.push(`Tool result ${entry.message.toolName || "tool"}: ${text}`);
+      const toolName = entry.message.toolName || "tool";
+      if ((pendingSkippedResults[toolName] ?? 0) > 0) {
+        pendingSkippedResults[toolName] -= 1;
+        continue;
+      }
+      const text = truncateSection(normalizeTextContent(entry.message.content), 180);
+      if (text) lines.push(`Tool result ${toolName}: ${text}`);
     }
   }
   return clipTranscript(lines.join("\n"));

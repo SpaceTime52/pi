@@ -8,8 +8,11 @@ export function buildOverviewPrompt(recentText: string, previous?: { title: stri
 		: "Previous summary: (none)";
 	return [
 		"Update the previous summary into a cohesive current-state brief, not a turn-by-turn log.",
+		"Write it for quick future recall by the user, so prioritize what they would want to remember when resuming later.",
 		"Preserve still-relevant goals, decisions, constraints, blockers, and completed work unless recent updates clearly replace them.",
 		"Fold recent updates into the current state instead of listing events in order.",
+		"Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
+		"If the recent updates contain no durable change, keep the previous title and summary unchanged.",
 		"Prefer one dense paragraph. Use multiple paragraphs only for clearly separate concerns.",
 		previousSection,
 		"",
