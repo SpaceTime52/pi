@@ -1,66 +1,30 @@
-import type { AssistantMessage, Model } from "@mariozechner/pi-ai";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { buildConversationTranscript } from "../src/summarize.js";
 
-const { completeSimple } = vi.hoisted(() => ({ completeSimple: vi.fn() }));
-vi.mock("@mariozechner/pi-ai", async () => {
-	const actual = await vi.importActual<typeof import("@mariozechner/pi-ai")>("@mariozechner/pi-ai");
-	return { ...actual, completeSimple };
-});
-
-import { resolveSessionTitle } from "../src/summarize.js";
-
-const model = { api: "openai-responses", provider: "openai", id: "gpt-5.4-mini", name: "GPT", reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 } satisfies Model<"openai-responses">;
-const registry = { getApiKeyAndHeaders: vi.fn(async () => ({ ok: true as const, apiKey: "token" })) };
-
-function message(content: AssistantMessage["content"], stopReason: AssistantMessage["stopReason"] = "stop"): AssistantMessage {
-	return {
-		role: "assistant",
-		content,
-		api: "openai-responses",
-		provider: "openai",
-		model: "gpt-5.4-mini",
-		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-		stopReason,
-		timestamp: 0,
-	};
-}
-
-describe("resolveSessionTitle", () => {
-	beforeEach(() => {
-		completeSimple.mockReset();
-		registry.getApiKeyAndHeaders.mockReset();
-		registry.getApiKeyAndHeaders.mockResolvedValue({ ok: true, apiKey: "token" });
+describe("buildConversationTranscript", () => {
+	it("collects user, assistant, tool, compaction, and branch summary lines", () => {
+		const transcript = buildConversationTranscript([
+			{ type: "other", id: "z0" },
+			{ type: "message", id: "z1", message: {} },
+			{ type: "compaction", id: "c0", summary: "Earlier exploration" },
+			{ type: "branch_summary", id: "b0", summary: "Alternative branch" },
+			{ type: "message", id: "1", message: { role: "user", content: "Fix footer" } },
+			{ type: "message", id: "2", message: { role: "assistant", content: [{ type: "text", text: "I will inspect the footer." }, { type: "toolCall", name: "read", arguments: { path: "src/footer.ts" } }, { type: "toolCall", name: "bash", arguments: null }] } },
+			{ type: "message", id: "2b", message: { role: "assistant", content: "plain assistant string" } },
+			{ type: "message", id: "3", message: { role: "toolResult", toolName: "read", content: [{ type: "text", text: "footer code" }] } },
+			{ type: "message", id: "4", message: { role: "toolResult", content: [{ type: "text", text: "fallback tool name" }] } },
+			{ type: "message", id: "5", message: { role: "user", content: 42 } },
+			{ type: "message", id: "6", message: { role: "custom", content: [{ type: "text", text: "ignored" }] } },
+		]);
+		expect(transcript).toContain("Compaction summary: Earlier exploration");
+		expect(transcript).toContain("Branch summary: Alternative branch");
+		expect(transcript).toContain("Tool result tool: fallback tool name");
+		expect(transcript).not.toContain("ignored");
 	});
 
-	it("uses an LLM-generated summary instead of the raw first message", async () => {
-		completeSimple.mockResolvedValue(message([{ type: "text", text: "첫 메시지 요약" }]));
-		expect(await resolveSessionTitle("긴 첫 메시지", model, registry)).toBe("첫 메시지 요약");
-	});
-
-	it("uses the current model without forcing a reasoning override", async () => {
-		completeSimple.mockResolvedValue(message([{ type: "text", text: "Plain title" }]));
-		expect(await resolveSessionTitle("Fix footer", model, registry)).toBe("Plain title");
-		expect(completeSimple).toHaveBeenCalledWith(model, expect.any(Object), expect.not.objectContaining({ reasoning: expect.anything() }));
-	});
-
-	it("ignores commands, missing models, and auth failures", async () => {
-		expect(await resolveSessionTitle("/name custom", model, registry)).toBeUndefined();
-		expect(await resolveSessionTitle("Fix footer", undefined, registry)).toBeUndefined();
-		registry.getApiKeyAndHeaders.mockResolvedValue({ ok: false, error: "no auth" });
-		expect(await resolveSessionTitle("Fix footer", model, registry)).toBeUndefined();
-	});
-
-	it("uses only text blocks and normalizes the model output", async () => {
-		completeSimple.mockResolvedValue(message([{ type: "thinking", thinking: "hidden" }, { type: "text", text: "# `Fix footer title`" }]));
-		expect(await resolveSessionTitle("Fix footer", model, registry)).toBe("Fix footer title");
-	});
-
-	it("returns undefined when the provider returns an error, the output is empty, or the call fails", async () => {
-		completeSimple.mockResolvedValueOnce(message([], "error"));
-		expect(await resolveSessionTitle("Fix footer", model, registry)).toBeUndefined();
-		completeSimple.mockResolvedValueOnce(message([{ type: "thinking", thinking: "hidden" }]));
-		expect(await resolveSessionTitle("Fix footer", model, registry)).toBeUndefined();
-		completeSimple.mockRejectedValue(new Error("boom"));
-		expect(await resolveSessionTitle("Fix footer", model, registry)).toBeUndefined();
+	it("clips very long transcripts", () => {
+		const transcript = buildConversationTranscript(Array.from({ length: 80 }, (_, index) => ({ type: "message", id: `${index + 1}`, message: { role: "user", content: [{ type: "text", text: `line-${index}-${"a".repeat(220)}` }] } })));
+		expect(transcript).toContain("[... earlier context omitted ...]");
+		expect(transcript.length).toBeLessThanOrEqual(12032);
 	});
 });

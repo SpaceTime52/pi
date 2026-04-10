@@ -19,7 +19,13 @@ function stripWrappingPunctuation(text: string): string {
 export function truncateTitle(text: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): string {
 	if (text.length <= maxLength) return text;
 	const clipped = text.slice(0, maxLength + 1);
-	const lastWordBreak = Math.max(clipped.lastIndexOf(" "), clipped.lastIndexOf(":"), clipped.lastIndexOf("-"), clipped.lastIndexOf("—"), clipped.lastIndexOf(","));
+	const lastWordBreak = Math.max(
+		clipped.lastIndexOf(" "),
+		clipped.lastIndexOf(":"),
+		clipped.lastIndexOf("-"),
+		clipped.lastIndexOf("—"),
+		clipped.lastIndexOf(","),
+	);
 	const cutoff = lastWordBreak >= Math.floor(maxLength * 0.6) ? lastWordBreak : maxLength;
 	return `${clipped.slice(0, cutoff).trimEnd()}…`;
 }
@@ -29,4 +35,8 @@ export function normalizeTitle(text: string, maxLength: number = DEFAULT_MAX_TIT
 	if (!cleaned) return undefined;
 	const title = truncateTitle(stripWrappingPunctuation(cleaned), maxLength).trim();
 	return title || undefined;
+}
+
+export function buildTerminalTitle(sessionName: string): string {
+	return `π - ${sessionName}`;
 }

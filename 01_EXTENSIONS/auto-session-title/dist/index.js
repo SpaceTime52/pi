@@ -1,5 +1,107 @@
+// src/overview-constants.ts
+var OVERVIEW_CUSTOM_TYPE = "auto-session-title.overview";
+var OVERVIEW_OVERLAY_WIDTH = 36;
+
+// src/overview-entry.ts
+function normalizeSummaryLine(line) {
+  if (typeof line !== "string") return void 0;
+  const collapsed = line.replace(/^[-*•]\s*/, "").replace(/\s+/g, " ").trim();
+  if (!collapsed) return void 0;
+  return collapsed.length > 120 ? `${collapsed.slice(0, 119).trimEnd()}\u2026` : collapsed;
+}
+function normalizeOverviewData(data) {
+  const record = data && typeof data === "object" ? data : void 0;
+  const title = typeof record?.title === "string" ? record.title.trim() : "";
+  const summary = Array.isArray(record?.summary) ? record.summary.map(normalizeSummaryLine).filter((line) => Boolean(line)).slice(0, 4) : [];
+  return title && summary.length > 0 ? { title, summary } : void 0;
+}
+function findLatestOverview(branch) {
+  for (let i = branch.length - 1; i >= 0; i--) {
+    const entry = branch[i];
+    if (entry.type !== "custom" || entry.customType !== OVERVIEW_CUSTOM_TYPE) continue;
+    const overview = normalizeOverviewData(entry.data);
+    if (overview) return { entryId: entry.id, ...overview };
+  }
+}
+function getEntriesSince(branch, checkpointEntryId) {
+  if (!checkpointEntryId) return branch;
+  const index = branch.findIndex((entry) => entry.id === checkpointEntryId);
+  return index < 0 ? branch : branch.slice(index + 1);
+}
+function buildOverviewBodyLines(overview, fallbackTitle) {
+  const title = overview?.title || fallbackTitle || "\uC774\uB984 \uC5C6\uB294 \uC138\uC158";
+  const lines = overview?.summary ?? ["\uC694\uC57D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.", "\uB2E4\uC74C \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uC790\uB3D9\uC73C\uB85C \uC815\uB9AC\uB429\uB2C8\uB2E4."];
+  return [`\uC81C\uBAA9: ${title}`, ...lines.map((line) => `\u2022 ${line}`)];
+}
+
+// src/overlay-component.ts
+import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+var OverviewOverlayComponent = class {
+  constructor(tui, theme, overview, fallbackTitle) {
+    this.tui = tui;
+    this.theme = theme;
+    this.overview = overview;
+    this.fallbackTitle = fallbackTitle;
+  }
+  tui;
+  theme;
+  overview;
+  fallbackTitle;
+  cachedWidth;
+  cachedLines;
+  setContent(overview, fallbackTitle) {
+    this.overview = overview;
+    this.fallbackTitle = fallbackTitle;
+    this.invalidate();
+    this.tui.requestRender();
+  }
+  render(width) {
+    if (this.cachedLines) {
+      if (this.cachedWidth === width) return this.cachedLines;
+    }
+    const innerWidth = Math.max(1, width - 2);
+    const border = (text) => this.theme.fg("border", text);
+    const pad = (text) => {
+      const clipped = truncateToWidth(text, innerWidth, "...", true);
+      return clipped + " ".repeat(Math.max(0, innerWidth - visibleWidth(clipped)));
+    };
+    const header = this.theme.fg("accent", " \uC138\uC158 ");
+    const left = "\u2500".repeat(Math.max(0, Math.floor((innerWidth - visibleWidth(header)) / 2)));
+    const right = "\u2500".repeat(Math.max(0, innerWidth - visibleWidth(header) - left.length));
+    const body = buildOverviewBodyLines(this.overview, this.fallbackTitle);
+    this.cachedLines = [
+      border(`\u256D${left}`) + header + border(`${right}\u256E`),
+      ...body.map((line) => border("\u2502") + pad(line) + border("\u2502")),
+      border(`\u2570${"\u2500".repeat(innerWidth)}\u256F`)
+    ];
+    this.cachedWidth = width;
+    return this.cachedLines;
+  }
+  invalidate() {
+    this.cachedWidth = void 0;
+    this.cachedLines = void 0;
+  }
+};
+function getOverviewOverlayOptions() {
+  return {
+    anchor: "top-right",
+    width: OVERVIEW_OVERLAY_WIDTH,
+    minWidth: 30,
+    maxHeight: 8,
+    margin: { top: 1, right: 1 },
+    nonCapturing: true,
+    visible: (termWidth) => termWidth >= 100
+  };
+}
+
 // src/summarize.ts
 import { completeSimple } from "@mariozechner/pi-ai";
+
+// src/summary-prompt.ts
+function buildOverviewPrompt(recentText, previous) {
+  const previousSection = previous ? [`Previous title: ${previous.title}`, "Previous summary:", ...previous.summary.map((line) => `- ${line}`)].join("\n") : "Previous summary: (none)";
+  return [previousSection, "", "Recent conversation updates:", recentText].join("\n");
+}
 
 // src/title.ts
 var DEFAULT_MAX_TITLE_LENGTH = 48;
@@ -18,7 +120,13 @@ function stripWrappingPunctuation(text) {
 function truncateTitle(text, maxLength = DEFAULT_MAX_TITLE_LENGTH) {
   if (text.length <= maxLength) return text;
   const clipped = text.slice(0, maxLength + 1);
-  const lastWordBreak = Math.max(clipped.lastIndexOf(" "), clipped.lastIndexOf(":"), clipped.lastIndexOf("-"), clipped.lastIndexOf("\u2014"), clipped.lastIndexOf(","));
+  const lastWordBreak = Math.max(
+    clipped.lastIndexOf(" "),
+    clipped.lastIndexOf(":"),
+    clipped.lastIndexOf("-"),
+    clipped.lastIndexOf("\u2014"),
+    clipped.lastIndexOf(",")
+  );
   const cutoff = lastWordBreak >= Math.floor(maxLength * 0.6) ? lastWordBreak : maxLength;
   return `${clipped.slice(0, cutoff).trimEnd()}\u2026`;
 }
@@ -28,89 +136,200 @@ function normalizeTitle(text, maxLength = DEFAULT_MAX_TITLE_LENGTH) {
   const title = truncateTitle(stripWrappingPunctuation(cleaned), maxLength).trim();
   return title || void 0;
 }
+function buildTerminalTitle(sessionName) {
+  return `\u03C0 - ${sessionName}`;
+}
+
+// src/summary-types.ts
+var MAX_SECTION_LENGTH = 240;
+var MAX_TRANSCRIPT_LENGTH = 12e3;
+var OVERVIEW_PROMPT = [
+  "You maintain concise coding-session overviews.",
+  "Return exactly this format:",
+  "TITLE: <short title in the user's language, max 8 words>",
+  "SUMMARY:",
+  "- Goal: <current objective>",
+  "- Done: <concrete progress>",
+  "- Note: <important context, decision, or blocker>",
+  "- Next: <next action>",
+  "Keep every summary bullet on one line, factual, and concise.",
+  "Do not use markdown code fences or extra sections."
+].join(" ");
+
+// src/summary-text.ts
+function collapseWhitespace2(text) {
+  return text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function truncateSection(text, maxLength = MAX_SECTION_LENGTH) {
+  const collapsed = collapseWhitespace2(text);
+  return collapsed.length <= maxLength ? collapsed : `${collapsed.slice(0, maxLength - 1).trimEnd()}\u2026`;
+}
+function extractTextContent(content) {
+  if (typeof content === "string") return [content];
+  return Array.isArray(content) ? content.filter((part) => Boolean(part) && typeof part === "object" && part.type === "text" && typeof part.text === "string").map((part) => part.text) : [];
+}
+function extractToolCalls(content) {
+  if (!Array.isArray(content)) return [];
+  return content.filter((part) => Boolean(part) && typeof part === "object" && part.type === "toolCall" && typeof part.name === "string").map((part) => truncateSection(`Tool ${part.name}: ${typeof part.arguments === "object" && part.arguments !== null ? JSON.stringify(part.arguments) : "{}"}`, 180));
+}
+function clipTranscript(text) {
+  if (text.length <= MAX_TRANSCRIPT_LENGTH) return text;
+  const head = text.slice(0, 4e3).trimEnd();
+  const tail = text.slice(-(MAX_TRANSCRIPT_LENGTH - head.length - 32)).trimStart();
+  return `${head}
+
+[... earlier context omitted ...]
+
+${tail}`;
+}
+function extractSummaryLines(raw) {
+  return raw.split(/\r?\n/).map((line) => line.replace(/^[-*•]\s*/, "").trim()).filter(Boolean).map((line) => truncateSection(line, 120)).slice(0, 4);
+}
+function buildConversationTranscript(entries) {
+  const lines = [];
+  for (const entry of entries) {
+    if ((entry.type === "compaction" || entry.type === "branch_summary") && entry.summary) lines.push(`${entry.type === "compaction" ? "Compaction" : "Branch"} summary: ${truncateSection(entry.summary)}`);
+    if (entry.type !== "message" || !entry.message?.role) continue;
+    if (entry.message.role === "user") lines.push(...extractTextContent(entry.message.content).join(" ") ? [`User: ${truncateSection(extractTextContent(entry.message.content).join(" "))}`] : []);
+    if (entry.message.role === "assistant") {
+      const text = truncateSection(extractTextContent(entry.message.content).join(" "));
+      if (text) lines.push(`Assistant: ${text}`);
+      lines.push(...extractToolCalls(entry.message.content));
+    }
+    if (entry.message.role === "toolResult") {
+      const text = truncateSection(extractTextContent(entry.message.content).join(" "), 180);
+      if (text) lines.push(`Tool result ${entry.message.toolName || "tool"}: ${text}`);
+    }
+  }
+  return clipTranscript(lines.join("\n"));
+}
+
+// src/summary-parse.ts
+function parseOverviewResponse(response) {
+  const lines = response.split(/\r?\n/);
+  const titleLine = lines.find((line) => /^TITLE\s*:/i.test(line));
+  const title = normalizeTitle(titleLine?.replace(/^TITLE\s*:/i, "").trim() ?? "");
+  if (!title) return void 0;
+  const summaryIndex = lines.findIndex((line) => /^SUMMARY\s*:/i.test(line));
+  const inlineSummary = summaryIndex >= 0 ? lines[summaryIndex].replace(/^SUMMARY\s*:/i, "").trim() : "";
+  const remainder = summaryIndex >= 0 ? lines.slice(summaryIndex + 1) : lines.filter((line) => !/^TITLE\s*:/i.test(line));
+  const summary = extractSummaryLines([...inlineSummary ? [inlineSummary] : [], ...remainder].join("\n"));
+  return summary.length > 0 ? { title, summary } : void 0;
+}
+function extractAssistantText(message) {
+  return message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n").trim();
+}
 
 // src/summarize.ts
-var TITLE_PROMPT = [
-  "You write short session titles for coding work.",
-  "Summarize the user's request instead of copying it.",
-  "Return only the title, in the user's language, with no quotes.",
-  "Keep it specific, under 8 words, and avoid filler words."
-].join(" ");
-function isTitleableInput(input) {
-  const raw = input.trim();
-  return raw.length > 0 && !raw.startsWith("/") && !raw.startsWith("!");
-}
-function extractText(content) {
-  return content.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text).join(" ").trim();
-}
-async function resolveSessionTitle(input, model, modelRegistry) {
-  if (!isTitleableInput(input) || !model) return void 0;
-  const auth = await modelRegistry.getApiKeyAndHeaders(model);
+async function resolveSessionOverview(options) {
+  if (!options.model || !options.recentText.trim()) return void 0;
+  const auth = await options.modelRegistry.getApiKeyAndHeaders(options.model);
   if (!auth.ok) return void 0;
   try {
-    const message = await completeSimple(model, {
-      systemPrompt: TITLE_PROMPT,
-      messages: [{ role: "user", content: input, timestamp: Date.now() }]
-    }, {
-      apiKey: auth.apiKey,
-      headers: auth.headers
-    });
-    if (message.stopReason === "error") return void 0;
-    return normalizeTitle(extractText(message.content));
+    const message = await completeSimple(
+      options.model,
+      { systemPrompt: OVERVIEW_PROMPT, messages: [{ role: "user", content: buildOverviewPrompt(options.recentText, options.previous), timestamp: Date.now() }] },
+      { apiKey: auth.apiKey, headers: auth.headers }
+    );
+    return message.stopReason === "error" ? void 0 : parseOverviewResponse(extractAssistantText(message));
   } catch {
     return void 0;
   }
 }
 
-// src/handlers.ts
-function hasUserMessages(ctx) {
-  return ctx.sessionManager.getEntries().some((entry) => entry.type === "message" && entry.message?.role === "user");
+// src/overlay-state.ts
+var overlayState;
+function hideOverviewOverlay() {
+  overlayState?.handle?.hide();
+  overlayState = void 0;
 }
-function hasSessionTitle(runtime2, ctx) {
-  return Boolean(runtime2.getSessionName() || ctx.sessionManager.getSessionName());
+function ensureOverviewOverlay(ctx, overview, fallbackTitle) {
+  if (!ctx.hasUI) return;
+  const sessionId = ctx.sessionManager.getSessionId();
+  if (overlayState && overlayState.sessionId !== sessionId) hideOverviewOverlay();
+  if (overlayState) return overlayState.component.setContent(overview, fallbackTitle);
+  void ctx.ui.custom(
+    (tui, theme) => {
+      const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
+      overlayState = { sessionId, component };
+      return component;
+    },
+    { overlay: true, overlayOptions: getOverviewOverlayOptions(), onHandle: (handle) => {
+      if (overlayState?.sessionId === sessionId) overlayState.handle = handle;
+    } }
+  ).catch(() => {
+    if (overlayState?.sessionId === sessionId) overlayState = void 0;
+  });
 }
-function buildTerminalTitle(_cwd, sessionName) {
-  return `\u03C0 - ${sessionName}`;
+function clearOverlayState() {
+  hideOverviewOverlay();
 }
-function handleInput(pending2, runtime2, event, ctx) {
-  if (event.source === "extension" || hasSessionTitle(runtime2, ctx) || hasUserMessages(ctx)) return;
-  if (!isTitleableInput(event.text)) return;
-  pending2.set(ctx.sessionManager.getSessionId(), event.text);
+
+// src/overview-sync.ts
+function sameSummary(left, right) {
+  return left.length === right.length && left.every((line, index) => line === right[index]);
 }
-async function handleBeforeAgentStart(pending2, runtime2, ctx) {
-  if (hasSessionTitle(runtime2, ctx) || hasUserMessages(ctx)) return;
-  const input = pending2.get(ctx.sessionManager.getSessionId());
-  if (!input) return;
-  const title = await resolveSessionTitle(input, ctx.model, ctx.modelRegistry);
-  if (!title) return;
-  pending2.delete(ctx.sessionManager.getSessionId());
-  runtime2.setSessionName(title);
-  if (ctx.hasUI) ctx.ui.setTitle(buildTerminalTitle(ctx.cwd || ctx.sessionManager.getCwd(), title));
+function resolveFallbackTitle(previous, runtime2, ctx) {
+  return previous?.title || runtime2.getSessionName() || ctx.sessionManager.getSessionName();
+}
+function syncTerminalTitle(ctx, title) {
+  if (ctx.hasUI && title) ctx.ui.setTitle(buildTerminalTitle(title));
+}
+function restoreOverview(runtime2, ctx) {
+  const overview = findLatestOverview(ctx.sessionManager.getBranch());
+  if (overview && runtime2.getSessionName() !== overview.title) runtime2.setSessionName(overview.title);
+  const title = resolveFallbackTitle(overview, runtime2, ctx);
+  ensureOverviewOverlay(ctx, overview, title);
+  syncTerminalTitle(ctx, title);
+}
+async function refreshOverview(inFlight2, runtime2, ctx) {
+  const sessionId = ctx.sessionManager.getSessionId();
+  if (inFlight2.has(sessionId)) return;
+  inFlight2.add(sessionId);
+  try {
+    const branch = ctx.sessionManager.getBranch();
+    const previous = findLatestOverview(branch);
+    const recentText = buildConversationTranscript(getEntriesSince(branch, previous?.entryId));
+    if (!recentText) return restoreOverview(runtime2, ctx);
+    const next = await resolveSessionOverview({ recentText, previous, model: ctx.model, modelRegistry: ctx.modelRegistry });
+    if (!next) return restoreOverview(runtime2, ctx);
+    const changed = !previous || previous.title !== next.title || !sameSummary(previous.summary, next.summary);
+    if (changed) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, next);
+    if (runtime2.getSessionName() !== next.title) runtime2.setSessionName(next.title);
+    ensureOverviewOverlay(ctx, next, next.title);
+    syncTerminalTitle(ctx, next.title);
+  } finally {
+    inFlight2.delete(sessionId);
+  }
+}
+function clearOverviewUi(inFlight2, _ctx) {
+  inFlight2.clear();
+  clearOverlayState();
 }
 
 // src/hooks.ts
-var pending = /* @__PURE__ */ new Map();
-function runtime(getSessionName, setSessionName) {
-  return { getSessionName, setSessionName };
+var inFlight = /* @__PURE__ */ new Set();
+function runtime(getSessionName, setSessionName, appendEntry) {
+  return { getSessionName, setSessionName, appendEntry };
 }
-function createInputHandler(getSessionName, setSessionName) {
-  return async (event, ctx) => {
-    handleInput(pending, runtime(getSessionName, setSessionName), event, ctx);
-  };
+function createSessionStartHandler(getSessionName, setSessionName, appendEntry) {
+  return async (_event, ctx) => restoreOverview(runtime(getSessionName, setSessionName, appendEntry), ctx);
 }
-function createBeforeAgentStartHandler(getSessionName, setSessionName) {
-  return async (_event, ctx) => {
-    await handleBeforeAgentStart(pending, runtime(getSessionName, setSessionName), ctx);
-  };
+function createAgentEndHandler(getSessionName, setSessionName, appendEntry) {
+  return async (_event, ctx) => refreshOverview(inFlight, runtime(getSessionName, setSessionName, appendEntry), ctx);
+}
+function createSessionTreeHandler(getSessionName, setSessionName, appendEntry) {
+  return async (_event, ctx) => restoreOverview(runtime(getSessionName, setSessionName, appendEntry), ctx);
 }
 function createSessionShutdownHandler() {
-  return async (_event, ctx) => void pending.delete(ctx.sessionManager.getSessionId());
+  return async (_event, _ctx) => clearOverviewUi(inFlight);
 }
 
 // src/index.ts
 function index_default(pi) {
-  pi.on("input", createInputHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name)));
-  pi.on("before_agent_start", createBeforeAgentStartHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name)));
+  pi.on("session_start", createSessionStartHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name), (customType, data) => pi.appendEntry(customType, data)));
+  pi.on("session_tree", createSessionTreeHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name), (customType, data) => pi.appendEntry(customType, data)));
+  pi.on("agent_end", createAgentEndHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name), (customType, data) => pi.appendEntry(customType, data)));
   pi.on("session_shutdown", createSessionShutdownHandler());
 }
 export {

@@ -1,27 +1,39 @@
-import { describe, expect, it } from "vitest";
-import { handleInput } from "../src/handlers.js";
-import { makeInput, stubContext, stubRuntime } from "./helpers.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearOverviewUi, refreshOverview } from "../src/handlers.js";
+import { stubContext, stubRuntime } from "./helpers.js";
 
-describe("handleInput guards", () => {
-	it("ignores extension-delivered and command-style input", () => {
-		const pending = new Map<string, string>();
-		handleInput(pending, stubRuntime(), makeInput("Internal", "extension"), stubContext());
-		handleInput(pending, stubRuntime(), makeInput("/name custom"), stubContext());
-		handleInput(pending, stubRuntime(), makeInput("!git status"), stubContext());
-		expect(pending.size).toBe(0);
+const { resolveSessionOverview } = vi.hoisted(() => ({ resolveSessionOverview: vi.fn() }));
+vi.mock("../src/summarize.js", async () => ({ ...(await vi.importActual<typeof import("../src/summarize.js")>("../src/summarize.js")), resolveSessionOverview }));
+
+describe("refreshOverview guards", () => {
+	beforeEach(() => {
+		resolveSessionOverview.mockReset();
+		clearOverviewUi(new Set(), stubContext());
 	});
 
-	it("does not store input when the session already has a title", () => {
-		const pending = new Map<string, string>();
-		handleInput(pending, stubRuntime("Existing"), makeInput("New request"), stubContext());
-		handleInput(pending, stubRuntime(), makeInput("New request"), stubContext({ sessionManager: { getSessionId: () => "session-1", getSessionName: () => "Existing", getEntries: () => [], getCwd: () => "/Users/me/Desktop/pi" } }));
-		expect(pending.size).toBe(0);
+	it("returns immediately when a refresh for the same session is already running", async () => {
+		const inFlight = new Set<string>(["session-1"]);
+		await refreshOverview(inFlight, stubRuntime(), stubContext([{ type: "message", id: "1", message: { role: "assistant", content: [{ type: "text", text: "업데이트" }] } }]));
+		expect(resolveSessionOverview).not.toHaveBeenCalled();
+		expect(inFlight.has("session-1")).toBe(true);
 	});
 
-	it("does not store input when a prior user message already exists", () => {
-		const pending = new Map<string, string>();
-		const ctx = stubContext({ sessionManager: { getSessionId: () => "session-1", getSessionName: () => undefined, getEntries: () => [{ type: "message", message: { role: "user" } }], getCwd: () => "/Users/me/Desktop/pi" } });
-		handleInput(pending, stubRuntime(), makeInput("New request"), ctx);
-		expect(pending.size).toBe(0);
+	it("falls back to the previous overview when there is no recent text or summarization fails", async () => {
+		const runtime = stubRuntime();
+		const previous = { type: "custom", id: "ov1", customType: "auto-session-title.overview", data: { title: "이전 제목", summary: ["Goal: A", "Done: B", "Note: C", "Next: D"] } };
+		const ctx = stubContext([previous]);
+		await refreshOverview(new Set(), runtime, ctx);
+		expect(resolveSessionOverview).not.toHaveBeenCalled();
+		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 이전 제목");
+		resolveSessionOverview.mockResolvedValue(undefined);
+		await refreshOverview(new Set(), runtime, stubContext([previous, { type: "message", id: "2", message: { role: "assistant", content: [{ type: "text", text: "새 출력" }] } }]));
+		expect(runtime.appendEntry).not.toHaveBeenCalled();
+	});
+
+	it("cleans up in-flight state even when summarization throws", async () => {
+		resolveSessionOverview.mockImplementationOnce(async () => { throw new Error("boom"); });
+		const inFlight = new Set<string>();
+		await expect(refreshOverview(inFlight, stubRuntime(), stubContext([{ type: "message", id: "1", message: { role: "assistant", content: [{ type: "text", text: "업데이트" }] } }]))).rejects.toThrow("boom");
+		expect(inFlight.size).toBe(0);
 	});
 });

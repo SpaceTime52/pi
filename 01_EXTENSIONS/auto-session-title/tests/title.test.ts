@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_MAX_TITLE_LENGTH, normalizeTitle, truncateTitle } from "../src/title.js";
+import { DEFAULT_MAX_TITLE_LENGTH, buildTerminalTitle, normalizeTitle, truncateTitle } from "../src/title.js";
 
 describe("normalizeTitle", () => {
 	it("returns undefined for empty input", () => {
@@ -30,5 +30,11 @@ describe("truncateTitle", () => {
 
 	it("falls back to a hard cutoff when no word break exists", () => {
 		expect(truncateTitle("abcdefghijklmnopqrstuvwxyz", 10)).toBe("abcdefghij…");
+	});
+});
+
+describe("buildTerminalTitle", () => {
+	it("formats the terminal title with a pi prefix", () => {
+		expect(buildTerminalTitle("세션 요약 갱신")).toBe("π - 세션 요약 갱신");
 	});
 });

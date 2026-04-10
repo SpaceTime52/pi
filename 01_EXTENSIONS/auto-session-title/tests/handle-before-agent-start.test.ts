@@ -1,49 +1,45 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { handleBeforeAgentStart } from "../src/handlers.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { clearOverviewUi, findLatestOverview, getOverviewOverlayOptions, restoreOverview } from "../src/handlers.js";
 import { stubContext, stubRuntime } from "./helpers.js";
 
-const { resolveSessionTitle } = vi.hoisted(() => ({ resolveSessionTitle: vi.fn() }));
-vi.mock("../src/summarize.js", async () => ({ ...(await vi.importActual("../src/summarize.js")), resolveSessionTitle }));
+describe("overview restoration core", () => {
+	beforeEach(() => clearOverviewUi(new Set(), stubContext()));
 
-describe("handleBeforeAgentStart", () => {
-	beforeEach(() => resolveSessionTitle.mockReset());
-
-	it("sets the session name and title from pending input", async () => {
-		resolveSessionTitle.mockResolvedValue("Fix footer title handling");
-		const runtime = stubRuntime();
-		const ctx = stubContext();
-		const pending = new Map<string, string>([["session-1", "raw input"]]);
-		await handleBeforeAgentStart(pending, runtime, ctx);
-		expect(runtime.setSessionName).toHaveBeenCalledWith("Fix footer title handling");
-		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - Fix footer title handling");
-		expect(pending.size).toBe(0);
+	it("returns undefined for malformed persisted overviews", () => {
+		expect(findLatestOverview([
+			{ type: "custom", id: "bad1", customType: "auto-session-title.overview", data: null },
+			{ type: "custom", id: "bad2", customType: "auto-session-title.overview", data: { title: 123, summary: ["Goal: x"] } },
+			{ type: "custom", id: "bad3", customType: "auto-session-title.overview", data: { title: "제목", summary: ["   ", null] } },
+			{ type: "custom", id: "bad4", customType: "auto-session-title.overview", data: { title: "제목", summary: "bad" } },
+		])).toBeUndefined();
 	});
 
-	it("uses session cwd fallback when title generation succeeds", async () => {
-		resolveSessionTitle.mockResolvedValue("Investigate cwd fallback");
-		const ctx = stubContext({ cwd: "" });
-		await handleBeforeAgentStart(new Map([["session-1", "raw input"]]), stubRuntime(), ctx);
-		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - Investigate cwd fallback");
+	it("finds the latest valid persisted overview entry", () => {
+		expect(findLatestOverview([
+			{ type: "custom", id: "1", customType: "other", data: { title: "x", summary: ["y"] } },
+			{ type: "custom", id: "2", customType: "auto-session-title.overview", data: "invalid" },
+			{ type: "custom", id: "5", customType: "auto-session-title.overview", data: { title: "현재 세션", summary: ["- Goal: 요약", "- Done: 오버레이 표시", `- ${"x".repeat(140)}`] } },
+		])).toEqual({ entryId: "5", title: "현재 세션", summary: ["Goal: 요약", "Done: 오버레이 표시", `${"x".repeat(119)}…`] });
 	});
 
-	it("preserves pending input when title generation fails or no input is queued", async () => {
-		resolveSessionTitle.mockResolvedValue(undefined);
-		const ctx = stubContext();
-		const pending = new Map<string, string>([["session-1", "raw input"]]);
-		await handleBeforeAgentStart(pending, stubRuntime(), ctx);
-		await handleBeforeAgentStart(new Map(), stubRuntime(), ctx);
-		expect(ctx.ui.setTitle).not.toHaveBeenCalled();
-		expect(pending.get("session-1")).toBe("raw input");
+	it("restores overlay, session name, and terminal title from persisted overview", () => {
+		const runtime = stubRuntime("이전 이름");
+		const ctx = stubContext([{ type: "custom", id: "3", customType: "auto-session-title.overview", data: { title: "현재 세션", summary: ["Goal: 요약", "Done: 오버레이 표시"] } }]);
+		restoreOverview(runtime, ctx);
+		expect(runtime.setSessionName).toHaveBeenCalledWith("현재 세션");
+		expect(ctx.overlay.options?.overlayOptions).toEqual(expect.objectContaining({ anchor: "top-right", nonCapturing: true, width: getOverviewOverlayOptions().width }));
+		expect(ctx.overlay.component?.render(36).join("\n")).toContain("제목: 현재 세션");
+		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 현재 세션");
 	});
 
-	it("does nothing when a title already exists or no UI is available", async () => {
-		const pending = new Map<string, string>([["session-1", "raw input"]]);
-		await handleBeforeAgentStart(pending, stubRuntime("Existing"), stubContext());
-		resolveSessionTitle.mockResolvedValue("Investigate notify footer sync");
-		const runtime = stubRuntime();
-		const ctx = stubContext({ hasUI: false });
-		await handleBeforeAgentStart(pending, runtime, ctx);
-		expect(runtime.setSessionName).toHaveBeenCalledWith("Investigate notify footer sync");
-		expect(ctx.ui.setTitle).not.toHaveBeenCalled();
+	it("reuses the same overlay for subsequent restores in the same session", () => {
+		const ctx = stubContext([{ type: "custom", id: "1", customType: "auto-session-title.overview", data: { title: "첫 제목", summary: ["Goal: A"] } }]);
+		restoreOverview(stubRuntime(), ctx);
+		const firstRender = ctx.overlay.component?.render(36);
+		expect(ctx.overlay.component?.render(40)).not.toBe(firstRender);
+		ctx.sessionManager.getBranch.mockReturnValue([{ type: "custom", id: "2", customType: "auto-session-title.overview", data: { title: "둘째 제목", summary: ["Goal: B"] } }]);
+		restoreOverview(stubRuntime(), ctx);
+		expect(ctx.ui.custom).toHaveBeenCalledTimes(1);
+		expect(ctx.overlay.tui.requestRender).toHaveBeenCalled();
 	});
 });

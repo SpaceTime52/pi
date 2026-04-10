@@ -1,32 +1,23 @@
-import { handleBeforeAgentStart, handleInput, type PendingSessionTitles, type SessionTitleRuntime } from "./handlers.js";
+import { clearOverviewUi, refreshOverview, restoreOverview, type OverviewContext, type OverviewRuntime } from "./handlers.js";
 
-const pending: PendingSessionTitles = new Map();
+const inFlight = new Set<string>();
 
-function runtime(
-	getSessionName: SessionTitleRuntime["getSessionName"],
-	setSessionName: SessionTitleRuntime["setSessionName"],
-): SessionTitleRuntime {
-	return { getSessionName, setSessionName };
+function runtime(getSessionName: OverviewRuntime["getSessionName"], setSessionName: OverviewRuntime["setSessionName"], appendEntry: OverviewRuntime["appendEntry"]): OverviewRuntime {
+	return { getSessionName, setSessionName, appendEntry };
 }
 
-export function createInputHandler(
-	getSessionName: SessionTitleRuntime["getSessionName"],
-	setSessionName: SessionTitleRuntime["setSessionName"],
-) {
-	return async (event: Parameters<typeof handleInput>[2], ctx: Parameters<typeof handleInput>[3]) => {
-		handleInput(pending, runtime(getSessionName, setSessionName), event, ctx);
-	};
+export function createSessionStartHandler(getSessionName: OverviewRuntime["getSessionName"], setSessionName: OverviewRuntime["setSessionName"], appendEntry: OverviewRuntime["appendEntry"]) {
+	return async (_event: object, ctx: OverviewContext) => restoreOverview(runtime(getSessionName, setSessionName, appendEntry), ctx);
 }
 
-export function createBeforeAgentStartHandler(
-	getSessionName: SessionTitleRuntime["getSessionName"],
-	setSessionName: SessionTitleRuntime["setSessionName"],
-) {
-	return async (_event: unknown, ctx: Parameters<typeof handleBeforeAgentStart>[2]) => {
-		await handleBeforeAgentStart(pending, runtime(getSessionName, setSessionName), ctx);
-	};
+export function createAgentEndHandler(getSessionName: OverviewRuntime["getSessionName"], setSessionName: OverviewRuntime["setSessionName"], appendEntry: OverviewRuntime["appendEntry"]) {
+	return async (_event: object, ctx: OverviewContext) => refreshOverview(inFlight, runtime(getSessionName, setSessionName, appendEntry), ctx);
+}
+
+export function createSessionTreeHandler(getSessionName: OverviewRuntime["getSessionName"], setSessionName: OverviewRuntime["setSessionName"], appendEntry: OverviewRuntime["appendEntry"]) {
+	return async (_event: object, ctx: OverviewContext) => restoreOverview(runtime(getSessionName, setSessionName, appendEntry), ctx);
 }
 
 export function createSessionShutdownHandler() {
-	return async (_event: unknown, ctx: Parameters<typeof handleBeforeAgentStart>[2]) => void pending.delete(ctx.sessionManager.getSessionId());
+	return async (_event: object, _ctx: OverviewContext) => clearOverviewUi(inFlight);
 }

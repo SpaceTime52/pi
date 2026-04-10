@@ -1,53 +1,24 @@
-import { completeSimple, type Api, type Model } from "@mariozechner/pi-ai";
-import { normalizeTitle } from "./title.js";
+import { completeSimple } from "@mariozechner/pi-ai";
+import type { SessionOverview } from "./overview-types.js";
+import { buildOverviewPrompt } from "./summary-prompt.js";
+import { extractAssistantText, parseOverviewResponse } from "./summary-parse.js";
+import { OVERVIEW_PROMPT, type ResolveSessionOverviewOptions, type SessionOverviewAuth, type SessionOverviewModel, type SessionOverviewModelRegistry } from "./summary-types.js";
+export { buildConversationTranscript, extractSummaryLines } from "./summary-text.js";
+export { buildOverviewPrompt } from "./summary-prompt.js";
+export { parseOverviewResponse } from "./summary-parse.js";
+export { OVERVIEW_PROMPT, type ResolveSessionOverviewOptions, type SessionOverviewAuth, type SessionOverviewModel, type SessionOverviewModelRegistry } from "./summary-types.js";
 
-const TITLE_PROMPT = [
-	"You write short session titles for coding work.",
-	"Summarize the user's request instead of copying it.",
-	"Return only the title, in the user's language, with no quotes.",
-	"Keep it specific, under 8 words, and avoid filler words.",
-].join(" ");
-
-export type SessionTitleModel = Model<Api>;
-export type SessionTitleAuth =
-	| { ok: true; apiKey?: string; headers?: Record<string, string> }
-	| { ok: false; error: string };
-
-export interface SessionTitleModelRegistry {
-	getApiKeyAndHeaders(model: SessionTitleModel): Promise<SessionTitleAuth>;
-}
-
-export function isTitleableInput(input: string): boolean {
-	const raw = input.trim();
-	return raw.length > 0 && !raw.startsWith("/") && !raw.startsWith("!");
-}
-
-function extractText(content: Array<{ type: string; text?: string }>): string {
-	return content
-		.filter((part) => part.type === "text" && typeof part.text === "string")
-		.map((part) => part.text)
-		.join(" ")
-		.trim();
-}
-
-export async function resolveSessionTitle(
-	input: string,
-	model: SessionTitleModel | undefined,
-	modelRegistry: SessionTitleModelRegistry,
-): Promise<string | undefined> {
-	if (!isTitleableInput(input) || !model) return undefined;
-	const auth = await modelRegistry.getApiKeyAndHeaders(model);
+export async function resolveSessionOverview(options: ResolveSessionOverviewOptions): Promise<SessionOverview | undefined> {
+	if (!options.model || !options.recentText.trim()) return undefined;
+	const auth = await options.modelRegistry.getApiKeyAndHeaders(options.model);
 	if (!auth.ok) return undefined;
 	try {
-		const message = await completeSimple(model, {
-			systemPrompt: TITLE_PROMPT,
-			messages: [{ role: "user", content: input, timestamp: Date.now() }],
-		}, {
-			apiKey: auth.apiKey,
-			headers: auth.headers,
-		});
-		if (message.stopReason === "error") return undefined;
-		return normalizeTitle(extractText(message.content));
+		const message = await completeSimple(
+			options.model,
+			{ systemPrompt: OVERVIEW_PROMPT, messages: [{ role: "user", content: buildOverviewPrompt(options.recentText, options.previous), timestamp: Date.now() }] },
+			{ apiKey: auth.apiKey, headers: auth.headers },
+		);
+		return message.stopReason === "error" ? undefined : parseOverviewResponse(extractAssistantText(message));
 	} catch {
 		return undefined;
 	}
