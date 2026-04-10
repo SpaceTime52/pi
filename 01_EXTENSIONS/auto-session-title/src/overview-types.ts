@@ -20,6 +20,7 @@ export interface OverviewRuntime {
 	getSessionName(): string | undefined;
 	setSessionName(name: string): void;
 	appendEntry<T>(customType: string, data?: T): void;
+	isActive?(): boolean;
 }
 
 export interface OverviewEntry {
@@ -51,4 +52,5 @@ export interface OverviewContext {
 		getSessionName(): string | undefined;
 		getBranch(): OverviewEntry[];
 	};
+	hasPendingMessages?(): boolean;
 }

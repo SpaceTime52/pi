@@ -38,7 +38,7 @@ export function resolveOverviewTitle(overview?: SessionOverview, fallbackTitle?:
 }
 
 export function buildOverviewBodyLines(overview?: SessionOverview): string[] {
-	return overview?.summary ?? ["요약이 아직 없습니다.", "다음 응답이 끝나면 자동으로 정리됩니다."];
+	return overview?.summary ?? ["요약이 아직 없습니다.", "첫 요청이나 다음 응답이 끝나면 자동으로 정리됩니다."];
 }
 
 export function buildOverviewWidgetText(overview?: SessionOverview, fallbackTitle?: string): string {

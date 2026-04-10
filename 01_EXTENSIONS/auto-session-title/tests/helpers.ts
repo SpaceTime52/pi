@@ -42,6 +42,7 @@ export function stubContext(branch: OverviewEntry[] = [], overrides: Partial<Stu
 		modelRegistry: { getApiKeyAndHeaders: vi.fn(async () => ({ ok: false, error: "no auth" })) },
 		ui: { setTitle: vi.fn(), custom },
 		sessionManager: { getSessionId: vi.fn(() => "session-1"), getSessionName: vi.fn(() => undefined), getBranch: vi.fn(() => branch) },
+		hasPendingMessages: vi.fn(() => false),
 		overlay,
 		...overrides,
 	};

@@ -1,6 +1,6 @@
 // src/overview-constants.ts
 var OVERVIEW_CUSTOM_TYPE = "auto-session-title.overview";
-var OVERVIEW_OVERLAY_WIDTH = 64;
+var OVERVIEW_OVERLAY_WIDTH = 80;
 
 // src/overview-entry.ts
 function normalizeSummaryLine(line) {
@@ -33,12 +33,19 @@ function resolveOverviewTitle(overview, fallbackTitle) {
   return overview?.title || fallbackTitle || "\uC138\uC158 \uC694\uC57D";
 }
 function buildOverviewBodyLines(overview) {
-  return overview?.summary ?? ["\uC694\uC57D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.", "\uB2E4\uC74C \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uC790\uB3D9\uC73C\uB85C \uC815\uB9AC\uB429\uB2C8\uB2E4."];
+  return overview?.summary ?? ["\uC694\uC57D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.", "\uCCAB \uC694\uCCAD\uC774\uB098 \uB2E4\uC74C \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uC790\uB3D9\uC73C\uB85C \uC815\uB9AC\uB429\uB2C8\uB2E4."];
 }
 
 // src/overlay-component.ts
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
-var OVERVIEW_OVERLAY_MIN_WIDTH = 48;
+var OVERVIEW_OVERLAY_MIN_WIDTH = 60;
+var OVERVIEW_OVERLAY_MAX_WIDTH = 96;
+var OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH = 48;
+var OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH = OVERVIEW_OVERLAY_MIN_WIDTH + OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH;
+function resolveOverlayWidth(termWidth) {
+  const capped = Math.min(OVERVIEW_OVERLAY_MAX_WIDTH, Math.max(OVERVIEW_OVERLAY_MIN_WIDTH, termWidth - OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH));
+  return capped - capped % 2;
+}
 function resolveOverlayCol(termWidth, width) {
   const maxCol = Math.max(0, termWidth - width);
   return maxCol - maxCol % 2;
@@ -85,14 +92,15 @@ var OverviewOverlayComponent = class {
   }
 };
 function getOverviewOverlayOptions(termWidth) {
-  if (typeof termWidth === "number" && termWidth >= OVERVIEW_OVERLAY_WIDTH) {
+  if (typeof termWidth === "number") {
+    const width = resolveOverlayWidth(termWidth);
     return {
       row: 1,
-      col: resolveOverlayCol(termWidth, OVERVIEW_OVERLAY_WIDTH),
-      width: OVERVIEW_OVERLAY_WIDTH,
+      col: resolveOverlayCol(termWidth, width),
+      width,
       minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
       nonCapturing: true,
-      visible: (nextTermWidth) => nextTermWidth >= 100
+      visible: (nextTermWidth) => nextTermWidth >= OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH
     };
   }
   return {
@@ -101,32 +109,60 @@ function getOverviewOverlayOptions(termWidth) {
     minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
     margin: { top: 1, right: 0 },
     nonCapturing: true,
-    visible: (nextTermWidth) => nextTermWidth >= 100
+    visible: (nextTermWidth) => nextTermWidth >= OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH
   };
 }
 
-// src/summarize.ts
-import { completeSimple } from "@mariozechner/pi-ai";
-
-// src/summary-prompt.ts
-function formatPreviousSummary(summary) {
-  return summary.length > 0 ? summary.join("\n\n") : "(none)";
+// src/overlay-state.ts
+var overlayState;
+var nextOverlayId = 0;
+function getLayoutKey() {
+  return `${process.stdout.columns ?? "unknown"}:${process.stdout.rows ?? "unknown"}`;
 }
-function buildOverviewPrompt(recentText, previous) {
-  const previousSection = previous ? [`Previous title: ${previous.title}`, "Previous summary (older versions may contain legacy line breaks; rewrite them into cohesive prose if needed):", formatPreviousSummary(previous.summary)].join("\n") : "Previous summary: (none)";
-  return [
-    "Update the previous summary into a cohesive current-state brief, not a turn-by-turn log.",
-    "Write it for quick future recall by the user, so prioritize what they would want to remember when resuming later.",
-    "Preserve still-relevant goals, decisions, constraints, blockers, and completed work unless recent updates clearly replace them.",
-    "Fold recent updates into the current state instead of listing events in order.",
-    "Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
-    "If the recent updates contain no durable change, keep the previous title and summary unchanged.",
-    "Prefer one dense paragraph. Use multiple paragraphs only for clearly separate concerns.",
-    previousSection,
-    "",
-    "Recent conversation updates below are raw chronological notes, not the desired output format:",
-    recentText
-  ].join("\n");
+function hideOverviewOverlay() {
+  if (overlayState?.resizeListener) process.stdout.off("resize", overlayState.resizeListener);
+  overlayState?.handle?.hide();
+  overlayState = void 0;
+}
+function attachResizeListener(sessionId, overlayId) {
+  if (typeof process.stdout.on !== "function" || typeof process.stdout.off !== "function") return void 0;
+  const listener = () => {
+    if (!overlayState || overlayState.sessionId !== sessionId || overlayState.overlayId !== overlayId) return;
+    if (overlayState.layoutKey === getLayoutKey()) return;
+    const { ctx, overview, fallbackTitle } = overlayState;
+    hideOverviewOverlay();
+    ensureOverviewOverlay(ctx, overview, fallbackTitle);
+  };
+  process.stdout.on("resize", listener);
+  return listener;
+}
+function ensureOverviewOverlay(ctx, overview, fallbackTitle) {
+  if (!ctx.hasUI) return;
+  const sessionId = ctx.sessionManager.getSessionId();
+  const layoutKey = getLayoutKey();
+  if (overlayState && (overlayState.sessionId !== sessionId || overlayState.layoutKey !== layoutKey)) hideOverviewOverlay();
+  if (overlayState) {
+    overlayState.overview = overview;
+    overlayState.fallbackTitle = fallbackTitle;
+    return overlayState.component.setContent(overview, fallbackTitle);
+  }
+  const overlayId = ++nextOverlayId;
+  void ctx.ui.custom(
+    (tui, theme) => {
+      const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
+      overlayState = { overlayId, sessionId, ctx, layoutKey, component, overview, fallbackTitle };
+      overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
+      return component;
+    },
+    { overlay: true, overlayOptions: getOverviewOverlayOptions(process.stdout.columns), onHandle: (handle) => {
+      if (overlayState?.overlayId === overlayId) overlayState.handle = handle;
+    } }
+  ).catch(() => {
+    if (overlayState?.overlayId === overlayId) hideOverviewOverlay();
+  });
+}
+function clearOverlayState() {
+  hideOverviewOverlay();
 }
 
 // src/title.ts
@@ -166,6 +202,61 @@ function buildTerminalTitle(sessionName) {
   return `\u03C0 - ${sessionName}`;
 }
 
+// src/overview-preview.ts
+function collapseWhitespace2(text) {
+  return text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function isRoutineInput(text) {
+  return /^(?:안녕(?:하세요)?|반가워(?:요)?|hi|hello|hey|thanks|thank you|고마워(?:요)?|감사(?:합니다|해요)?)$/iu.test(text.replace(/[.!?~]+$/u, ""));
+}
+function buildPreviewOverview(text) {
+  const summary = collapseWhitespace2(text.replace(/```[\s\S]*?```/g, " ").split(/\r?\n\s*\r?\n/).find((part) => part.trim()) ?? "");
+  if (!summary || summary.startsWith("/") || summary.startsWith("!") || isRoutineInput(summary)) return void 0;
+  const title = normalizeTitle(summary);
+  if (!title) return void 0;
+  return { title, summary: [summary] };
+}
+function syncTitle(ctx, title) {
+  if (ctx.hasUI) ctx.ui.setTitle(buildTerminalTitle(title));
+}
+function previewOverviewFromInput(ctx, text) {
+  if (findLatestOverview(ctx.sessionManager.getBranch())) return false;
+  const preview = buildPreviewOverview(text);
+  if (!preview) return false;
+  ensureOverviewOverlay(ctx, preview, preview.title);
+  syncTitle(ctx, preview.title);
+  return true;
+}
+
+// src/summarize.ts
+import { completeSimple } from "@mariozechner/pi-ai";
+
+// src/summary-prompt.ts
+function formatPreviousSummary(summary) {
+  return summary.length > 0 ? summary.join("\n\n") : "(none)";
+}
+function buildCompactionNote(previous) {
+  const length = previous?.summary.join("\n\n").length ?? 0;
+  return length > 700 ? `The stored summary is already ${length} characters long. Compact it noticeably while preserving only durable context.` : "Keep the summary compact enough to scan quickly, and compress older context instead of appending more prose each turn.";
+}
+function buildOverviewPrompt(recentText, previous) {
+  const previousSection = previous ? [`Previous title: ${previous.title}`, "Previous summary (older versions may contain legacy line breaks; rewrite them into cohesive prose if needed):", formatPreviousSummary(previous.summary)].join("\n") : "Previous summary: (none)";
+  return [
+    "Update the previous summary into a cohesive current-state brief, not a turn-by-turn log.",
+    "Write it for quick future recall by the user, so prioritize what they would want to remember when resuming later.",
+    "Preserve still-relevant goals, decisions, constraints, blockers, and completed work unless recent updates clearly replace them.",
+    "Fold recent updates into the current state instead of listing events in order.",
+    "Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
+    "If the recent updates contain no durable change, keep the previous title and summary unchanged.",
+    "Prefer one dense paragraph. Use multiple paragraphs only for clearly separate concerns.",
+    buildCompactionNote(previous),
+    previousSection,
+    "",
+    "Recent conversation updates below are raw chronological notes, not the desired output format:",
+    recentText
+  ].join("\n");
+}
+
 // src/summary-types.ts
 var MAX_SECTION_LENGTH = 240;
 var MAX_TRANSCRIPT_LENGTH = 12e3;
@@ -181,30 +272,31 @@ var OVERVIEW_PROMPT = [
   "Return exactly this format:",
   "TITLE: <short title in the user's language, max 8 words, naming the durable task rather than chatty or incidental details>",
   "SUMMARY: <a cohesive current-state summary in the user's language>",
-  "Prefer one dense paragraph; use a second paragraph only when it materially improves clarity.",
+  "Prefer one dense paragraph; use a second short paragraph only when it materially improves clarity.",
   "Describe the current state rather than retelling events in chronological order.",
   "Merge related updates into prose instead of writing one line per turn or tool call.",
+  "Keep the summary self-compacting: when it starts to sprawl, rewrite older still-relevant context more densely instead of letting the text grow turn after turn.",
   "Do not drop still-relevant context merely to make the summary shorter.",
   "Do not use markdown bullets, numbered lists, code fences, or extra sections."
 ].join(" ");
 
 // src/summary-text.ts
-function collapseWhitespace2(text) {
+function collapseWhitespace3(text) {
   return text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
 }
 function truncateSection(text, maxLength = MAX_SECTION_LENGTH) {
-  const collapsed = collapseWhitespace2(text);
+  const collapsed = collapseWhitespace3(text);
   return collapsed.length <= maxLength ? collapsed : `${collapsed.slice(0, maxLength - 1).trimEnd()}\u2026`;
 }
 function isRoutineSocialText(text) {
-  return /^(?:안녕(?:하세요)?|반가워(?:요)?|hi|hello|hey|thanks|thank you|고마워(?:요)?|감사(?:합니다|해요)?)$/iu.test(collapseWhitespace2(text).replace(/[.!?~]+$/u, ""));
+  return /^(?:안녕(?:하세요)?|반가워(?:요)?|hi|hello|hey|thanks|thank you|고마워(?:요)?|감사(?:합니다|해요)?)$/iu.test(collapseWhitespace3(text).replace(/[.!?~]+$/u, ""));
 }
 function extractTextContent(content) {
   if (typeof content === "string") return [content];
   return Array.isArray(content) ? content.filter((part) => Boolean(part) && typeof part === "object" && part.type === "text" && typeof part.text === "string").map((part) => part.text) : [];
 }
 function normalizeTextContent(content) {
-  return collapseWhitespace2(extractTextContent(content).join(" "));
+  return collapseWhitespace3(extractTextContent(content).join(" "));
 }
 function hasBashCommandArguments(value) {
   if (!value || typeof value !== "object" || !("command" in value)) return false;
@@ -212,7 +304,7 @@ function hasBashCommandArguments(value) {
 }
 function isRoutineBashCommand(argumentsValue) {
   if (!hasBashCommandArguments(argumentsValue)) return false;
-  return /^(?:cd\s+.+?\s*&&\s*)*git\s+branch\s+--show-current$/iu.test(collapseWhitespace2(argumentsValue.command));
+  return /^(?:cd\s+.+?\s*&&\s*)*git\s+branch\s+--show-current$/iu.test(collapseWhitespace3(argumentsValue.command));
 }
 function extractToolCalls(content) {
   if (!Array.isArray(content)) return [];
@@ -236,7 +328,7 @@ function clipTranscript(text) {
 ${tail}`;
 }
 function extractSummaryLines(raw) {
-  return raw.split(/\r?\n\s*\r?\n+/).map((paragraph) => paragraph.split(/\r?\n/).map((line) => line.replace(/^(?:[-*•]+|\d+[.)])\s*/, "").trim()).filter(Boolean).join(" ")).map(collapseWhitespace2).filter(Boolean);
+  return raw.split(/\r?\n\s*\r?\n+/).map((paragraph) => paragraph.split(/\r?\n/).map((line) => line.replace(/^(?:[-*•]+|\d+[.)])\s*/, "").trim()).filter(Boolean).join(" ")).map(collapseWhitespace3).filter(Boolean);
 }
 function buildConversationTranscript(entries) {
   const lines = [];
@@ -302,59 +394,8 @@ async function resolveSessionOverview(options) {
   }
 }
 
-// src/overlay-state.ts
-var overlayState;
-var nextOverlayId = 0;
-function getLayoutKey() {
-  return `${process.stdout.columns ?? "unknown"}:${process.stdout.rows ?? "unknown"}`;
-}
-function hideOverviewOverlay() {
-  if (overlayState?.resizeListener) process.stdout.off("resize", overlayState.resizeListener);
-  overlayState?.handle?.hide();
-  overlayState = void 0;
-}
-function attachResizeListener(sessionId, overlayId) {
-  if (typeof process.stdout.on !== "function" || typeof process.stdout.off !== "function") return void 0;
-  const listener = () => {
-    if (!overlayState || overlayState.sessionId !== sessionId || overlayState.overlayId !== overlayId) return;
-    if (overlayState.layoutKey === getLayoutKey()) return;
-    const { ctx, overview, fallbackTitle } = overlayState;
-    hideOverviewOverlay();
-    ensureOverviewOverlay(ctx, overview, fallbackTitle);
-  };
-  process.stdout.on("resize", listener);
-  return listener;
-}
-function ensureOverviewOverlay(ctx, overview, fallbackTitle) {
-  if (!ctx.hasUI) return;
-  const sessionId = ctx.sessionManager.getSessionId();
-  const layoutKey = getLayoutKey();
-  if (overlayState && (overlayState.sessionId !== sessionId || overlayState.layoutKey !== layoutKey)) hideOverviewOverlay();
-  if (overlayState) {
-    overlayState.overview = overview;
-    overlayState.fallbackTitle = fallbackTitle;
-    return overlayState.component.setContent(overview, fallbackTitle);
-  }
-  const overlayId = ++nextOverlayId;
-  void ctx.ui.custom(
-    (tui, theme) => {
-      const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
-      overlayState = { overlayId, sessionId, ctx, layoutKey, component, overview, fallbackTitle };
-      overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
-      return component;
-    },
-    { overlay: true, overlayOptions: getOverviewOverlayOptions(process.stdout.columns), onHandle: (handle) => {
-      if (overlayState?.overlayId === overlayId) overlayState.handle = handle;
-    } }
-  ).catch(() => {
-    if (overlayState?.overlayId === overlayId) hideOverviewOverlay();
-  });
-}
-function clearOverlayState() {
-  hideOverviewOverlay();
-}
-
 // src/overview-sync.ts
+var rerunRequested = /* @__PURE__ */ new Set();
 function sameSummary(left, right) {
   return left.length === right.length && left.every((line, index) => line === right[index]);
 }
@@ -366,6 +407,9 @@ function getRecentEntries(branch, previous) {
   const sinceCovered = getEntriesSince(branch, previous.coveredThroughEntryId);
   return sinceCovered === branch ? getEntriesSince(branch, previous.entryId) : sinceCovered;
 }
+function isActive(runtime2) {
+  return runtime2.isActive?.() ?? true;
+}
 function syncTerminalTitle(ctx, title) {
   if (ctx.hasUI && title) ctx.ui.setTitle(buildTerminalTitle(title));
 }
@@ -376,6 +420,7 @@ function shouldPersist(previous, next, coveredThroughEntryId) {
   return !previous || previous.title !== next.title || !sameSummary(previous.summary, next.summary) || Boolean(coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId);
 }
 function restoreOverview(runtime2, ctx) {
+  if (!isActive(runtime2)) return;
   const overview = findLatestOverview(ctx.sessionManager.getBranch());
   if (overview && runtime2.getSessionName() !== overview.title) runtime2.setSessionName(overview.title);
   const title = resolveFallbackTitle(overview, runtime2, ctx);
@@ -384,7 +429,10 @@ function restoreOverview(runtime2, ctx) {
 }
 async function refreshOverview(inFlight2, runtime2, ctx) {
   const sessionId = ctx.sessionManager.getSessionId();
-  if (inFlight2.has(sessionId)) return;
+  if (inFlight2.has(sessionId)) {
+    rerunRequested.add(sessionId);
+    return;
+  }
   inFlight2.add(sessionId);
   try {
     const branch = ctx.sessionManager.getBranch();
@@ -394,10 +442,11 @@ async function refreshOverview(inFlight2, runtime2, ctx) {
     const coveredThroughEntryId = recentEntries.at(-1)?.id;
     const recentText = buildConversationTranscript(recentEntries);
     if (!recentText) {
-      if (previous && coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(previous, coveredThroughEntryId));
+      if (isActive(runtime2) && previous && coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(previous, coveredThroughEntryId));
       return restoreOverview(runtime2, ctx);
     }
     const next = await resolveSessionOverview({ recentText, previous, model: ctx.model, modelRegistry: ctx.modelRegistry });
+    if (!isActive(runtime2)) return;
     if (!next) return restoreOverview(runtime2, ctx);
     if (shouldPersist(previous, next, coveredThroughEntryId)) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(next, coveredThroughEntryId));
     if (runtime2.getSessionName() !== next.title) runtime2.setSessionName(next.title);
@@ -405,35 +454,77 @@ async function refreshOverview(inFlight2, runtime2, ctx) {
     syncTerminalTitle(ctx, next.title);
   } finally {
     inFlight2.delete(sessionId);
+    if (rerunRequested.delete(sessionId) && isActive(runtime2)) await refreshOverview(inFlight2, runtime2, ctx);
   }
 }
 function clearOverviewUi(inFlight2, _ctx) {
   inFlight2.clear();
+  rerunRequested.clear();
   clearOverlayState();
 }
 
 // src/hooks.ts
 var inFlight = /* @__PURE__ */ new Set();
-function runtime(getSessionName, setSessionName, appendEntry) {
-  return { getSessionName, setSessionName, appendEntry };
+var activeSessionId;
+var lifecycleId = 0;
+var viewId = 0;
+var previewViewId = -1;
+function beginView(ctx) {
+  activeSessionId = ctx.sessionManager.getSessionId();
+  viewId += 1;
+}
+function runtime(ctx, getSessionName, setSessionName, appendEntry) {
+  const sessionId = ctx.sessionManager.getSessionId();
+  activeSessionId = sessionId;
+  const currentLifecycleId = lifecycleId;
+  const currentViewId = viewId;
+  return { getSessionName, setSessionName, appendEntry, isActive: () => activeSessionId === sessionId && lifecycleId === currentLifecycleId && viewId === currentViewId };
+}
+function queueRefresh(getSessionName, setSessionName, appendEntry, ctx) {
+  void refreshOverview(inFlight, runtime(ctx, getSessionName, setSessionName, appendEntry), ctx).catch(() => void 0);
+}
+function createInputHandler() {
+  return (event, ctx) => {
+    if (event.source === "interactive" && previewViewId !== viewId && previewOverviewFromInput(ctx, event.text)) previewViewId = viewId;
+    return { action: "continue" };
+  };
 }
 function createSessionStartHandler(getSessionName, setSessionName, appendEntry) {
-  return async (_event, ctx) => restoreOverview(runtime(getSessionName, setSessionName, appendEntry), ctx);
+  return async (_event, ctx) => {
+    beginView(ctx);
+    restoreOverview(runtime(ctx, getSessionName, setSessionName, appendEntry), ctx);
+  };
+}
+function createTurnEndHandler(getSessionName, setSessionName, appendEntry) {
+  return (_event, ctx) => {
+    if (ctx.hasPendingMessages?.()) queueRefresh(getSessionName, setSessionName, appendEntry, ctx);
+  };
 }
 function createAgentEndHandler(getSessionName, setSessionName, appendEntry) {
-  return async (_event, ctx) => refreshOverview(inFlight, runtime(getSessionName, setSessionName, appendEntry), ctx);
+  return async (_event, ctx) => refreshOverview(inFlight, runtime(ctx, getSessionName, setSessionName, appendEntry), ctx);
 }
 function createSessionTreeHandler(getSessionName, setSessionName, appendEntry) {
-  return async (_event, ctx) => restoreOverview(runtime(getSessionName, setSessionName, appendEntry), ctx);
+  return async (_event, ctx) => {
+    beginView(ctx);
+    restoreOverview(runtime(ctx, getSessionName, setSessionName, appendEntry), ctx);
+  };
 }
 function createSessionShutdownHandler() {
-  return async (_event, _ctx) => clearOverviewUi(inFlight);
+  return async (_event, _ctx) => {
+    activeSessionId = void 0;
+    lifecycleId += 1;
+    viewId += 1;
+    previewViewId = -1;
+    clearOverviewUi(inFlight);
+  };
 }
 
 // src/index.ts
 function index_default(pi) {
+  pi.on("input", createInputHandler());
   pi.on("session_start", createSessionStartHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name), (customType, data) => pi.appendEntry(customType, data)));
   pi.on("session_tree", createSessionTreeHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name), (customType, data) => pi.appendEntry(customType, data)));
+  pi.on("turn_end", createTurnEndHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name), (customType, data) => pi.appendEntry(customType, data)));
   pi.on("agent_end", createAgentEndHandler(() => pi.getSessionName(), (name) => pi.setSessionName(name), (customType, data) => pi.appendEntry(customType, data)));
   pi.on("session_shutdown", createSessionShutdownHandler());
 }

@@ -9,9 +9,15 @@ describe("buildOverviewPrompt", () => {
 		expect(prompt).toContain("Preserve still-relevant goals, decisions, constraints, blockers, and completed work");
 		expect(prompt).toContain("Ignore routine greetings, acknowledgements, current-branch checks");
 		expect(prompt).toContain("If the recent updates contain no durable change, keep the previous title and summary unchanged.");
+		expect(prompt).toContain("Keep the summary compact enough to scan quickly");
 		expect(prompt).toContain("Previous title: 기존 제목");
 		expect(prompt).toContain("rewrite them into cohesive prose if needed");
 		expect(prompt).toContain("resume 복원을 붙임");
+	});
+
+	it("asks for aggressive compaction once the stored summary has grown too long", () => {
+		const prompt = buildOverviewPrompt("Recent updates", { title: "기존 제목", summary: ["x".repeat(710)] });
+		expect(prompt).toContain("Compact it noticeably while preserving only durable context.");
 	});
 
 	it("formats an empty previous summary without crashing", () => {

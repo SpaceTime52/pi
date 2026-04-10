@@ -40,6 +40,19 @@ describe("refreshOverview guards", () => {
 		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 이전 제목");
 	});
 
+	it("skips late writes once the session is no longer active", async () => {
+		let active = true;
+		let resolve!: (value: { title: string; summary: string[] }) => void;
+		resolveSessionOverview.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+		const runtime = { ...stubRuntime(), isActive: vi.fn(() => active) };
+		const refresh = refreshOverview(new Set(), runtime, stubContext([{ type: "message", id: "1", message: { role: "assistant", content: [{ type: "text", text: "업데이트" }] } }]));
+		active = false;
+		resolve({ title: "늦은 제목", summary: ["늦은 요약"] });
+		await refresh;
+		expect(runtime.appendEntry).not.toHaveBeenCalled();
+		expect(runtime.setSessionName).not.toHaveBeenCalled();
+	});
+
 	it("cleans up in-flight state even when summarization throws", async () => {
 		resolveSessionOverview.mockImplementationOnce(async () => { throw new Error("boom"); });
 		const inFlight = new Set<string>();

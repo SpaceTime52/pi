@@ -14,9 +14,10 @@ export const OVERVIEW_PROMPT = [
 	"Return exactly this format:",
 	"TITLE: <short title in the user's language, max 8 words, naming the durable task rather than chatty or incidental details>",
 	"SUMMARY: <a cohesive current-state summary in the user's language>",
-	"Prefer one dense paragraph; use a second paragraph only when it materially improves clarity.",
+	"Prefer one dense paragraph; use a second short paragraph only when it materially improves clarity.",
 	"Describe the current state rather than retelling events in chronological order.",
 	"Merge related updates into prose instead of writing one line per turn or tool call.",
+	"Keep the summary self-compacting: when it starts to sprawl, rewrite older still-relevant context more densely instead of letting the text grow turn after turn.",
 	"Do not drop still-relevant context merely to make the summary shorter.",
 	"Do not use markdown bullets, numbered lists, code fences, or extra sections.",
 ].join(" ");

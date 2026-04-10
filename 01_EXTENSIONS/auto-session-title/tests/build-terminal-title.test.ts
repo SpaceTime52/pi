@@ -27,27 +27,29 @@ describe("buildOverviewBodyLines", () => {
 });
 
 describe("getOverviewOverlayOptions", () => {
-	it("pins the overlay to an even left edge when terminal width is known", () => {
+	it("sizes the overlay responsively and keeps the left edge even", () => {
 		const evenWidth = getOverviewOverlayOptions(128);
 		expect(evenWidth.row).toBe(1);
-		expect(evenWidth.col).toBe(64);
-		expect(evenWidth.width).toBe(64);
-		expect(evenWidth.minWidth).toBe(48);
+		expect(evenWidth.col).toBe(48);
+		expect(evenWidth.width).toBe(80);
+		expect(evenWidth.minWidth).toBe(60);
 		expect(evenWidth.maxHeight).toBeUndefined();
 		expect(evenWidth.nonCapturing).toBe(true);
-		expect(evenWidth.visible?.(120, 40)).toBe(true);
-		expect(evenWidth.visible?.(90, 40)).toBe(false);
+		expect(evenWidth.visible?.(108, 40)).toBe(true);
+		expect(evenWidth.visible?.(107, 40)).toBe(false);
+		expect(getOverviewOverlayOptions(100).width).toBe(60);
 		const oddWidth = getOverviewOverlayOptions(129);
-		expect(oddWidth.col).toBe(64);
+		expect(oddWidth.col).toBe(48);
+		expect(getOverviewOverlayOptions(180).width).toBe(96);
 	});
 
 	it("falls back to top-right anchoring when terminal width is unavailable", () => {
 		const options = getOverviewOverlayOptions(undefined);
 		expect(options.anchor).toBe("top-right");
-		expect(options.width).toBe(64);
-		expect(options.minWidth).toBe(48);
+		expect(options.width).toBe(80);
+		expect(options.minWidth).toBe(60);
 		expect(options.nonCapturing).toBe(true);
 		expect(options.visible?.(120, 40)).toBe(true);
-		expect(options.visible?.(90, 40)).toBe(false);
+		expect(options.visible?.(107, 40)).toBe(false);
 	});
 });

@@ -2,6 +2,13 @@ function formatPreviousSummary(summary: readonly string[]): string {
 	return summary.length > 0 ? summary.join("\n\n") : "(none)";
 }
 
+function buildCompactionNote(previous?: { summary: readonly string[] }): string {
+	const length = previous?.summary.join("\n\n").length ?? 0;
+	return length > 700
+		? `The stored summary is already ${length} characters long. Compact it noticeably while preserving only durable context.`
+		: "Keep the summary compact enough to scan quickly, and compress older context instead of appending more prose each turn.";
+}
+
 export function buildOverviewPrompt(recentText: string, previous?: { title: string; summary: readonly string[] }): string {
 	const previousSection = previous
 		? [`Previous title: ${previous.title}`, "Previous summary (older versions may contain legacy line breaks; rewrite them into cohesive prose if needed):", formatPreviousSummary(previous.summary)].join("\n")
@@ -14,6 +21,7 @@ export function buildOverviewPrompt(recentText: string, previous?: { title: stri
 		"Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
 		"If the recent updates contain no durable change, keep the previous title and summary unchanged.",
 		"Prefer one dense paragraph. Use multiple paragraphs only for clearly separate concerns.",
+		buildCompactionNote(previous),
 		previousSection,
 		"",
 		"Recent conversation updates below are raw chronological notes, not the desired output format:",

@@ -5,6 +5,8 @@ import { ensureOverviewOverlay, clearOverlayState } from "./overlay-state.js";
 import { findLatestOverview, getEntriesSince } from "./overview-entry.js";
 import type { OverviewContext, OverviewEntry, OverviewRuntime, PersistedOverview, SessionOverview, StoredOverview } from "./overview-types.js";
 
+const rerunRequested = new Set<string>();
+
 function sameSummary(left: readonly string[], right: readonly string[]): boolean {
 	return left.length === right.length && left.every((line, index) => line === right[index]);
 }
@@ -17,6 +19,10 @@ function getRecentEntries(branch: OverviewEntry[], previous?: PersistedOverview)
 	if (!previous) return branch;
 	const sinceCovered = getEntriesSince(branch, previous.coveredThroughEntryId);
 	return sinceCovered === branch ? getEntriesSince(branch, previous.entryId) : sinceCovered;
+}
+
+function isActive(runtime: OverviewRuntime): boolean {
+	return runtime.isActive?.() ?? true;
 }
 
 function syncTerminalTitle(ctx: OverviewContext, title?: string): void {
@@ -32,6 +38,7 @@ function shouldPersist(previous: PersistedOverview | undefined, next: SessionOve
 }
 
 export function restoreOverview(runtime: OverviewRuntime, ctx: OverviewContext): void {
+	if (!isActive(runtime)) return;
 	const overview = findLatestOverview(ctx.sessionManager.getBranch());
 	if (overview && runtime.getSessionName() !== overview.title) runtime.setSessionName(overview.title);
 	const title = resolveFallbackTitle(overview, runtime, ctx);
@@ -41,7 +48,10 @@ export function restoreOverview(runtime: OverviewRuntime, ctx: OverviewContext):
 
 export async function refreshOverview(inFlight: Set<string>, runtime: OverviewRuntime, ctx: OverviewContext): Promise<void> {
 	const sessionId = ctx.sessionManager.getSessionId();
-	if (inFlight.has(sessionId)) return;
+	if (inFlight.has(sessionId)) {
+		rerunRequested.add(sessionId);
+		return;
+	}
 	inFlight.add(sessionId);
 	try {
 		const branch = ctx.sessionManager.getBranch();
@@ -51,10 +61,11 @@ export async function refreshOverview(inFlight: Set<string>, runtime: OverviewRu
 		const coveredThroughEntryId = recentEntries.at(-1)?.id;
 		const recentText = buildConversationTranscript(recentEntries);
 		if (!recentText) {
-			if (previous && coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId) runtime.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(previous, coveredThroughEntryId));
+			if (isActive(runtime) && previous && coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId) runtime.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(previous, coveredThroughEntryId));
 			return restoreOverview(runtime, ctx);
 		}
 		const next = await resolveSessionOverview({ recentText, previous, model: ctx.model, modelRegistry: ctx.modelRegistry });
+		if (!isActive(runtime)) return;
 		if (!next) return restoreOverview(runtime, ctx);
 		if (shouldPersist(previous, next, coveredThroughEntryId)) runtime.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(next, coveredThroughEntryId));
 		if (runtime.getSessionName() !== next.title) runtime.setSessionName(next.title);
@@ -62,10 +73,12 @@ export async function refreshOverview(inFlight: Set<string>, runtime: OverviewRu
 		syncTerminalTitle(ctx, next.title);
 	} finally {
 		inFlight.delete(sessionId);
+		if (rerunRequested.delete(sessionId) && isActive(runtime)) await refreshOverview(inFlight, runtime, ctx);
 	}
 }
 
 export function clearOverviewUi(inFlight: Set<string>, _ctx?: OverviewContext): void {
 	inFlight.clear();
+	rerunRequested.clear();
 	clearOverlayState();
 }

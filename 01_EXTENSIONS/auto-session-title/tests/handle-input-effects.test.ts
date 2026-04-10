@@ -33,6 +33,23 @@ describe("refreshOverview effects", () => {
 		expect(resolveSessionOverview.mock.calls[1][0].recentText).toContain("둘째 변경");
 	});
 
+	it("reruns once after overlap so the final follow-up state is not lost", async () => {
+		let release!: (value: { title: string; summary: string[] }) => void;
+		resolveSessionOverview.mockImplementationOnce(() => new Promise((done) => { release = done; })).mockResolvedValueOnce({ title: "최종 제목", summary: ["최종 요약"] });
+		const runtime = stubRuntime();
+		const inFlight = new Set<string>();
+		let branch = [{ type: "message", id: "1", message: { role: "assistant", content: [{ type: "text", text: "첫 출력" }] } }];
+		const ctx = stubContext([], { sessionManager: { ...stubContext().sessionManager, getBranch: vi.fn(() => branch) } });
+		const first = refreshOverview(inFlight, runtime, ctx);
+		branch = [...branch, { type: "message", id: "2", message: { role: "assistant", content: [{ type: "text", text: "둘째 출력" }] } }];
+		await refreshOverview(inFlight, runtime, ctx);
+		release({ title: "중간 제목", summary: ["중간 요약"] });
+		await first;
+		expect(resolveSessionOverview).toHaveBeenCalledTimes(2);
+		expect(resolveSessionOverview.mock.calls[1][0].recentText).toContain("둘째 출력");
+		expect(runtime.appendEntry).toHaveBeenLastCalledWith("auto-session-title.overview", { title: "최종 제목", summary: ["최종 요약"], coveredThroughEntryId: "2" });
+	});
+
 	it("skips session name writes when the runtime already has the same title", async () => {
 		resolveSessionOverview.mockResolvedValue({ title: "동일 제목", summary: ["현재 상태를 간단히 보여줌"] });
 		const runtime = stubRuntime("동일 제목");
