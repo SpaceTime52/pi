@@ -101,7 +101,7 @@ function getOverviewOverlayOptions(termWidth) {
 
 // src/overlay-state.ts
 var NARROW_WIDGET_KEY = "auto-session-title.narrow";
-var NARROW_WIDGET_BREAKPOINT = 90;
+var NARROW_WIDGET_BREAKPOINT = 185;
 var overlayState;
 var nextOverlayId = 0;
 function getLayoutKey() {

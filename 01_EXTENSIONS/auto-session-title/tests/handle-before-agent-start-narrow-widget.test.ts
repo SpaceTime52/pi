@@ -33,7 +33,7 @@ describe("overview narrow widget mode", () => {
 	it("clears the narrow widget before switching back to the overlay", () => {
 		const ctx = stubContext([{ type: "custom", id: "1", customType: "auto-session-title.overview", data: { title: "현재 세션", summary: ["현재 상태를 짧게 표시함"] } }]);
 		restoreOverview(stubRuntime(), ctx);
-		setTerminal(120, true);
+		setTerminal(200, true);
 		process.stdout.emit("resize");
 		expect(ctx.ui.setWidget).toHaveBeenCalledWith("auto-session-title.narrow", undefined);
 		expect(ctx.ui.custom).toHaveBeenCalledTimes(1);

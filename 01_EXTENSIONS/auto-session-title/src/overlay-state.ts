@@ -2,7 +2,7 @@ import { getOverviewOverlayOptions, OverviewOverlayComponent } from "./overlay-c
 import type { OverviewContext, SessionOverview } from "./overview-types.js";
 
 const NARROW_WIDGET_KEY = "auto-session-title.narrow";
-const NARROW_WIDGET_BREAKPOINT = 90;
+const NARROW_WIDGET_BREAKPOINT = 185;
 
 type DisplayMode = "overlay" | "widget";
 interface OverlayState {
