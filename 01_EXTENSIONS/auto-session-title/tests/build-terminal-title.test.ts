@@ -26,10 +26,11 @@ describe("buildOverviewBodyLines", () => {
 });
 
 describe("getOverviewOverlayOptions", () => {
-	it("uses a larger non-capturing top-right overlay", () => {
+	it("uses a much wider non-capturing top-right overlay", () => {
 		const options = getOverviewOverlayOptions();
 		expect(options.anchor).toBe("top-right");
-		expect(options.width).toBe(48);
+		expect(options.width).toBe(64);
+		expect(options.minWidth).toBe(48);
 		expect(options.nonCapturing).toBe(true);
 		expect(options.visible?.(120, 40)).toBe(true);
 		expect(options.visible?.(90, 40)).toBe(false);

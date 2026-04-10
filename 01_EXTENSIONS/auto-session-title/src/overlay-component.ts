@@ -32,6 +32,7 @@ export class OverviewOverlayComponent implements Component {
 		const right = "─".repeat(Math.max(0, innerWidth - headerWidth - left.length));
 		this.cachedLines = [
 			border(`╭${left}`) + header + border(`${right}╮`),
+			border(`├${"─".repeat(innerWidth)}┤`),
 			...buildOverviewBodyLines(this.overview).map((line) => border("│") + pad(line) + border("│")),
 			border(`╰${"─".repeat(innerWidth)}╯`),
 		];
@@ -49,7 +50,7 @@ export function getOverviewOverlayOptions(): OverlayOptions {
 	return {
 		anchor: "top-right",
 		width: OVERVIEW_OVERLAY_WIDTH,
-		minWidth: 40,
+		minWidth: 48,
 		maxHeight: 10,
 		margin: { top: 1, right: 1 },
 		nonCapturing: true,

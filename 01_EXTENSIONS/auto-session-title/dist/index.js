@@ -1,6 +1,6 @@
 // src/overview-constants.ts
 var OVERVIEW_CUSTOM_TYPE = "auto-session-title.overview";
-var OVERVIEW_OVERLAY_WIDTH = 48;
+var OVERVIEW_OVERLAY_WIDTH = 64;
 
 // src/overview-entry.ts
 function normalizeSummaryLine(line) {
@@ -73,6 +73,7 @@ var OverviewOverlayComponent = class {
     const right = "\u2500".repeat(Math.max(0, innerWidth - headerWidth - left.length));
     this.cachedLines = [
       border(`\u256D${left}`) + header + border(`${right}\u256E`),
+      border(`\u251C${"\u2500".repeat(innerWidth)}\u2524`),
       ...buildOverviewBodyLines(this.overview).map((line) => border("\u2502") + pad(line) + border("\u2502")),
       border(`\u2570${"\u2500".repeat(innerWidth)}\u256F`)
     ];
@@ -88,7 +89,7 @@ function getOverviewOverlayOptions() {
   return {
     anchor: "top-right",
     width: OVERVIEW_OVERLAY_WIDTH,
-    minWidth: 40,
+    minWidth: 48,
     maxHeight: 10,
     margin: { top: 1, right: 1 },
     nonCapturing: true,
