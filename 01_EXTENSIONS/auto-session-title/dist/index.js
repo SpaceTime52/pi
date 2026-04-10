@@ -41,10 +41,10 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/p
 var OVERVIEW_OVERLAY_MIN_WIDTH = 60;
 var OVERVIEW_OVERLAY_MAX_WIDTH = 96;
 var OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH = 48;
-var OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH = OVERVIEW_OVERLAY_MIN_WIDTH + OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH;
 function resolveOverlayWidth(termWidth) {
-  const capped = Math.min(OVERVIEW_OVERLAY_MAX_WIDTH, Math.max(OVERVIEW_OVERLAY_MIN_WIDTH, termWidth - OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH));
-  return capped - capped % 2;
+  const preferred = Math.min(OVERVIEW_OVERLAY_MAX_WIDTH, Math.max(OVERVIEW_OVERLAY_MIN_WIDTH, termWidth - OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH));
+  const fitted = Math.max(1, Math.min(termWidth, preferred));
+  return fitted > 1 ? fitted - fitted % 2 : fitted;
 }
 function resolveOverlayCol(termWidth, width) {
   const maxCol = Math.max(0, termWidth - width);
@@ -94,41 +94,32 @@ var OverviewOverlayComponent = class {
 function getOverviewOverlayOptions(termWidth) {
   if (typeof termWidth === "number") {
     const width = resolveOverlayWidth(termWidth);
-    return {
-      row: 1,
-      col: resolveOverlayCol(termWidth, width),
-      width,
-      minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
-      nonCapturing: true,
-      visible: (nextTermWidth) => nextTermWidth >= OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH
-    };
+    return { row: 1, col: resolveOverlayCol(termWidth, width), width, nonCapturing: true };
   }
-  return {
-    anchor: "top-right",
-    width: OVERVIEW_OVERLAY_WIDTH,
-    minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
-    margin: { top: 1, right: 0 },
-    nonCapturing: true,
-    visible: (nextTermWidth) => nextTermWidth >= OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH
-  };
+  return { anchor: "top-right", width: OVERVIEW_OVERLAY_WIDTH, margin: { top: 1, right: 0 }, nonCapturing: true };
 }
 
 // src/overlay-state.ts
+var NARROW_WIDGET_KEY = "auto-session-title.narrow";
+var NARROW_WIDGET_BREAKPOINT = 90;
 var overlayState;
 var nextOverlayId = 0;
 function getLayoutKey() {
   return `${process.stdout.columns ?? "unknown"}:${process.stdout.rows ?? "unknown"}`;
 }
+function modeForWidth(termWidth) {
+  return process.stdout.isTTY === true && typeof termWidth === "number" && termWidth < NARROW_WIDGET_BREAKPOINT ? "widget" : "overlay";
+}
 function hideOverviewOverlay() {
   if (overlayState?.resizeListener) process.stdout.off("resize", overlayState.resizeListener);
-  overlayState?.handle?.hide();
+  if (overlayState?.mode === "widget") overlayState.ctx.ui.setWidget(NARROW_WIDGET_KEY, void 0);
+  else overlayState?.handle?.hide();
   overlayState = void 0;
 }
 function attachResizeListener(sessionId, overlayId) {
   if (typeof process.stdout.on !== "function" || typeof process.stdout.off !== "function") return void 0;
   const listener = () => {
-    if (!overlayState || overlayState.sessionId !== sessionId || overlayState.overlayId !== overlayId) return;
-    if (overlayState.layoutKey === getLayoutKey()) return;
+    if (!overlayState || overlayState.sessionId !== sessionId || overlayState.overlayId !== overlayId || overlayState.layoutKey === getLayoutKey()) return;
     const { ctx, overview, fallbackTitle } = overlayState;
     hideOverviewOverlay();
     ensureOverviewOverlay(ctx, overview, fallbackTitle);
@@ -136,28 +127,33 @@ function attachResizeListener(sessionId, overlayId) {
   process.stdout.on("resize", listener);
   return listener;
 }
+function showOverviewWidget(ctx, overlayId, sessionId, layoutKey, overview, fallbackTitle) {
+  ctx.ui.setWidget(NARROW_WIDGET_KEY, (tui, theme) => {
+    const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
+    overlayState = { overlayId, sessionId, ctx, layoutKey, mode: "widget", component, overview, fallbackTitle };
+    overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
+    return component;
+  }, { placement: "belowEditor" });
+}
 function ensureOverviewOverlay(ctx, overview, fallbackTitle) {
   if (!ctx.hasUI) return;
-  const sessionId = ctx.sessionManager.getSessionId();
-  const layoutKey = getLayoutKey();
-  if (overlayState && (overlayState.sessionId !== sessionId || overlayState.layoutKey !== layoutKey)) hideOverviewOverlay();
+  const sessionId = ctx.sessionManager.getSessionId(), layoutKey = getLayoutKey(), mode = modeForWidth(process.stdout.columns);
+  if (overlayState && (overlayState.sessionId !== sessionId || overlayState.layoutKey !== layoutKey || overlayState.mode !== mode)) hideOverviewOverlay();
   if (overlayState) {
     overlayState.overview = overview;
     overlayState.fallbackTitle = fallbackTitle;
     return overlayState.component.setContent(overview, fallbackTitle);
   }
   const overlayId = ++nextOverlayId;
-  void ctx.ui.custom(
-    (tui, theme) => {
-      const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
-      overlayState = { overlayId, sessionId, ctx, layoutKey, component, overview, fallbackTitle };
-      overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
-      return component;
-    },
-    { overlay: true, overlayOptions: getOverviewOverlayOptions(process.stdout.columns), onHandle: (handle) => {
-      if (overlayState?.overlayId === overlayId) overlayState.handle = handle;
-    } }
-  ).catch(() => {
+  if (mode === "widget") return showOverviewWidget(ctx, overlayId, sessionId, layoutKey, overview, fallbackTitle);
+  void ctx.ui.custom((tui, theme) => {
+    const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
+    overlayState = { overlayId, sessionId, ctx, layoutKey, mode, component, overview, fallbackTitle };
+    overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
+    return component;
+  }, { overlay: true, overlayOptions: getOverviewOverlayOptions(process.stdout.columns), onHandle: (handle) => {
+    if (overlayState?.overlayId === overlayId) overlayState.handle = handle;
+  } }).catch(() => {
     if (overlayState?.overlayId === overlayId) hideOverviewOverlay();
   });
 }
@@ -209,12 +205,28 @@ function collapseWhitespace2(text) {
 function isRoutineInput(text) {
   return /^(?:안녕(?:하세요)?|반가워(?:요)?|hi|hello|hey|thanks|thank you|고마워(?:요)?|감사(?:합니다|해요)?)$/iu.test(text.replace(/[.!?~]+$/u, ""));
 }
+function stripRequestNoise(text) {
+  let request = collapseWhitespace2(text).replace(/^(?:그리고|근데|그런데|야|이거|저기|아|어|음|and then|also)\s+/iu, "");
+  if (!/^hello(?:,\s*|\s+)world\b/iu.test(request) && /^(?:hello|hi|hey)(?:\s+there)?\b/iu.test(request) && (/(?:,\s*)?please[.!?~]*$/iu.test(request) || /(?:can|could|would|will)\s+you\b/iu.test(request))) {
+    request = request.replace(/^(?:hello|hi|hey)(?:\s+there)?(?:[,!.:;-]\s*|\s+)/iu, "");
+  }
+  return request.replace(/^please\s+/iu, "").replace(/^(?:can|could|would|will)\s+you(?:\s+please)?\s+/iu, "").replace(/[.!?~]+$/u, "").replace(/([가-힣]+?)해(?:줘|주세요|봐|줄래)\s*$/u, "$1").replace(/(?:해줘|해주세요|해봐|시켜봐|봐줘|보여줘|고쳐줘|넣어줘|바꿔줘|만들어줘|해줄래|부탁해|(?:,\s*)?please)\s*$/iu, "").replace(/[.!?~]+$/u, "").trim();
+}
+function resolvePreviewLanguage(request) {
+  if (/[가-힣]/u.test(request) && /(?:해줘|해주세요|해봐|시켜봐|봐줘|보여줘|고쳐줘|넣어줘|바꿔줘|만들어줘|추가|정리|설명|수정)/u.test(request)) return "ko";
+  const hangul = request.match(/[가-힣]/gu)?.length ?? 0, latin = request.match(/[A-Za-z]/g)?.length ?? 0;
+  if (hangul === 0) return "en";
+  if (latin === 0) return "ko";
+  return latin > hangul ? "en" : "ko";
+}
+function buildPreviewSummary(title, request) {
+  return resolvePreviewLanguage(request) === "ko" ? [`\uD604\uC7AC ${title} \uC694\uCCAD\uC744 \uC815\uB9AC \uC911\uC774\uB2E4.`, "\uC815\uC2DD \uC694\uC57D\uC740 \uCCAB \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uD604\uC7AC \uC0C1\uD0DC \uAE30\uC900\uC73C\uB85C \uAC31\uC2E0\uB41C\uB2E4."] : [`Working on: ${title}.`, "The overview will refresh after the first response completes."];
+}
 function buildPreviewOverview(text) {
-  const summary = collapseWhitespace2(text.replace(/```[\s\S]*?```/g, " ").split(/\r?\n\s*\r?\n/).find((part) => part.trim()) ?? "");
-  if (!summary || summary.startsWith("/") || summary.startsWith("!") || isRoutineInput(summary)) return void 0;
-  const title = normalizeTitle(summary);
-  if (!title) return void 0;
-  return { title, summary: [summary] };
+  const request = stripRequestNoise(text.replace(/```[\s\S]*?```/g, " ").split(/\r?\n\s*\r?\n/).find((part) => part.trim()) ?? "");
+  if (!request || request.startsWith("/") || request.startsWith("!") || isRoutineInput(request)) return void 0;
+  const title = normalizeTitle(request);
+  return title ? { title, summary: buildPreviewSummary(title, request) } : void 0;
 }
 function syncTitle(ctx, title) {
   if (ctx.hasUI) ctx.ui.setTitle(buildTerminalTitle(title));

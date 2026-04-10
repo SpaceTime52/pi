@@ -32,12 +32,11 @@ describe("getOverviewOverlayOptions", () => {
 		expect(evenWidth.row).toBe(1);
 		expect(evenWidth.col).toBe(48);
 		expect(evenWidth.width).toBe(80);
-		expect(evenWidth.minWidth).toBe(60);
 		expect(evenWidth.maxHeight).toBeUndefined();
 		expect(evenWidth.nonCapturing).toBe(true);
-		expect(evenWidth.visible?.(108, 40)).toBe(true);
-		expect(evenWidth.visible?.(107, 40)).toBe(false);
-		expect(getOverviewOverlayOptions(100).width).toBe(60);
+		expect(getOverviewOverlayOptions(107).width).toBe(60);
+		expect(getOverviewOverlayOptions(50).width).toBe(50);
+		expect(getOverviewOverlayOptions(1).width).toBe(1);
 		const oddWidth = getOverviewOverlayOptions(129);
 		expect(oddWidth.col).toBe(48);
 		expect(getOverviewOverlayOptions(180).width).toBe(96);
@@ -47,9 +46,6 @@ describe("getOverviewOverlayOptions", () => {
 		const options = getOverviewOverlayOptions(undefined);
 		expect(options.anchor).toBe("top-right");
 		expect(options.width).toBe(80);
-		expect(options.minWidth).toBe(60);
 		expect(options.nonCapturing).toBe(true);
-		expect(options.visible?.(120, 40)).toBe(true);
-		expect(options.visible?.(107, 40)).toBe(false);
 	});
 });

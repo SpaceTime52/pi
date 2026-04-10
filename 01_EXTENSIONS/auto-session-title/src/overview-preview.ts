@@ -11,12 +11,38 @@ function isRoutineInput(text: string): boolean {
 	return /^(?:안녕(?:하세요)?|반가워(?:요)?|hi|hello|hey|thanks|thank you|고마워(?:요)?|감사(?:합니다|해요)?)$/iu.test(text.replace(/[.!?~]+$/u, ""));
 }
 
+function stripRequestNoise(text: string): string {
+	let request = collapseWhitespace(text).replace(/^(?:그리고|근데|그런데|야|이거|저기|아|어|음|and then|also)\s+/iu, "");
+	if (!/^hello(?:,\s*|\s+)world\b/iu.test(request) && /^(?:hello|hi|hey)(?:\s+there)?\b/iu.test(request) && (/(?:,\s*)?please[.!?~]*$/iu.test(request) || /(?:can|could|would|will)\s+you\b/iu.test(request))) {
+		request = request.replace(/^(?:hello|hi|hey)(?:\s+there)?(?:[,!.:;-]\s*|\s+)/iu, "");
+	}
+	return request
+		.replace(/^please\s+/iu, "")
+		.replace(/^(?:can|could|would|will)\s+you(?:\s+please)?\s+/iu, "")
+		.replace(/[.!?~]+$/u, "")
+		.replace(/([가-힣]+?)해(?:줘|주세요|봐|줄래)\s*$/u, "$1")
+		.replace(/(?:해줘|해주세요|해봐|시켜봐|봐줘|보여줘|고쳐줘|넣어줘|바꿔줘|만들어줘|해줄래|부탁해|(?:,\s*)?please)\s*$/iu, "")
+		.replace(/[.!?~]+$/u, "")
+		.trim();
+}
+
+function resolvePreviewLanguage(request: string): "ko" | "en" {
+	if (/[가-힣]/u.test(request) && /(?:해줘|해주세요|해봐|시켜봐|봐줘|보여줘|고쳐줘|넣어줘|바꿔줘|만들어줘|추가|정리|설명|수정)/u.test(request)) return "ko";
+	const hangul = request.match(/[가-힣]/gu)?.length ?? 0, latin = request.match(/[A-Za-z]/g)?.length ?? 0;
+	if (hangul === 0) return "en";
+	if (latin === 0) return "ko";
+	return latin > hangul ? "en" : "ko";
+}
+
+function buildPreviewSummary(title: string, request: string): string[] {
+	return resolvePreviewLanguage(request) === "ko" ? [`현재 ${title} 요청을 정리 중이다.`, "정식 요약은 첫 응답이 끝나면 현재 상태 기준으로 갱신된다."] : [`Working on: ${title}.`, "The overview will refresh after the first response completes."];
+}
+
 function buildPreviewOverview(text: string): SessionOverview | undefined {
-	const summary = collapseWhitespace((text.replace(/```[\s\S]*?```/g, " ").split(/\r?\n\s*\r?\n/).find((part) => part.trim()) ?? ""));
-	if (!summary || summary.startsWith("/") || summary.startsWith("!") || isRoutineInput(summary)) return undefined;
-	const title = normalizeTitle(summary);
-	if (!title) return undefined;
-	return { title, summary: [summary] };
+	const request = stripRequestNoise((text.replace(/```[\s\S]*?```/g, " ").split(/\r?\n\s*\r?\n/).find((part) => part.trim()) ?? ""));
+	if (!request || request.startsWith("/") || request.startsWith("!") || isRoutineInput(request)) return undefined;
+	const title = normalizeTitle(request);
+	return title ? { title, summary: buildPreviewSummary(title, request) } : undefined;
 }
 
 function syncTitle(ctx: OverviewContext, title: string): void {

@@ -42,6 +42,7 @@ export interface OverviewContext {
 	modelRegistry: SessionOverviewModelRegistry;
 	ui: {
 		setTitle(title: string): void;
+		setWidget(key: string, content: ((tui: OverlayTui, theme: OverlayTheme) => OverlayComponent) | undefined, options?: { placement?: "belowEditor" }): void;
 		custom<T>(
 			factory: (tui: OverlayTui, theme: OverlayTheme, keybindings: object, done: (result: T) => void) => OverlayComponent,
 			options?: { overlay?: boolean; overlayOptions?: OverlayOptions; onHandle?: (handle: OverlayHandle) => void },

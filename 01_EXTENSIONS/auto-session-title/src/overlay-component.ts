@@ -7,11 +7,11 @@ import type { OverlayTheme, OverlayTui, SessionOverview } from "./overview-types
 const OVERVIEW_OVERLAY_MIN_WIDTH = 60;
 const OVERVIEW_OVERLAY_MAX_WIDTH = 96;
 const OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH = 48;
-const OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH = OVERVIEW_OVERLAY_MIN_WIDTH + OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH;
 
 function resolveOverlayWidth(termWidth: number): number {
-	const capped = Math.min(OVERVIEW_OVERLAY_MAX_WIDTH, Math.max(OVERVIEW_OVERLAY_MIN_WIDTH, termWidth - OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH));
-	return capped - (capped % 2);
+	const preferred = Math.min(OVERVIEW_OVERLAY_MAX_WIDTH, Math.max(OVERVIEW_OVERLAY_MIN_WIDTH, termWidth - OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH));
+	const fitted = Math.max(1, Math.min(termWidth, preferred));
+	return fitted > 1 ? fitted - (fitted % 2) : fitted;
 }
 
 function resolveOverlayCol(termWidth: number, width: number): number {
@@ -62,21 +62,7 @@ export class OverviewOverlayComponent implements Component {
 export function getOverviewOverlayOptions(termWidth?: number): OverlayOptions {
 	if (typeof termWidth === "number") {
 		const width = resolveOverlayWidth(termWidth);
-		return {
-			row: 1,
-			col: resolveOverlayCol(termWidth, width),
-			width,
-			minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
-			nonCapturing: true,
-			visible: (nextTermWidth: number) => nextTermWidth >= OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH,
-		};
+		return { row: 1, col: resolveOverlayCol(termWidth, width), width, nonCapturing: true };
 	}
-	return {
-		anchor: "top-right",
-		width: OVERVIEW_OVERLAY_WIDTH,
-		minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
-		margin: { top: 1, right: 0 },
-		nonCapturing: true,
-		visible: (nextTermWidth: number) => nextTermWidth >= OVERVIEW_OVERLAY_MIN_VISIBLE_WIDTH,
-	};
+	return { anchor: "top-right", width: OVERVIEW_OVERLAY_WIDTH, margin: { top: 1, right: 0 }, nonCapturing: true };
 }
