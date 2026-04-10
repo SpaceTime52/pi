@@ -1,5 +1,5 @@
 import { OVERVIEW_CUSTOM_TYPE } from "./overview-constants.js";
-import type { OverviewEntry, PersistedOverview, SessionOverview } from "./overview-types.js";
+import type { OverviewEntry, PersistedOverview, SessionOverview, StoredOverview } from "./overview-types.js";
 
 function normalizeSummaryLine(line: unknown): string | undefined {
 	if (typeof line !== "string") return undefined;
@@ -8,13 +8,14 @@ function normalizeSummaryLine(line: unknown): string | undefined {
 	return collapsed.length > 120 ? `${collapsed.slice(0, 119).trimEnd()}…` : collapsed;
 }
 
-function normalizeOverviewData(data: object | null | undefined): SessionOverview | undefined {
-	const record = data && typeof data === "object" ? data as { title?: unknown; summary?: unknown } : undefined;
+function normalizeOverviewData(data: object | null | undefined): StoredOverview | undefined {
+	const record = data && typeof data === "object" ? data as { title?: unknown; summary?: unknown; coveredThroughEntryId?: unknown } : undefined;
 	const title = typeof record?.title === "string" ? record.title.trim() : "";
+	const coveredThroughEntryId = typeof record?.coveredThroughEntryId === "string" ? record.coveredThroughEntryId.trim() : "";
 	const summary = Array.isArray(record?.summary)
 		? record.summary.map(normalizeSummaryLine).filter((line): line is string => Boolean(line)).slice(0, 4)
 		: [];
-	return title && summary.length > 0 ? { title, summary } : undefined;
+	return title && summary.length > 0 ? { title, summary, coveredThroughEntryId: coveredThroughEntryId || undefined } : undefined;
 }
 
 export function findLatestOverview(branch: OverviewEntry[]): PersistedOverview | undefined {
@@ -22,7 +23,8 @@ export function findLatestOverview(branch: OverviewEntry[]): PersistedOverview |
 		const entry = branch[i]!;
 		if (entry.type !== "custom" || entry.customType !== OVERVIEW_CUSTOM_TYPE) continue;
 		const overview = normalizeOverviewData(entry.data);
-		if (overview) return { entryId: entry.id, ...overview };
+		if (!overview) continue;
+		return { entryId: entry.id, coveredThroughEntryId: overview.coveredThroughEntryId || entry.id, title: overview.title, summary: overview.summary };
 	}
 }
 
@@ -32,12 +34,14 @@ export function getEntriesSince(branch: OverviewEntry[], checkpointEntryId?: str
 	return index < 0 ? branch : branch.slice(index + 1);
 }
 
-export function buildOverviewBodyLines(overview?: SessionOverview, fallbackTitle?: string): string[] {
-	const title = overview?.title || fallbackTitle || "이름 없는 세션";
-	const lines = overview?.summary ?? ["요약이 아직 없습니다.", "다음 응답이 끝나면 자동으로 정리됩니다."];
-	return [`제목: ${title}`, ...lines.map((line) => `• ${line}`)];
+export function resolveOverviewTitle(overview?: SessionOverview, fallbackTitle?: string): string {
+	return overview?.title || fallbackTitle || "세션 요약";
+}
+
+export function buildOverviewBodyLines(overview?: SessionOverview): string[] {
+	return overview?.summary ?? ["요약이 아직 없습니다.", "다음 응답이 끝나면 자동으로 정리됩니다."];
 }
 
 export function buildOverviewWidgetText(overview?: SessionOverview, fallbackTitle?: string): string {
-	return ["세션 요약", ...buildOverviewBodyLines(overview, fallbackTitle)].join("\n");
+	return [resolveOverviewTitle(overview, fallbackTitle), ...buildOverviewBodyLines(overview)].join("\n");
 }

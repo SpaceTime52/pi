@@ -10,7 +10,7 @@ describe("overview restoration fallbacks", () => {
 		const ctx = stubContext([], { sessionManager: { ...stubContext().sessionManager, getSessionName: () => "세션 제목" } });
 		restoreOverview(runtime, ctx);
 		expect(runtime.setSessionName).not.toHaveBeenCalled();
-		expect(ctx.overlay.component?.render(36).join("\n")).toContain("제목: 런타임 제목");
+		expect(ctx.overlay.component?.render(48).join("\n")).toContain("런타임 제목");
 		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 런타임 제목");
 	});
 
@@ -18,7 +18,8 @@ describe("overview restoration fallbacks", () => {
 		const ctx = stubContext();
 		restoreOverview(stubRuntime(), ctx);
 		expect(ctx.ui.custom).toHaveBeenCalled();
-		expect(ctx.overlay.component?.render(36).join("\n")).toContain("• 다음 응답이 끝나면 자동으로");
+		expect(ctx.overlay.component?.render(60).join("\n")).toContain("다음 응답이 끝나면 자동으로 정리됩니다.");
+		expect(ctx.overlay.component?.render(60).join("\n")).toContain("세션 요약");
 		expect(ctx.ui.setTitle).not.toHaveBeenCalled();
 	});
 

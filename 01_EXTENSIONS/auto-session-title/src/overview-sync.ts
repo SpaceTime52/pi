@@ -3,7 +3,7 @@ import { OVERVIEW_CUSTOM_TYPE } from "./overview-constants.js";
 import { buildTerminalTitle } from "./title.js";
 import { ensureOverviewOverlay, clearOverlayState } from "./overlay-state.js";
 import { findLatestOverview, getEntriesSince } from "./overview-entry.js";
-import type { OverviewContext, OverviewRuntime, PersistedOverview } from "./overview-types.js";
+import type { OverviewContext, OverviewEntry, OverviewRuntime, PersistedOverview, SessionOverview, StoredOverview } from "./overview-types.js";
 
 function sameSummary(left: readonly string[], right: readonly string[]): boolean {
 	return left.length === right.length && left.every((line, index) => line === right[index]);
@@ -13,8 +13,22 @@ function resolveFallbackTitle(previous: PersistedOverview | undefined, runtime: 
 	return previous?.title || runtime.getSessionName() || ctx.sessionManager.getSessionName();
 }
 
+function getRecentEntries(branch: OverviewEntry[], previous?: PersistedOverview): OverviewEntry[] {
+	if (!previous) return branch;
+	const sinceCovered = getEntriesSince(branch, previous.coveredThroughEntryId);
+	return sinceCovered === branch ? getEntriesSince(branch, previous.entryId) : sinceCovered;
+}
+
 function syncTerminalTitle(ctx: OverviewContext, title?: string): void {
 	if (ctx.hasUI && title) ctx.ui.setTitle(buildTerminalTitle(title));
+}
+
+function toStoredOverview(overview: SessionOverview, coveredThroughEntryId?: string): StoredOverview {
+	return { title: overview.title, summary: overview.summary, coveredThroughEntryId };
+}
+
+function shouldPersist(previous: PersistedOverview | undefined, next: SessionOverview, coveredThroughEntryId?: string): boolean {
+	return !previous || previous.title !== next.title || !sameSummary(previous.summary, next.summary) || Boolean(coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId);
 }
 
 export function restoreOverview(runtime: OverviewRuntime, ctx: OverviewContext): void {
@@ -32,12 +46,17 @@ export async function refreshOverview(inFlight: Set<string>, runtime: OverviewRu
 	try {
 		const branch = ctx.sessionManager.getBranch();
 		const previous = findLatestOverview(branch);
-		const recentText = buildConversationTranscript(getEntriesSince(branch, previous?.entryId));
-		if (!recentText) return restoreOverview(runtime, ctx);
+		const recentEntries = getRecentEntries(branch, previous);
+		if (recentEntries.length === 0) return restoreOverview(runtime, ctx);
+		const coveredThroughEntryId = recentEntries.at(-1)?.id;
+		const recentText = buildConversationTranscript(recentEntries);
+		if (!recentText) {
+			if (previous && coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId) runtime.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(previous, coveredThroughEntryId));
+			return restoreOverview(runtime, ctx);
+		}
 		const next = await resolveSessionOverview({ recentText, previous, model: ctx.model, modelRegistry: ctx.modelRegistry });
 		if (!next) return restoreOverview(runtime, ctx);
-		const changed = !previous || previous.title !== next.title || !sameSummary(previous.summary, next.summary);
-		if (changed) runtime.appendEntry(OVERVIEW_CUSTOM_TYPE, next);
+		if (shouldPersist(previous, next, coveredThroughEntryId)) runtime.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(next, coveredThroughEntryId));
 		if (runtime.getSessionName() !== next.title) runtime.setSessionName(next.title);
 		ensureOverviewOverlay(ctx, next, next.title);
 		syncTerminalTitle(ctx, next.title);

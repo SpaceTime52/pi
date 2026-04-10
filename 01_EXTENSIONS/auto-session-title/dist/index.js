@@ -1,6 +1,6 @@
 // src/overview-constants.ts
 var OVERVIEW_CUSTOM_TYPE = "auto-session-title.overview";
-var OVERVIEW_OVERLAY_WIDTH = 36;
+var OVERVIEW_OVERLAY_WIDTH = 48;
 
 // src/overview-entry.ts
 function normalizeSummaryLine(line) {
@@ -12,15 +12,17 @@ function normalizeSummaryLine(line) {
 function normalizeOverviewData(data) {
   const record = data && typeof data === "object" ? data : void 0;
   const title = typeof record?.title === "string" ? record.title.trim() : "";
+  const coveredThroughEntryId = typeof record?.coveredThroughEntryId === "string" ? record.coveredThroughEntryId.trim() : "";
   const summary = Array.isArray(record?.summary) ? record.summary.map(normalizeSummaryLine).filter((line) => Boolean(line)).slice(0, 4) : [];
-  return title && summary.length > 0 ? { title, summary } : void 0;
+  return title && summary.length > 0 ? { title, summary, coveredThroughEntryId: coveredThroughEntryId || void 0 } : void 0;
 }
 function findLatestOverview(branch) {
   for (let i = branch.length - 1; i >= 0; i--) {
     const entry = branch[i];
     if (entry.type !== "custom" || entry.customType !== OVERVIEW_CUSTOM_TYPE) continue;
     const overview = normalizeOverviewData(entry.data);
-    if (overview) return { entryId: entry.id, ...overview };
+    if (!overview) continue;
+    return { entryId: entry.id, coveredThroughEntryId: overview.coveredThroughEntryId || entry.id, title: overview.title, summary: overview.summary };
   }
 }
 function getEntriesSince(branch, checkpointEntryId) {
@@ -28,10 +30,11 @@ function getEntriesSince(branch, checkpointEntryId) {
   const index = branch.findIndex((entry) => entry.id === checkpointEntryId);
   return index < 0 ? branch : branch.slice(index + 1);
 }
-function buildOverviewBodyLines(overview, fallbackTitle) {
-  const title = overview?.title || fallbackTitle || "\uC774\uB984 \uC5C6\uB294 \uC138\uC158";
-  const lines = overview?.summary ?? ["\uC694\uC57D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.", "\uB2E4\uC74C \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uC790\uB3D9\uC73C\uB85C \uC815\uB9AC\uB429\uB2C8\uB2E4."];
-  return [`\uC81C\uBAA9: ${title}`, ...lines.map((line) => `\u2022 ${line}`)];
+function resolveOverviewTitle(overview, fallbackTitle) {
+  return overview?.title || fallbackTitle || "\uC138\uC158 \uC694\uC57D";
+}
+function buildOverviewBodyLines(overview) {
+  return overview?.summary ?? ["\uC694\uC57D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.", "\uB2E4\uC74C \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uC790\uB3D9\uC73C\uB85C \uC815\uB9AC\uB429\uB2C8\uB2E4."];
 }
 
 // src/overlay-component.ts
@@ -56,22 +59,21 @@ var OverviewOverlayComponent = class {
     this.tui.requestRender();
   }
   render(width) {
-    if (this.cachedLines) {
-      if (this.cachedWidth === width) return this.cachedLines;
-    }
+    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
     const innerWidth = Math.max(1, width - 2);
     const border = (text) => this.theme.fg("border", text);
     const pad = (text) => {
       const clipped = truncateToWidth(text, innerWidth, "...", true);
       return clipped + " ".repeat(Math.max(0, innerWidth - visibleWidth(clipped)));
     };
-    const header = this.theme.fg("accent", " \uC138\uC158 ");
-    const left = "\u2500".repeat(Math.max(0, Math.floor((innerWidth - visibleWidth(header)) / 2)));
-    const right = "\u2500".repeat(Math.max(0, innerWidth - visibleWidth(header) - left.length));
-    const body = buildOverviewBodyLines(this.overview, this.fallbackTitle);
+    const title = truncateToWidth(` ${resolveOverviewTitle(this.overview, this.fallbackTitle)} `, innerWidth, "...", true);
+    const header = this.theme.fg("accent", title);
+    const headerWidth = visibleWidth(title);
+    const left = "\u2500".repeat(Math.max(0, Math.floor((innerWidth - headerWidth) / 2)));
+    const right = "\u2500".repeat(Math.max(0, innerWidth - headerWidth - left.length));
     this.cachedLines = [
       border(`\u256D${left}`) + header + border(`${right}\u256E`),
-      ...body.map((line) => border("\u2502") + pad(line) + border("\u2502")),
+      ...buildOverviewBodyLines(this.overview).map((line) => border("\u2502") + pad(line) + border("\u2502")),
       border(`\u2570${"\u2500".repeat(innerWidth)}\u256F`)
     ];
     this.cachedWidth = width;
@@ -86,8 +88,8 @@ function getOverviewOverlayOptions() {
   return {
     anchor: "top-right",
     width: OVERVIEW_OVERLAY_WIDTH,
-    minWidth: 30,
-    maxHeight: 8,
+    minWidth: 40,
+    maxHeight: 10,
     margin: { top: 1, right: 1 },
     nonCapturing: true,
     visible: (termWidth) => termWidth >= 100
@@ -99,7 +101,7 @@ import { completeSimple } from "@mariozechner/pi-ai";
 
 // src/summary-prompt.ts
 function buildOverviewPrompt(recentText, previous) {
-  const previousSection = previous ? [`Previous title: ${previous.title}`, "Previous summary:", ...previous.summary.map((line) => `- ${line}`)].join("\n") : "Previous summary: (none)";
+  const previousSection = previous ? [`Previous title: ${previous.title}`, "Previous summary:", ...previous.summary].join("\n") : "Previous summary: (none)";
   return [previousSection, "", "Recent conversation updates:", recentText].join("\n");
 }
 
@@ -148,12 +150,9 @@ var OVERVIEW_PROMPT = [
   "Return exactly this format:",
   "TITLE: <short title in the user's language, max 8 words>",
   "SUMMARY:",
-  "- Goal: <current objective>",
-  "- Done: <concrete progress>",
-  "- Note: <important context, decision, or blocker>",
-  "- Next: <next action>",
-  "Keep every summary bullet on one line, factual, and concise.",
-  "Do not use markdown code fences or extra sections."
+  "<2-4 short summary lines about the current session state>",
+  "Write the summary in plain natural language without Goal/Done/Note/Next labels.",
+  "Do not use markdown bullets, code fences, or extra sections."
 ].join(" ");
 
 // src/summary-text.ts
@@ -272,8 +271,19 @@ function sameSummary(left, right) {
 function resolveFallbackTitle(previous, runtime2, ctx) {
   return previous?.title || runtime2.getSessionName() || ctx.sessionManager.getSessionName();
 }
+function getRecentEntries(branch, previous) {
+  if (!previous) return branch;
+  const sinceCovered = getEntriesSince(branch, previous.coveredThroughEntryId);
+  return sinceCovered === branch ? getEntriesSince(branch, previous.entryId) : sinceCovered;
+}
 function syncTerminalTitle(ctx, title) {
   if (ctx.hasUI && title) ctx.ui.setTitle(buildTerminalTitle(title));
+}
+function toStoredOverview(overview, coveredThroughEntryId) {
+  return { title: overview.title, summary: overview.summary, coveredThroughEntryId };
+}
+function shouldPersist(previous, next, coveredThroughEntryId) {
+  return !previous || previous.title !== next.title || !sameSummary(previous.summary, next.summary) || Boolean(coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId);
 }
 function restoreOverview(runtime2, ctx) {
   const overview = findLatestOverview(ctx.sessionManager.getBranch());
@@ -289,12 +299,17 @@ async function refreshOverview(inFlight2, runtime2, ctx) {
   try {
     const branch = ctx.sessionManager.getBranch();
     const previous = findLatestOverview(branch);
-    const recentText = buildConversationTranscript(getEntriesSince(branch, previous?.entryId));
-    if (!recentText) return restoreOverview(runtime2, ctx);
+    const recentEntries = getRecentEntries(branch, previous);
+    if (recentEntries.length === 0) return restoreOverview(runtime2, ctx);
+    const coveredThroughEntryId = recentEntries.at(-1)?.id;
+    const recentText = buildConversationTranscript(recentEntries);
+    if (!recentText) {
+      if (previous && coveredThroughEntryId && previous.coveredThroughEntryId !== coveredThroughEntryId) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(previous, coveredThroughEntryId));
+      return restoreOverview(runtime2, ctx);
+    }
     const next = await resolveSessionOverview({ recentText, previous, model: ctx.model, modelRegistry: ctx.modelRegistry });
     if (!next) return restoreOverview(runtime2, ctx);
-    const changed = !previous || previous.title !== next.title || !sameSummary(previous.summary, next.summary);
-    if (changed) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, next);
+    if (shouldPersist(previous, next, coveredThroughEntryId)) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(next, coveredThroughEntryId));
     if (runtime2.getSessionName() !== next.title) runtime2.setSessionName(next.title);
     ensureOverviewOverlay(ctx, next, next.title);
     syncTerminalTitle(ctx, next.title);

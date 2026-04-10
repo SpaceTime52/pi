@@ -20,7 +20,7 @@ describe("refreshOverview guards", () => {
 
 	it("falls back to the previous overview when there is no recent text or summarization fails", async () => {
 		const runtime = stubRuntime();
-		const previous = { type: "custom", id: "ov1", customType: "auto-session-title.overview", data: { title: "이전 제목", summary: ["Goal: A", "Done: B", "Note: C", "Next: D"] } };
+		const previous = { type: "custom", id: "ov1", customType: "auto-session-title.overview", data: { title: "이전 제목", summary: ["오버레이 배치를 유지함", "resume 복원을 붙임"] } };
 		const ctx = stubContext([previous]);
 		await refreshOverview(new Set(), runtime, ctx);
 		expect(resolveSessionOverview).not.toHaveBeenCalled();
@@ -28,6 +28,16 @@ describe("refreshOverview guards", () => {
 		resolveSessionOverview.mockResolvedValue(undefined);
 		await refreshOverview(new Set(), runtime, stubContext([previous, { type: "message", id: "2", message: { role: "assistant", content: [{ type: "text", text: "새 출력" }] } }]));
 		expect(runtime.appendEntry).not.toHaveBeenCalled();
+	});
+
+	it("advances the stored checkpoint even when new entries add no transcript text", async () => {
+		const runtime = stubRuntime();
+		const previous = { type: "custom", id: "ov1", customType: "auto-session-title.overview", data: { title: "이전 제목", summary: ["오버레이 배치를 유지함", "resume 복원을 붙임"], coveredThroughEntryId: "missing" } };
+		const ctx = stubContext([previous, { type: "custom", id: "c2", customType: "other", data: { flag: true } }]);
+		await refreshOverview(new Set(), runtime, ctx);
+		expect(resolveSessionOverview).not.toHaveBeenCalled();
+		expect(runtime.appendEntry).toHaveBeenCalledWith("auto-session-title.overview", { title: "이전 제목", summary: ["오버레이 배치를 유지함", "resume 복원을 붙임"], coveredThroughEntryId: "c2" });
+		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 이전 제목");
 	});
 
 	it("cleans up in-flight state even when summarization throws", async () => {

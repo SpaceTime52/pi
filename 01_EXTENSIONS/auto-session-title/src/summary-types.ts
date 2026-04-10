@@ -7,12 +7,9 @@ export const OVERVIEW_PROMPT = [
 	"Return exactly this format:",
 	"TITLE: <short title in the user's language, max 8 words>",
 	"SUMMARY:",
-	"- Goal: <current objective>",
-	"- Done: <concrete progress>",
-	"- Note: <important context, decision, or blocker>",
-	"- Next: <next action>",
-	"Keep every summary bullet on one line, factual, and concise.",
-	"Do not use markdown code fences or extra sections.",
+	"<2-4 short summary lines about the current session state>",
+	"Write the summary in plain natural language without Goal/Done/Note/Next labels.",
+	"Do not use markdown bullets, code fences, or extra sections.",
 ].join(" ");
 
 export type SessionOverviewModel = Model<Api>;

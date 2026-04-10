@@ -1,2 +1,2 @@
 export const OVERVIEW_CUSTOM_TYPE = "auto-session-title.overview";
-export const OVERVIEW_OVERLAY_WIDTH = 36;
+export const OVERVIEW_OVERLAY_WIDTH = 48;

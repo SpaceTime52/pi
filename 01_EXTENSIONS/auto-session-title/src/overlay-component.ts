@@ -1,7 +1,7 @@
 import type { Component, OverlayOptions } from "@mariozechner/pi-tui";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { OVERVIEW_OVERLAY_WIDTH } from "./overview-constants.js";
-import { buildOverviewBodyLines } from "./overview-entry.js";
+import { buildOverviewBodyLines, resolveOverviewTitle } from "./overview-entry.js";
 import type { OverlayTheme, OverlayTui, SessionOverview } from "./overview-types.js";
 
 export class OverviewOverlayComponent implements Component {
@@ -18,22 +18,21 @@ export class OverviewOverlayComponent implements Component {
 	}
 
 	render(width: number): string[] {
-		if (this.cachedLines) {
-			if (this.cachedWidth === width) return this.cachedLines;
-		}
+		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
 		const innerWidth = Math.max(1, width - 2);
 		const border = (text: string) => this.theme.fg("border", text);
 		const pad = (text: string) => {
 			const clipped = truncateToWidth(text, innerWidth, "...", true);
 			return clipped + " ".repeat(Math.max(0, innerWidth - visibleWidth(clipped)));
 		};
-		const header = this.theme.fg("accent", " 세션 ");
-		const left = "─".repeat(Math.max(0, Math.floor((innerWidth - visibleWidth(header)) / 2)));
-		const right = "─".repeat(Math.max(0, innerWidth - visibleWidth(header) - left.length));
-		const body = buildOverviewBodyLines(this.overview, this.fallbackTitle);
+		const title = truncateToWidth(` ${resolveOverviewTitle(this.overview, this.fallbackTitle)} `, innerWidth, "...", true);
+		const header = this.theme.fg("accent", title);
+		const headerWidth = visibleWidth(title);
+		const left = "─".repeat(Math.max(0, Math.floor((innerWidth - headerWidth) / 2)));
+		const right = "─".repeat(Math.max(0, innerWidth - headerWidth - left.length));
 		this.cachedLines = [
 			border(`╭${left}`) + header + border(`${right}╮`),
-			...body.map((line) => border("│") + pad(line) + border("│")),
+			...buildOverviewBodyLines(this.overview).map((line) => border("│") + pad(line) + border("│")),
 			border(`╰${"─".repeat(innerWidth)}╯`),
 		];
 		this.cachedWidth = width;
@@ -50,8 +49,8 @@ export function getOverviewOverlayOptions(): OverlayOptions {
 	return {
 		anchor: "top-right",
 		width: OVERVIEW_OVERLAY_WIDTH,
-		minWidth: 30,
-		maxHeight: 8,
+		minWidth: 40,
+		maxHeight: 10,
 		margin: { top: 1, right: 1 },
 		nonCapturing: true,
 		visible: (termWidth: number) => termWidth >= 100,

@@ -7,8 +7,13 @@ export interface SessionOverview {
 	summary: string[];
 }
 
+export interface StoredOverview extends SessionOverview {
+	coveredThroughEntryId?: string;
+}
+
 export interface PersistedOverview extends SessionOverview {
 	entryId: string;
+	coveredThroughEntryId: string;
 }
 
 export interface OverviewRuntime {
