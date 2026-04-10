@@ -38,6 +38,11 @@ function buildOverviewBodyLines(overview) {
 
 // src/overlay-component.ts
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+var OVERVIEW_OVERLAY_MIN_WIDTH = 48;
+function resolveOverlayCol(termWidth, width) {
+  const maxCol = Math.max(0, termWidth - width);
+  return maxCol - maxCol % 2;
+}
 var OverviewOverlayComponent = class {
   constructor(tui, theme, overview, fallbackTitle) {
     this.tui = tui;
@@ -79,14 +84,24 @@ var OverviewOverlayComponent = class {
     this.cachedLines = void 0;
   }
 };
-function getOverviewOverlayOptions() {
+function getOverviewOverlayOptions(termWidth) {
+  if (typeof termWidth === "number" && termWidth >= OVERVIEW_OVERLAY_WIDTH) {
+    return {
+      row: 1,
+      col: resolveOverlayCol(termWidth, OVERVIEW_OVERLAY_WIDTH),
+      width: OVERVIEW_OVERLAY_WIDTH,
+      minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
+      nonCapturing: true,
+      visible: (nextTermWidth) => nextTermWidth >= 100
+    };
+  }
   return {
     anchor: "top-right",
     width: OVERVIEW_OVERLAY_WIDTH,
-    minWidth: 48,
-    margin: { top: 1, right: 1 },
+    minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
+    margin: { top: 1, right: 0 },
     nonCapturing: true,
-    visible: (termWidth) => termWidth >= 100
+    visible: (nextTermWidth) => nextTermWidth >= 100
   };
 }
 
@@ -289,26 +304,50 @@ async function resolveSessionOverview(options) {
 
 // src/overlay-state.ts
 var overlayState;
+var nextOverlayId = 0;
+function getLayoutKey() {
+  return `${process.stdout.columns ?? "unknown"}:${process.stdout.rows ?? "unknown"}`;
+}
 function hideOverviewOverlay() {
+  if (overlayState?.resizeListener) process.stdout.off("resize", overlayState.resizeListener);
   overlayState?.handle?.hide();
   overlayState = void 0;
+}
+function attachResizeListener(sessionId, overlayId) {
+  if (typeof process.stdout.on !== "function" || typeof process.stdout.off !== "function") return void 0;
+  const listener = () => {
+    if (!overlayState || overlayState.sessionId !== sessionId || overlayState.overlayId !== overlayId) return;
+    if (overlayState.layoutKey === getLayoutKey()) return;
+    const { ctx, overview, fallbackTitle } = overlayState;
+    hideOverviewOverlay();
+    ensureOverviewOverlay(ctx, overview, fallbackTitle);
+  };
+  process.stdout.on("resize", listener);
+  return listener;
 }
 function ensureOverviewOverlay(ctx, overview, fallbackTitle) {
   if (!ctx.hasUI) return;
   const sessionId = ctx.sessionManager.getSessionId();
-  if (overlayState && overlayState.sessionId !== sessionId) hideOverviewOverlay();
-  if (overlayState) return overlayState.component.setContent(overview, fallbackTitle);
+  const layoutKey = getLayoutKey();
+  if (overlayState && (overlayState.sessionId !== sessionId || overlayState.layoutKey !== layoutKey)) hideOverviewOverlay();
+  if (overlayState) {
+    overlayState.overview = overview;
+    overlayState.fallbackTitle = fallbackTitle;
+    return overlayState.component.setContent(overview, fallbackTitle);
+  }
+  const overlayId = ++nextOverlayId;
   void ctx.ui.custom(
     (tui, theme) => {
       const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
-      overlayState = { sessionId, component };
+      overlayState = { overlayId, sessionId, ctx, layoutKey, component, overview, fallbackTitle };
+      overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
       return component;
     },
-    { overlay: true, overlayOptions: getOverviewOverlayOptions(), onHandle: (handle) => {
-      if (overlayState?.sessionId === sessionId) overlayState.handle = handle;
+    { overlay: true, overlayOptions: getOverviewOverlayOptions(process.stdout.columns), onHandle: (handle) => {
+      if (overlayState?.overlayId === overlayId) overlayState.handle = handle;
     } }
   ).catch(() => {
-    if (overlayState?.sessionId === sessionId) overlayState = void 0;
+    if (overlayState?.overlayId === overlayId) hideOverviewOverlay();
   });
 }
 function clearOverlayState() {

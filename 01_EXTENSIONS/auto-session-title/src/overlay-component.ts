@@ -4,6 +4,16 @@ import { OVERVIEW_OVERLAY_WIDTH } from "./overview-constants.js";
 import { buildOverviewBodyLines, resolveOverviewTitle } from "./overview-entry.js";
 import type { OverlayTheme, OverlayTui, SessionOverview } from "./overview-types.js";
 
+const OVERVIEW_OVERLAY_MIN_WIDTH = 48;
+
+function resolveOverlayCol(termWidth: number, width: number): number {
+	const maxCol = Math.max(0, termWidth - width);
+	// Keep the left edge on an even column when we can. This avoids a pi-tui
+	// compositing drift that can appear when a non-capturing overlay starts in
+	// the second cell of a wide CJK character from the underlying transcript.
+	return maxCol - (maxCol % 2);
+}
+
 export class OverviewOverlayComponent implements Component {
 	private cachedWidth?: number;
 	private cachedLines?: string[];
@@ -41,13 +51,23 @@ export class OverviewOverlayComponent implements Component {
 	}
 }
 
-export function getOverviewOverlayOptions(): OverlayOptions {
+export function getOverviewOverlayOptions(termWidth?: number): OverlayOptions {
+	if (typeof termWidth === "number" && termWidth >= OVERVIEW_OVERLAY_WIDTH) {
+		return {
+			row: 1,
+			col: resolveOverlayCol(termWidth, OVERVIEW_OVERLAY_WIDTH),
+			width: OVERVIEW_OVERLAY_WIDTH,
+			minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
+			nonCapturing: true,
+			visible: (nextTermWidth: number) => nextTermWidth >= 100,
+		};
+	}
 	return {
 		anchor: "top-right",
 		width: OVERVIEW_OVERLAY_WIDTH,
-		minWidth: 48,
-		margin: { top: 1, right: 1 },
+		minWidth: OVERVIEW_OVERLAY_MIN_WIDTH,
+		margin: { top: 1, right: 0 },
 		nonCapturing: true,
-		visible: (termWidth: number) => termWidth >= 100,
+		visible: (nextTermWidth: number) => nextTermWidth >= 100,
 	};
 }

@@ -27,12 +27,25 @@ describe("buildOverviewBodyLines", () => {
 });
 
 describe("getOverviewOverlayOptions", () => {
-	it("uses a wide non-capturing top-right overlay without a height cap", () => {
-		const options = getOverviewOverlayOptions();
+	it("pins the overlay to an even left edge when terminal width is known", () => {
+		const evenWidth = getOverviewOverlayOptions(128);
+		expect(evenWidth.row).toBe(1);
+		expect(evenWidth.col).toBe(64);
+		expect(evenWidth.width).toBe(64);
+		expect(evenWidth.minWidth).toBe(48);
+		expect(evenWidth.maxHeight).toBeUndefined();
+		expect(evenWidth.nonCapturing).toBe(true);
+		expect(evenWidth.visible?.(120, 40)).toBe(true);
+		expect(evenWidth.visible?.(90, 40)).toBe(false);
+		const oddWidth = getOverviewOverlayOptions(129);
+		expect(oddWidth.col).toBe(64);
+	});
+
+	it("falls back to top-right anchoring when terminal width is unavailable", () => {
+		const options = getOverviewOverlayOptions(undefined);
 		expect(options.anchor).toBe("top-right");
 		expect(options.width).toBe(64);
 		expect(options.minWidth).toBe(48);
-		expect(options.maxHeight).toBeUndefined();
 		expect(options.nonCapturing).toBe(true);
 		expect(options.visible?.(120, 40)).toBe(true);
 		expect(options.visible?.(90, 40)).toBe(false);

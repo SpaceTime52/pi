@@ -31,7 +31,7 @@ describe("overview restoration core", () => {
 		const ctx = stubContext([{ type: "custom", id: "3", customType: "auto-session-title.overview", data: { title: "현재 세션", summary: ["우상단 오버레이를 유지함", "resume 복원을 붙임"] } }]);
 		restoreOverview(runtime, ctx);
 		expect(runtime.setSessionName).toHaveBeenCalledWith("현재 세션");
-		expect(ctx.overlay.options?.overlayOptions).toEqual(expect.objectContaining({ anchor: "top-right", nonCapturing: true, width: getOverviewOverlayOptions().width }));
+		expect(ctx.overlay.options?.overlayOptions).toEqual(expect.objectContaining({ nonCapturing: true, width: getOverviewOverlayOptions(undefined).width }));
 		expect(ctx.overlay.component?.render(64).join("\n")).toContain("현재 세션");
 		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 현재 세션");
 	});
