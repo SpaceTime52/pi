@@ -8,6 +8,11 @@ const OVERVIEW_OVERLAY_MIN_WIDTH = 60;
 const OVERVIEW_OVERLAY_MAX_WIDTH = 96;
 const OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH = 48;
 
+export interface OverviewRenderOptions {
+	compact?: boolean;
+	maxBodyLines?: number;
+}
+
 function resolveOverlayWidth(termWidth: number): number {
 	const preferred = Math.min(OVERVIEW_OVERLAY_MAX_WIDTH, Math.max(OVERVIEW_OVERLAY_MIN_WIDTH, termWidth - OVERVIEW_OVERLAY_MIN_TRANSCRIPT_WIDTH));
 	const fitted = Math.max(1, Math.min(termWidth, preferred));
@@ -22,15 +27,38 @@ function resolveOverlayCol(termWidth: number, width: number): number {
 	return maxCol - (maxCol % 2);
 }
 
+function withTrailingEllipsis(line: string, width: number): string {
+	if (width <= 1) return truncateToWidth(line, Math.max(1, width), "…", false);
+	const trimmed = line.replace(/\s+$/u, "");
+	const suffix = visibleWidth(trimmed) < width ? " …" : "…";
+	return truncateToWidth(`${trimmed}${suffix}`, width, "…", false);
+}
+
+function limitBodyLines(lines: string[], width: number, maxBodyLines?: number): string[] {
+	if (typeof maxBodyLines !== "number") return lines;
+	if (maxBodyLines <= 0) return [];
+	if (lines.length <= maxBodyLines) return lines;
+	const limited = lines.slice(0, maxBodyLines);
+	limited[limited.length - 1] = withTrailingEllipsis(limited[limited.length - 1]!, width);
+	return limited;
+}
+
 export class OverviewOverlayComponent implements Component {
 	private cachedWidth?: number;
 	private cachedLines?: string[];
 
-	constructor(private tui: OverlayTui, private theme: OverlayTheme, private overview?: SessionOverview, private fallbackTitle?: string) {}
+	constructor(
+		private tui: OverlayTui,
+		private theme: OverlayTheme,
+		private overview?: SessionOverview,
+		private fallbackTitle?: string,
+		private renderOptions: OverviewRenderOptions = {},
+	) {}
 
-	setContent(overview?: SessionOverview, fallbackTitle?: string): void {
+	setContent(overview?: SessionOverview, fallbackTitle?: string, renderOptions: OverviewRenderOptions = this.renderOptions): void {
 		this.overview = overview;
 		this.fallbackTitle = fallbackTitle;
+		this.renderOptions = renderOptions;
 		this.invalidate();
 		this.tui.requestRender();
 	}
@@ -43,7 +71,9 @@ export class OverviewOverlayComponent implements Component {
 		const title = truncateToWidth(` ${resolveOverviewTitle(this.overview, this.fallbackTitle)} `, Math.max(1, innerWidth - 2), "...", false);
 		const header = this.theme.fg("accent", title);
 		const right = "─".repeat(Math.max(1, innerWidth - 1 - visibleWidth(title)));
-		const body = buildOverviewBodyLines(this.overview).flatMap((line) => wrapTextWithAnsi(line, innerWidth));
+		const body = this.renderOptions.compact
+			? []
+			: limitBodyLines(buildOverviewBodyLines(this.overview).flatMap((line) => wrapTextWithAnsi(line, innerWidth)), innerWidth, this.renderOptions.maxBodyLines);
 		this.cachedLines = [
 			border("╭─") + header + border(`${right}╮`),
 			...body.map((line) => border("│") + pad(line) + border("│")),

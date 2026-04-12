@@ -14,17 +14,16 @@ describe("overview restoration fallbacks", () => {
 		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 런타임 제목");
 	});
 
-	it("opens a placeholder overlay when UI exists and skips title updates without a name", () => {
+	it("keeps the overview hidden when the session is still completely empty", () => {
 		const ctx = stubContext();
 		restoreOverview(stubRuntime(), ctx);
-		expect(ctx.ui.custom).toHaveBeenCalled();
-		expect(ctx.overlay.component?.render(60).join("\n")).toContain("첫 요청이나 다음 응답이 끝나면 자동으로 정리됩니다.");
-		expect(ctx.overlay.component?.render(60).join("\n")).toContain("세션 요약");
+		expect(ctx.ui.custom).not.toHaveBeenCalled();
+		expect(ctx.ui.setWidget).not.toHaveBeenCalled();
 		expect(ctx.ui.setTitle).not.toHaveBeenCalled();
 	});
 
 	it("skips overlay and title updates when UI is unavailable", () => {
-		const ctx = stubContext([], { hasUI: false });
+		const ctx = stubContext([{ type: "custom", id: "1", customType: "auto-session-title.overview", data: { title: "현재 세션", summary: ["UI 없이도 복원 정보는 읽는다"] } }], { hasUI: false });
 		restoreOverview(stubRuntime(), ctx);
 		expect(ctx.ui.custom).not.toHaveBeenCalled();
 		expect(ctx.ui.setTitle).not.toHaveBeenCalled();

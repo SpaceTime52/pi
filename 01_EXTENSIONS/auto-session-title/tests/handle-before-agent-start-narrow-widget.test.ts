@@ -22,12 +22,14 @@ describe("overview narrow widget mode", () => {
 		Object.defineProperty(process.stdout, "rows", { configurable: true, value: originalRows });
 		Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: originalIsTTY });
 	});
-	it("shows the overview below the editor when the terminal is narrow", () => {
+	it("shows a compact overview above the editor when the terminal is narrow", () => {
 		const ctx = stubContext([{ type: "custom", id: "1", customType: "auto-session-title.overview", data: { title: "현재 세션", summary: ["현재 상태를 짧게 표시함"] } }]);
 		restoreOverview(stubRuntime(), ctx);
-		expect(ctx.ui.setWidget).toHaveBeenCalledWith("auto-session-title.narrow", expect.any(Function), { placement: "belowEditor" });
+		expect(ctx.ui.setWidget).toHaveBeenCalledWith("auto-session-title.narrow", expect.any(Function), undefined);
 		expect(ctx.ui.custom).not.toHaveBeenCalled();
-		expect(ctx.widget.component?.render(80).join("\n")).toContain("현재 세션");
+		const rendered = ctx.widget.component?.render(80).join("\n") ?? "";
+		expect(rendered).toContain("현재 세션");
+		expect(rendered).not.toContain("현재 상태를 짧게 표시함");
 	});
 
 	it("clears the narrow widget before switching back to the overlay", () => {

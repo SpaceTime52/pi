@@ -23,12 +23,13 @@ describe("refreshOverview fallback titles", () => {
 		expect(sessionCtx.ui.setTitle).toHaveBeenCalledWith("π - 세션 제목");
 	});
 
-	it("leaves the terminal title untouched when no fallback title exists", async () => {
+	it("leaves the terminal title untouched and keeps the overview hidden when no fallback title exists", async () => {
 		resolveSessionOverview.mockResolvedValue(undefined);
 		const ctx = stubContext([{ type: "message", id: "1", message: { role: "assistant", content: [{ type: "text", text: "새 출력" }] } }], { sessionManager: { ...stubContext().sessionManager, getSessionName: () => undefined } });
 		await refreshOverview(new Set(), stubRuntime(), ctx);
 		expect(ctx.ui.setTitle).not.toHaveBeenCalled();
-		expect(ctx.ui.custom).toHaveBeenCalled();
+		expect(ctx.ui.custom).not.toHaveBeenCalled();
+		expect(ctx.ui.setWidget).not.toHaveBeenCalled();
 	});
 });
 

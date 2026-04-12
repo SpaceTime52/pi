@@ -50,22 +50,39 @@ function resolveOverlayCol(termWidth, width) {
   const maxCol = Math.max(0, termWidth - width);
   return maxCol - maxCol % 2;
 }
+function withTrailingEllipsis(line, width) {
+  if (width <= 1) return truncateToWidth(line, Math.max(1, width), "\u2026", false);
+  const trimmed = line.replace(/\s+$/u, "");
+  const suffix = visibleWidth(trimmed) < width ? " \u2026" : "\u2026";
+  return truncateToWidth(`${trimmed}${suffix}`, width, "\u2026", false);
+}
+function limitBodyLines(lines, width, maxBodyLines) {
+  if (typeof maxBodyLines !== "number") return lines;
+  if (maxBodyLines <= 0) return [];
+  if (lines.length <= maxBodyLines) return lines;
+  const limited = lines.slice(0, maxBodyLines);
+  limited[limited.length - 1] = withTrailingEllipsis(limited[limited.length - 1], width);
+  return limited;
+}
 var OverviewOverlayComponent = class {
-  constructor(tui, theme, overview, fallbackTitle) {
+  constructor(tui, theme, overview, fallbackTitle, renderOptions = {}) {
     this.tui = tui;
     this.theme = theme;
     this.overview = overview;
     this.fallbackTitle = fallbackTitle;
+    this.renderOptions = renderOptions;
   }
   tui;
   theme;
   overview;
   fallbackTitle;
+  renderOptions;
   cachedWidth;
   cachedLines;
-  setContent(overview, fallbackTitle) {
+  setContent(overview, fallbackTitle, renderOptions = this.renderOptions) {
     this.overview = overview;
     this.fallbackTitle = fallbackTitle;
+    this.renderOptions = renderOptions;
     this.invalidate();
     this.tui.requestRender();
   }
@@ -77,7 +94,7 @@ var OverviewOverlayComponent = class {
     const title = truncateToWidth(` ${resolveOverviewTitle(this.overview, this.fallbackTitle)} `, Math.max(1, innerWidth - 2), "...", false);
     const header = this.theme.fg("accent", title);
     const right = "\u2500".repeat(Math.max(1, innerWidth - 1 - visibleWidth(title)));
-    const body = buildOverviewBodyLines(this.overview).flatMap((line) => wrapTextWithAnsi(line, innerWidth));
+    const body = this.renderOptions.compact ? [] : limitBodyLines(buildOverviewBodyLines(this.overview).flatMap((line) => wrapTextWithAnsi(line, innerWidth)), innerWidth, this.renderOptions.maxBodyLines);
     this.cachedLines = [
       border("\u256D\u2500") + header + border(`${right}\u256E`),
       ...body.map((line) => border("\u2502") + pad(line) + border("\u2502")),
@@ -102,13 +119,20 @@ function getOverviewOverlayOptions(termWidth) {
 // src/overlay-state.ts
 var NARROW_WIDGET_KEY = "auto-session-title.narrow";
 var NARROW_WIDGET_BREAKPOINT = 185;
+var OVERVIEW_COMPACT_ROWS = 18;
+var OVERVIEW_CONDENSED_ROWS = 24;
 var overlayState;
 var nextOverlayId = 0;
-function getLayoutKey() {
-  return `${process.stdout.columns ?? "unknown"}:${process.stdout.rows ?? "unknown"}`;
-}
-function modeForWidth(termWidth) {
-  return process.stdout.isTTY === true && typeof termWidth === "number" && termWidth < NARROW_WIDGET_BREAKPOINT ? "widget" : "overlay";
+var getLayoutKey = () => `${process.stdout.columns ?? "unknown"}:${process.stdout.rows ?? "unknown"}`;
+var modeForWidth = (termWidth) => process.stdout.isTTY === true && typeof termWidth === "number" && termWidth < NARROW_WIDGET_BREAKPOINT ? "widget" : "overlay";
+function resolvePresentation(termWidth, termHeight) {
+  const mode = modeForWidth(termWidth);
+  if (mode === "widget") return { mode, renderOptions: { compact: true } };
+  if (typeof termHeight === "number") {
+    if (termHeight < OVERVIEW_COMPACT_ROWS) return { mode, renderOptions: { compact: true } };
+    if (termHeight < OVERVIEW_CONDENSED_ROWS) return { mode, renderOptions: { maxBodyLines: 1 } };
+  }
+  return { mode, renderOptions: {} };
 }
 function hideOverviewOverlay() {
   if (overlayState?.resizeListener) process.stdout.off("resize", overlayState.resizeListener);
@@ -127,28 +151,32 @@ function attachResizeListener(sessionId, overlayId) {
   process.stdout.on("resize", listener);
   return listener;
 }
-function showOverviewWidget(ctx, overlayId, sessionId, layoutKey, overview, fallbackTitle) {
+function updateExistingOverlay(presentation, overview, fallbackTitle) {
+  overlayState.overview = overview;
+  overlayState.fallbackTitle = fallbackTitle;
+  overlayState.presentation = presentation;
+  overlayState.component.setContent(overview, fallbackTitle, presentation.renderOptions);
+}
+function showOverviewWidget(ctx, overlayId, sessionId, layoutKey, presentation, overview, fallbackTitle) {
   ctx.ui.setWidget(NARROW_WIDGET_KEY, (tui, theme) => {
-    const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
-    overlayState = { overlayId, sessionId, ctx, layoutKey, mode: "widget", component, overview, fallbackTitle };
+    const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle, presentation.renderOptions);
+    overlayState = { overlayId, sessionId, ctx, layoutKey, mode: "widget", component, overview, fallbackTitle, presentation };
     overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
     return component;
-  }, { placement: "belowEditor" });
+  }, presentation.widgetOptions);
 }
 function ensureOverviewOverlay(ctx, overview, fallbackTitle) {
   if (!ctx.hasUI) return;
-  const sessionId = ctx.sessionManager.getSessionId(), layoutKey = getLayoutKey(), mode = modeForWidth(process.stdout.columns);
-  if (overlayState && (overlayState.sessionId !== sessionId || overlayState.layoutKey !== layoutKey || overlayState.mode !== mode)) hideOverviewOverlay();
-  if (overlayState) {
-    overlayState.overview = overview;
-    overlayState.fallbackTitle = fallbackTitle;
-    return overlayState.component.setContent(overview, fallbackTitle);
-  }
+  const sessionId = ctx.sessionManager.getSessionId();
+  const layoutKey = getLayoutKey();
+  const presentation = resolvePresentation(process.stdout.columns, process.stdout.rows);
+  if (overlayState && (overlayState.sessionId !== sessionId || overlayState.layoutKey !== layoutKey || overlayState.mode !== presentation.mode)) hideOverviewOverlay();
+  if (overlayState) return updateExistingOverlay(presentation, overview, fallbackTitle);
   const overlayId = ++nextOverlayId;
-  if (mode === "widget") return showOverviewWidget(ctx, overlayId, sessionId, layoutKey, overview, fallbackTitle);
+  if (presentation.mode === "widget") return showOverviewWidget(ctx, overlayId, sessionId, layoutKey, presentation, overview, fallbackTitle);
   void ctx.ui.custom((tui, theme) => {
-    const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle);
-    overlayState = { overlayId, sessionId, ctx, layoutKey, mode, component, overview, fallbackTitle };
+    const component = new OverviewOverlayComponent(tui, theme, overview, fallbackTitle, presentation.renderOptions);
+    overlayState = { overlayId, sessionId, ctx, layoutKey, mode: presentation.mode, component, overview, fallbackTitle, presentation };
     overlayState.resizeListener = attachResizeListener(sessionId, overlayId);
     return component;
   }, { overlay: true, overlayOptions: getOverviewOverlayOptions(process.stdout.columns), onHandle: (handle) => {
@@ -436,6 +464,10 @@ function restoreOverview(runtime2, ctx) {
   const overview = findLatestOverview(ctx.sessionManager.getBranch());
   if (overview && runtime2.getSessionName() !== overview.title) runtime2.setSessionName(overview.title);
   const title = resolveFallbackTitle(overview, runtime2, ctx);
+  if (!overview && !title) {
+    clearOverlayState();
+    return;
+  }
   ensureOverviewOverlay(ctx, overview, title);
   syncTerminalTitle(ctx, title);
 }

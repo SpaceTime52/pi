@@ -89,8 +89,8 @@ describe("previewOverviewFromInput", () => {
 		previewOverviewFromInput(first, "브랜치 A 미리보기");
 		const second = stubContext([], { sessionManager: { ...stubContext().sessionManager, getSessionId: () => "session-1", getSessionName: () => undefined } });
 		restoreOverview(stubRuntime(), second);
-		const rendered = renderPreview(first);
-		expect(rendered).toContain("세션 요약");
-		expect(rendered).not.toContain("브랜치 A 미리보기");
+		expect(first.overlay.handle.hide).toHaveBeenCalled();
+		expect(second.ui.custom).not.toHaveBeenCalled();
+		expect(second.ui.setWidget).not.toHaveBeenCalled();
 	});
 });

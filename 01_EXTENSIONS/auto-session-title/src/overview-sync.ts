@@ -42,6 +42,10 @@ export function restoreOverview(runtime: OverviewRuntime, ctx: OverviewContext):
 	const overview = findLatestOverview(ctx.sessionManager.getBranch());
 	if (overview && runtime.getSessionName() !== overview.title) runtime.setSessionName(overview.title);
 	const title = resolveFallbackTitle(overview, runtime, ctx);
+	if (!overview && !title) {
+		clearOverlayState();
+		return;
+	}
 	ensureOverviewOverlay(ctx, overview, title);
 	syncTerminalTitle(ctx, title);
 }
