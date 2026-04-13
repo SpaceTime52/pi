@@ -10,7 +10,7 @@ describe("buildOverviewPrompt", () => {
 		expect(prompt).toContain("Ignore routine greetings, acknowledgements, current-branch checks");
 		expect(prompt).toContain("If the recent updates contain no durable change, keep the previous title and summary unchanged.");
 		expect(prompt).toContain("Write SUMMARY as 2-4 short `- ` bullets when durable state exists.");
-		expect(prompt).toContain("Make first bullet state the user's current request or goal explicitly.");
+		expect(prompt).toContain("Make the user's current request or goal obvious, but do not restate the same point in both TITLE and the first bullet.");
 		expect(prompt).toContain("Keep bullets scan-friendly");
 		expect(prompt).toContain("leave SUMMARY blank");
 		expect(prompt).toContain("Keep the summary compact enough to scan quickly");

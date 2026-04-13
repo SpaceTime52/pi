@@ -142,7 +142,7 @@ function buildOverviewPrompt(recentText, previous) {
     "Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
     "If the recent updates contain no durable change, keep the previous title and summary unchanged.",
     "Write SUMMARY as 2-4 short `- ` bullets when durable state exists. One bullet per durable point.",
-    "Make first bullet state the user's current request or goal explicitly.",
+    "Make the user's current request or goal obvious, but do not restate the same point in both TITLE and the first bullet.",
     "Keep bullets scan-friendly: prioritize current goal, finished work, constraints, blockers, or next important step. Do not collapse everything into one long paragraph.",
     "If there is still no durable task or state yet, do not invent one; leave SUMMARY blank.",
     buildCompactionNote(previous),
@@ -235,7 +235,8 @@ var OVERVIEW_PROMPT = [
   "SUMMARY:",
   "- <short durable point in the user's language>",
   "Use 2-4 short `- ` bullets when durable state exists. One bullet per durable point.",
-  "First bullet must state the user's current request or goal explicitly.",
+  "Make the user's current request or goal obvious from TITLE and SUMMARY.",
+  "If TITLE already names that request clearly, first bullet should add non-duplicate state instead of restating it.",
   "Keep bullets concrete and scannable, not chatty.",
   "Describe current state rather than retelling events in chronological order.",
   "Keep the summary self-compacting: when it starts to sprawl, rewrite older still-relevant context more densely instead of letting the text grow turn after turn.",
@@ -373,7 +374,11 @@ function extractAssistantText(message) {
 
 // src/summary-request.ts
 var REQUEST_PREFIX = /^(?:요청|Request):\s*/u;
+var REQUEST_CONTEXT = /^(?:(?:요청|Request):|(?:사용자(?:는|가)?|User|The user)(?:\s|$)|(?:현재\s*)?목표(?:는|:))/iu;
+var REQUEST_INTENT = /(하려고 한다|원한다|요청(?:했다|함)?|asked to|wants to|needs to|goal is|trying to)/iu;
 var REQUEST_MAX_LENGTH = 72;
+var COMPARE_MAX_LENGTH = 200;
+var GENERIC_TOKENS = /* @__PURE__ */ new Set(["current", "goal", "the", "user", "\uC0AC\uC6A9\uC790", "\uD604\uC7AC", "\uBAA9\uD45C"]);
 function extractLatestUserRequest(recentText) {
   const lines = recentText.split(/\r?\n/);
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -386,12 +391,32 @@ function extractLatestUserRequest(recentText) {
 function buildRequestLine(request) {
   return `${/[가-힣]/u.test(request) ? "\uC694\uCCAD" : "Request"}: ${request}`;
 }
+function normalizeToken(token) {
+  return token.toLowerCase().replace(/(?:에서|으로|에게|까지|부터|처럼|보다|은|는|이|가|을|를|에|로|와|과|도|만|의)$/u, "");
+}
+function tokenize(text) {
+  return [
+    ...new Set(
+      (normalizeTitle(text.replace(REQUEST_PREFIX, ""), COMPARE_MAX_LENGTH) ?? "").split(/[^\p{L}\p{N}]+/u).map(normalizeToken).filter((token) => token.length > 1 && !GENERIC_TOKENS.has(token))
+    )
+  ];
+}
+function overlapsEnough(left, right) {
+  const leftTokens = new Set(tokenize(left));
+  const rightTokens = tokenize(right);
+  const shared = rightTokens.filter((token) => leftTokens.has(token)).length;
+  return shared >= 2 && shared / Math.min(leftTokens.size, rightTokens.length) >= 0.6;
+}
+function isRequestSummaryLine(line, request) {
+  return REQUEST_PREFIX.test(line) || overlapsEnough(line, request) && (REQUEST_CONTEXT.test(line) || REQUEST_INTENT.test(line));
+}
 function ensureOverviewRequestLine(overview, recentText) {
   if (overview.summary.length === 0) return overview;
   const request = extractLatestUserRequest(recentText);
   if (!request) return overview;
-  const requestLine = buildRequestLine(request);
-  const summary = [requestLine, ...overview.summary.filter((line) => !REQUEST_PREFIX.test(line) && line !== requestLine)].slice(0, 4);
+  const requestLines = overview.summary.filter((line) => isRequestSummaryLine(line, request));
+  const otherLines = overview.summary.filter((line) => !isRequestSummaryLine(line, request));
+  const summary = overlapsEnough(overview.title, request) && otherLines.length > 0 ? otherLines : requestLines.length > 0 ? [requestLines[0], ...otherLines] : [buildRequestLine(request), ...overview.summary].slice(0, 4);
   return summary.length === overview.summary.length && summary.every((line, index) => line === overview.summary[index]) ? overview : { ...overview, summary };
 }
 
