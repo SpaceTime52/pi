@@ -16,6 +16,7 @@ export const OVERVIEW_PROMPT = [
 	"SUMMARY:",
 	"- <short durable point in the user's language>",
 	"Use 2-4 short `- ` bullets when durable state exists. One bullet per durable point.",
+	"First bullet must state the user's current request or goal explicitly.",
 	"Keep bullets concrete and scannable, not chatty.",
 	"Describe current state rather than retelling events in chronological order.",
 	"Keep the summary self-compacting: when it starts to sprawl, rewrite older still-relevant context more densely instead of letting the text grow turn after turn.",

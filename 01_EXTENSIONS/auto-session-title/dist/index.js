@@ -142,6 +142,7 @@ function buildOverviewPrompt(recentText, previous) {
     "Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
     "If the recent updates contain no durable change, keep the previous title and summary unchanged.",
     "Write SUMMARY as 2-4 short `- ` bullets when durable state exists. One bullet per durable point.",
+    "Make first bullet state the user's current request or goal explicitly.",
     "Keep bullets scan-friendly: prioritize current goal, finished work, constraints, blockers, or next important step. Do not collapse everything into one long paragraph.",
     "If there is still no durable task or state yet, do not invent one; leave SUMMARY blank.",
     buildCompactionNote(previous),
@@ -234,6 +235,7 @@ var OVERVIEW_PROMPT = [
   "SUMMARY:",
   "- <short durable point in the user's language>",
   "Use 2-4 short `- ` bullets when durable state exists. One bullet per durable point.",
+  "First bullet must state the user's current request or goal explicitly.",
   "Keep bullets concrete and scannable, not chatty.",
   "Describe current state rather than retelling events in chronological order.",
   "Keep the summary self-compacting: when it starts to sprawl, rewrite older still-relevant context more densely instead of letting the text grow turn after turn.",
@@ -369,6 +371,30 @@ function extractAssistantText(message) {
   return message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n").trim();
 }
 
+// src/summary-request.ts
+var REQUEST_PREFIX = /^(?:요청|Request):\s*/u;
+var REQUEST_MAX_LENGTH = 72;
+function extractLatestUserRequest(recentText) {
+  const lines = recentText.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line.startsWith("User: ")) continue;
+    const request = normalizeTitle(line.slice(6), REQUEST_MAX_LENGTH);
+    if (request) return request;
+  }
+}
+function buildRequestLine(request) {
+  return `${/[가-힣]/u.test(request) ? "\uC694\uCCAD" : "Request"}: ${request}`;
+}
+function ensureOverviewRequestLine(overview, recentText) {
+  if (overview.summary.length === 0) return overview;
+  const request = extractLatestUserRequest(recentText);
+  if (!request) return overview;
+  const requestLine = buildRequestLine(request);
+  const summary = [requestLine, ...overview.summary.filter((line) => !REQUEST_PREFIX.test(line) && line !== requestLine)].slice(0, 4);
+  return summary.length === overview.summary.length && summary.every((line, index) => line === overview.summary[index]) ? overview : { ...overview, summary };
+}
+
 // src/summarize.ts
 async function resolveSessionOverview(options) {
   if (!options.model || !options.recentText.trim()) return void 0;
@@ -380,7 +406,9 @@ async function resolveSessionOverview(options) {
       { systemPrompt: OVERVIEW_PROMPT, messages: [{ role: "user", content: buildOverviewPrompt(options.recentText, options.previous), timestamp: Date.now() }] },
       { apiKey: auth.apiKey, headers: auth.headers }
     );
-    return message.stopReason === "error" ? void 0 : parseOverviewResponse(extractAssistantText(message));
+    if (message.stopReason === "error") return void 0;
+    const overview = parseOverviewResponse(extractAssistantText(message));
+    return overview ? ensureOverviewRequestLine(overview, options.recentText) : void 0;
   } catch {
     return void 0;
   }

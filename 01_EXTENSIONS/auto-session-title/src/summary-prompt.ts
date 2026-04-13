@@ -21,6 +21,7 @@ export function buildOverviewPrompt(recentText: string, previous?: { title: stri
 		"Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
 		"If the recent updates contain no durable change, keep the previous title and summary unchanged.",
 		"Write SUMMARY as 2-4 short `- ` bullets when durable state exists. One bullet per durable point.",
+		"Make first bullet state the user's current request or goal explicitly.",
 		"Keep bullets scan-friendly: prioritize current goal, finished work, constraints, blockers, or next important step. Do not collapse everything into one long paragraph.",
 		"If there is still no durable task or state yet, do not invent one; leave SUMMARY blank.",
 		buildCompactionNote(previous),

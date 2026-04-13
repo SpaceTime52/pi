@@ -2,6 +2,7 @@ import { completeSimple } from "@mariozechner/pi-ai";
 import type { SessionOverview } from "./overview-types.js";
 import { buildOverviewPrompt } from "./summary-prompt.js";
 import { extractAssistantText, parseOverviewResponse } from "./summary-parse.js";
+import { ensureOverviewRequestLine } from "./summary-request.js";
 import { OVERVIEW_PROMPT, type ResolveSessionOverviewOptions, type SessionOverviewAuth, type SessionOverviewModel, type SessionOverviewModelRegistry } from "./summary-types.js";
 export { buildConversationTranscript, extractSummaryLines } from "./summary-text.js";
 export { buildOverviewPrompt } from "./summary-prompt.js";
@@ -18,7 +19,9 @@ export async function resolveSessionOverview(options: ResolveSessionOverviewOpti
 			{ systemPrompt: OVERVIEW_PROMPT, messages: [{ role: "user", content: buildOverviewPrompt(options.recentText, options.previous), timestamp: Date.now() }] },
 			{ apiKey: auth.apiKey, headers: auth.headers },
 		);
-		return message.stopReason === "error" ? undefined : parseOverviewResponse(extractAssistantText(message));
+		if (message.stopReason === "error") return undefined;
+		const overview = parseOverviewResponse(extractAssistantText(message));
+		return overview ? ensureOverviewRequestLine(overview, options.recentText) : undefined;
 	} catch {
 		return undefined;
 	}
