@@ -20,7 +20,7 @@ export function buildOverviewPrompt(recentText: string, previous?: { title: stri
 		"Fold recent updates into the current state instead of listing events in order.",
 		"Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
 		"If the recent updates contain no durable change, keep the previous title and summary unchanged.",
-		"Write SUMMARY as 2-5 short `- ` bullets when durable state exists. One bullet per durable point.",
+		"Write SUMMARY as 1-7 short `- ` bullets when durable state exists. One bullet per durable point.",
 		"Keep bullets scan-friendly and concrete: prioritize current state, finished work, constraints, blockers, or next important step. Do not use lead-ins like `요청:`, `Request:`, `사용자는`, `The user`, or `현재 목표는`.",
 		"Do not collapse everything into one long paragraph.",
 		"If there is still no durable task or state yet, do not invent one; leave SUMMARY blank.",

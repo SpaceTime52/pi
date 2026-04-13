@@ -141,7 +141,7 @@ function buildOverviewPrompt(recentText, previous) {
     "Fold recent updates into the current state instead of listing events in order.",
     "Ignore routine greetings, acknowledgements, current-branch checks, shell state, raw tool chatter, toy/demo exchanges, and the fact that the assistant replied unless they materially changed the task.",
     "If the recent updates contain no durable change, keep the previous title and summary unchanged.",
-    "Write SUMMARY as 2-5 short `- ` bullets when durable state exists. One bullet per durable point.",
+    "Write SUMMARY as 1-7 short `- ` bullets when durable state exists. One bullet per durable point.",
     "Keep bullets scan-friendly and concrete: prioritize current state, finished work, constraints, blockers, or next important step. Do not use lead-ins like `\uC694\uCCAD:`, `Request:`, `\uC0AC\uC6A9\uC790\uB294`, `The user`, or `\uD604\uC7AC \uBAA9\uD45C\uB294`.",
     "Do not collapse everything into one long paragraph.",
     "If there is still no durable task or state yet, do not invent one; leave SUMMARY blank.",
@@ -200,7 +200,7 @@ var EMPTY_STATE_PATTERNS = [
   /start .*goal and context/i
 ];
 var LONG_SUMMARY_LINE = 160;
-var MAX_SUMMARY_LINES = 5;
+var MAX_SUMMARY_LINES = 7;
 var SENTENCE_SPLIT = /(?<=[.!?])\s+/u;
 function isEmptyStateLine(line) {
   return EMPTY_STATE_PATTERNS.some((pattern) => pattern.test(line));
@@ -235,7 +235,7 @@ var OVERVIEW_PROMPT = [
   "TITLE: <short title in the user's language, max 8 words, naming the durable task rather than chatty or incidental details>",
   "SUMMARY:",
   "- <short durable point in the user's language>",
-  "Use 2-5 short `- ` bullets when durable state exists. One bullet per durable point.",
+  "Use 1-7 short `- ` bullets when durable state exists. One bullet per durable point.",
   "Keep TITLE and SUMMARY focused on durable state. Do not use lead-ins like `\uC694\uCCAD:`, `Request:`, `\uC0AC\uC6A9\uC790\uB294`, `The user`, or `\uD604\uC7AC \uBAA9\uD45C\uB294`.",
   "Keep bullets concrete and scannable, not chatty.",
   "Describe current state rather than retelling events in chronological order.",

@@ -9,7 +9,7 @@ const EMPTY_STATE_PATTERNS = [
 	/start .*goal and context/i,
 ];
 const LONG_SUMMARY_LINE = 160;
-const MAX_SUMMARY_LINES = 5;
+const MAX_SUMMARY_LINES = 7;
 const SENTENCE_SPLIT = /(?<=[.!?])\s+/u;
 
 function isEmptyStateLine(line: string): boolean {

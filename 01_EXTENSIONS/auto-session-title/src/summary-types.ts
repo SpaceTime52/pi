@@ -15,7 +15,7 @@ export const OVERVIEW_PROMPT = [
 	"TITLE: <short title in the user's language, max 8 words, naming the durable task rather than chatty or incidental details>",
 	"SUMMARY:",
 	"- <short durable point in the user's language>",
-	"Use 2-5 short `- ` bullets when durable state exists. One bullet per durable point.",
+	"Use 1-7 short `- ` bullets when durable state exists. One bullet per durable point.",
 	"Keep TITLE and SUMMARY focused on durable state. Do not use lead-ins like `요청:`, `Request:`, `사용자는`, `The user`, or `현재 목표는`.",
 	"Keep bullets concrete and scannable, not chatty.",
 	"Describe current state rather than retelling events in chronological order.",

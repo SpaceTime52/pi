@@ -30,9 +30,9 @@ describe("resolveSessionOverview", () => {
 		expect(completeSimple).toHaveBeenCalledWith(model, expect.objectContaining({ systemPrompt: OVERVIEW_PROMPT }), expect.objectContaining({ apiKey: "token" }));
 	});
 
-	it("keeps up to five summary lines", async () => {
-		completeSimple.mockResolvedValue(assistantMessage([{ type: "text", text: "TITLE: 세션 제목\nSUMMARY:\n- 끝난 일 1\n- 끝난 일 2\n- 제약 3\n- 다음 단계 4" }]));
-		expect(await resolveSessionOverview({ recentText: "User: 말록스 콘트라 베이스 가격 다시 확인해줘", model, modelRegistry: registry })).toEqual({ title: "세션 제목", summary: ["끝난 일 1", "끝난 일 2", "제약 3", "다음 단계 4"] });
+	it("keeps up to seven summary lines", async () => {
+		completeSimple.mockResolvedValue(assistantMessage([{ type: "text", text: "TITLE: 세션 제목\nSUMMARY:\n- 끝난 일 1\n- 끝난 일 2\n- 제약 3\n- 다음 단계 4\n- 추가 맥락 5\n- 추가 맥락 6\n- 추가 맥락 7" }]));
+		expect(await resolveSessionOverview({ recentText: "User: 말록스 콘트라 베이스 가격 다시 확인해줘", model, modelRegistry: registry })).toEqual({ title: "세션 제목", summary: ["끝난 일 1", "끝난 일 2", "제약 3", "다음 단계 4", "추가 맥락 5", "추가 맥락 6", "추가 맥락 7"] });
 	});
 
 	it("returns undefined when provider errors, parsing fails, or the call throws", async () => {
