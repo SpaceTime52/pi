@@ -578,7 +578,9 @@ function createTurnEndHandler(getSessionName, setSessionName, appendEntry) {
   };
 }
 function createAgentEndHandler(getSessionName, setSessionName, appendEntry) {
-  return async (_event, ctx) => refreshOverview(inFlight, runtime(ctx, getSessionName, setSessionName, appendEntry), ctx);
+  return (_event, ctx) => {
+    queueRefresh(getSessionName, setSessionName, appendEntry, ctx);
+  };
 }
 function createSessionTreeHandler(getSessionName, setSessionName, appendEntry) {
   return async (_event, ctx) => {

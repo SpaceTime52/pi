@@ -42,7 +42,7 @@ export function createTurnEndHandler(getSessionName: OverviewRuntime["getSession
 }
 
 export function createAgentEndHandler(getSessionName: OverviewRuntime["getSessionName"], setSessionName: OverviewRuntime["setSessionName"], appendEntry: OverviewRuntime["appendEntry"]) {
-	return async (_event: object, ctx: OverviewContext) => refreshOverview(inFlight, runtime(ctx, getSessionName, setSessionName, appendEntry), ctx);
+	return (_event: object, ctx: OverviewContext) => { queueRefresh(getSessionName, setSessionName, appendEntry, ctx); };
 }
 
 export function createSessionTreeHandler(getSessionName: OverviewRuntime["getSessionName"], setSessionName: OverviewRuntime["setSessionName"], appendEntry: OverviewRuntime["appendEntry"]) {

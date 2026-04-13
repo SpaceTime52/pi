@@ -44,11 +44,16 @@ describe("hooks", () => {
 		expect(restoreOverview).toHaveBeenCalledTimes(2);
 	});
 
-	it("refreshes after agent_end and invalidates queued background refreshes on tree moves", async () => {
+	it("queues agent_end refresh in background and invalidates queued work on tree moves", async () => {
+		let release!: () => void;
+		refreshOverview.mockImplementationOnce(() => new Promise((done) => { release = () => done(undefined); }));
 		const runtime = stubRuntime();
 		const idleCtx = stubContext();
-		await createAgentEndHandler(runtime.getSessionName, runtime.setSessionName, runtime.appendEntry)({}, idleCtx);
+		const result = createAgentEndHandler(runtime.getSessionName, runtime.setSessionName, runtime.appendEntry)({}, idleCtx);
+		expect(result).toBeUndefined();
 		expect(refreshOverview).toHaveBeenCalledWith(expect.any(Set), expect.objectContaining({ getSessionName: runtime.getSessionName, setSessionName: runtime.setSessionName, appendEntry: runtime.appendEntry }), idleCtx);
+		release();
+		await Promise.resolve();
 		const queuedCtx = stubContext([], { hasPendingMessages: vi.fn(() => true) });
 		await createTurnEndHandler(runtime.getSessionName, runtime.setSessionName, runtime.appendEntry)({}, queuedCtx);
 		const queuedRuntime = refreshOverview.mock.calls[1][1];
