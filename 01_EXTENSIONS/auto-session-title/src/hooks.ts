@@ -53,11 +53,11 @@ export function createSessionTreeHandler(getSessionName: OverviewRuntime["getSes
 }
 
 export function createSessionShutdownHandler() {
-	return async (_event: object, _ctx: OverviewContext) => {
+	return async (_event: object, ctx: OverviewContext) => {
 		activeSessionId = undefined;
 		lifecycleId += 1;
 		viewId += 1;
 		previewViewId = -1;
-		clearOverviewUi(inFlight);
+		clearOverviewUi(inFlight, ctx);
 	};
 }

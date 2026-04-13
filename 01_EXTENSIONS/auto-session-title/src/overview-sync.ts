@@ -1,8 +1,8 @@
 import { buildConversationTranscript, resolveSessionOverview } from "./summarize.js";
 import { OVERVIEW_CUSTOM_TYPE } from "./overview-constants.js";
 import { buildTerminalTitle } from "./title.js";
-import { ensureOverviewOverlay, clearOverlayState } from "./overlay-state.js";
 import { findLatestOverview, getEntriesSince } from "./overview-entry.js";
+import { clearOverviewDisplay, syncOverviewUi } from "./overview-ui.js";
 import type { OverviewContext, OverviewEntry, OverviewRuntime, PersistedOverview, SessionOverview, StoredOverview } from "./overview-types.js";
 
 const rerunRequested = new Set<string>();
@@ -43,10 +43,10 @@ export function restoreOverview(runtime: OverviewRuntime, ctx: OverviewContext):
 	if (overview && runtime.getSessionName() !== overview.title) runtime.setSessionName(overview.title);
 	const title = resolveFallbackTitle(overview, runtime, ctx);
 	if (!overview && !title) {
-		clearOverlayState();
+		clearOverviewDisplay(ctx);
 		return;
 	}
-	ensureOverviewOverlay(ctx, overview, title);
+	syncOverviewUi(ctx, overview, title);
 	syncTerminalTitle(ctx, title);
 }
 
@@ -73,7 +73,7 @@ export async function refreshOverview(inFlight: Set<string>, runtime: OverviewRu
 		if (!next) return restoreOverview(runtime, ctx);
 		if (shouldPersist(previous, next, coveredThroughEntryId)) runtime.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(next, coveredThroughEntryId));
 		if (runtime.getSessionName() !== next.title) runtime.setSessionName(next.title);
-		ensureOverviewOverlay(ctx, next, next.title);
+		syncOverviewUi(ctx, next, next.title);
 		syncTerminalTitle(ctx, next.title);
 	} finally {
 		inFlight.delete(sessionId);
@@ -81,8 +81,8 @@ export async function refreshOverview(inFlight: Set<string>, runtime: OverviewRu
 	}
 }
 
-export function clearOverviewUi(inFlight: Set<string>, _ctx?: OverviewContext): void {
+export function clearOverviewUi(inFlight: Set<string>, ctx?: OverviewContext): void {
 	inFlight.clear();
 	rerunRequested.clear();
-	clearOverlayState();
+	clearOverviewDisplay(ctx);
 }

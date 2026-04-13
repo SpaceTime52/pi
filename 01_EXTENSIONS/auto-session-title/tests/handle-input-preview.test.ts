@@ -13,7 +13,7 @@ describe("previewOverviewFromInput", () => {
 		expect(previewOverviewFromInput(ctx, "그리고 서브에이전트 2개 호출해서 가위바위보 시켜봐")).toBe(true);
 		const rendered = renderPreview(ctx);
 		expect(rendered).toContain("서브에이전트 2개 호출해서 가위바위보");
-		expect(rendered).toContain("정식 요약은 첫 응답이 끝나면 현재 상태 기준으로 갱신된다.");
+		expect(rendered).toContain("현재 서브에이전트 2개 호출해서 가위바위보 요청 처리 중이다.");
 		expect(rendered).not.toContain("그리고 서브에이전트 2개 호출해서 가위바위보 시켜봐");
 		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 서브에이전트 2개 호출해서 가위바위보");
 	});
@@ -22,7 +22,7 @@ describe("previewOverviewFromInput", () => {
 		expect(previewOverviewFromInput(ctx, "Call two subagents and compare their answers")).toBe(true);
 		const rendered = renderPreview(ctx);
 		expect(rendered).toContain("Working on: Call two subagents and compare their answers.");
-		expect(rendered).toContain("The overview will refresh after the first response completes.");
+		expect(rendered).not.toContain("The overview will refresh after the first response completes.");
 		expect(rendered).not.toContain("작업을 바로 정리 중이다.");
 	});
 	it("strips polite English wrappers before building the preview", () => {
@@ -44,12 +44,12 @@ describe("previewOverviewFromInput", () => {
 		const ctx = stubContext();
 		expect(previewOverviewFromInput(ctx, "README.md에 설명 추가해줘")).toBe(true);
 		const rendered = renderPreview(ctx);
-		expect(rendered).toContain("현재 README.md에 설명 추가 요청을 정리 중이다.");
+		expect(rendered).toContain("현재 README.md에 설명 추가 요청 처리 중이다.");
 		expect(rendered).not.toContain("Working on:");
 		clearOverviewUi(new Set(), ctx);
 		const workCtx = stubContext();
 		expect(previewOverviewFromInput(workCtx, "배포 작업 해줘")).toBe(true);
-		expect(renderPreview(workCtx)).toContain("현재 배포 작업 요청을 정리 중이다.");
+		expect(renderPreview(workCtx)).toContain("현재 배포 작업 요청 처리 중이다.");
 	});
 	it("strips greeting plus polite wrapper without breaking Hello World requests", () => {
 		const helloPrompt = stubContext();

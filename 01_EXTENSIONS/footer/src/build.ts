@@ -1,15 +1,18 @@
 import { visibleWidth } from "@mariozechner/pi-tui";
+import { buildFooterOverview, isOverviewStatusKey } from "./overview.js";
 import { buildPullRequestStatusEntries } from "./pr.js";
 import type { FooterContext, FooterStatusData, FooterTheme, PullRequestStatus, ThemeColor } from "./types.js";
 import { BAR_WIDTH, NAME_STATUS_KEY } from "./types.js";
 import { clamp, getFolderName, sanitizeStatusText, styleStatus } from "./utils.js";
+
+export { buildFooterOverview, buildFooterOverviewLines } from "./overview.js";
 
 export function buildFooterStatusEntries(
 	_ctx: FooterContext,
 	footerData: FooterStatusData,
 ) {
 	return Array.from(footerData.getExtensionStatuses().entries())
-		.filter(([key]) => key !== NAME_STATUS_KEY)
+		.filter(([key]) => key !== NAME_STATUS_KEY && !isOverviewStatusKey(key))
 		.map(([key, text]) => [key, sanitizeStatusText(text)] as const)
 		.filter(([, text]) => Boolean(text));
 }
@@ -30,6 +33,7 @@ export function buildFooterLineParts(
 	const bar = "#".repeat(filled) + "-".repeat(BAR_WIDTH - filled);
 
 	const statusEntries = buildFooterStatusEntries(ctx, footerData);
+	const overview = buildFooterOverview(footerData);
 	const statusTexts = statusEntries.map(([, text]) => text);
 	const prEntries = buildPullRequestStatusEntries(prStatus);
 	const prText = prEntries.length > 0
@@ -64,5 +68,5 @@ export function buildFooterLineParts(
 	const right = theme.fg(barColor, `[${bar}] ${pct}% `);
 
 	const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(mid) - visibleWidth(right)));
-	return { statusEntries, left, mid, right, pad };
+	return { statusEntries, overview, left, mid, right, pad };
 }

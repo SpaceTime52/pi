@@ -1,8 +1,11 @@
 // src/footer.ts
-import { truncateToWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth as truncateToWidth2 } from "@mariozechner/pi-tui";
 
 // src/build.ts
-import { visibleWidth } from "@mariozechner/pi-tui";
+import { visibleWidth as visibleWidth2 } from "@mariozechner/pi-tui";
+
+// src/overview.ts
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 
 // src/types.ts
 var BAR_WIDTH = 10;
@@ -37,6 +40,68 @@ var STATUS_STYLE_MAP = {
   [PR_STATUS_KEYS.mergeChecking]: dim,
   [PR_STATUS_KEYS.mergeDraft]: dim
 };
+
+// src/utils.ts
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+function getFolderName(cwd) {
+  const parts = cwd.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : cwd || "unknown";
+}
+function sanitizeStatusText(text) {
+  return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
+}
+function styleStatus(theme, key, text) {
+  const style = STATUS_STYLE_MAP[key];
+  return style ? style(theme, text) : text;
+}
+async function getRepoName(cwd, exec) {
+  const result = await exec("git", ["remote", "get-url", "origin"], { cwd });
+  if (result.code !== 0 || !result.stdout?.trim()) return null;
+  const url = result.stdout.trim();
+  const match = url.match(/\/([^/]+?)(?:\.git)?$/);
+  if (!match) return null;
+  return match[1];
+}
+async function hasUncommittedChanges(cwd, exec) {
+  const result = await exec("git", ["status", "--porcelain=1", "--untracked-files=normal"], { cwd });
+  if (result.code !== 0) return false;
+  return result.stdout.trim().length > 0;
+}
+
+// src/overview.ts
+var OVERVIEW_TITLE_KEY = "auto-session-title.overview.title";
+var OVERVIEW_SUMMARY_PREFIX = "auto-session-title.overview.summary.";
+var OVERVIEW_BULLET_PREFIX = "  \u2022 ";
+var OVERVIEW_CONTINUATION_PREFIX = "    ";
+function parseOverviewIndex(key) {
+  const index = Number.parseInt(key.slice(OVERVIEW_SUMMARY_PREFIX.length), 10);
+  return Number.isInteger(index) && index >= 0 ? index : void 0;
+}
+function wrapFooterText(text, width) {
+  return wrapTextWithAnsi(text, Math.max(1, width)).map((line) => truncateToWidth(line, width));
+}
+function wrapOverviewLine(prefix, text, width) {
+  if (width <= visibleWidth(prefix)) return wrapFooterText(text, width);
+  const bodyWidth = Math.max(1, width - visibleWidth(prefix));
+  return wrapTextWithAnsi(text, bodyWidth).map((line, index) => `${index === 0 ? prefix : OVERVIEW_CONTINUATION_PREFIX}${line}`);
+}
+function isOverviewStatusKey(key) {
+  return key === OVERVIEW_TITLE_KEY || key.startsWith(OVERVIEW_SUMMARY_PREFIX);
+}
+function buildFooterOverview(footerData) {
+  const statuses = footerData.getExtensionStatuses();
+  const title = sanitizeStatusText(statuses.get(OVERVIEW_TITLE_KEY) ?? "") || void 0;
+  const summary = Array.from(statuses.entries()).filter(([key]) => key.startsWith(OVERVIEW_SUMMARY_PREFIX)).map(([key, text]) => [parseOverviewIndex(key), sanitizeStatusText(text)]).filter((entry) => typeof entry[0] === "number" && Boolean(entry[1])).sort((left, right) => left[0] - right[0]).map(([, text]) => text);
+  return title || summary.length > 0 ? { title, summary } : void 0;
+}
+function buildFooterOverviewLines(theme, overview, width) {
+  const lines = [];
+  if (overview.title) lines.push(...wrapFooterText(theme.bold(theme.fg("accent", ` ${overview.title}`)), width));
+  for (const line of overview.summary) lines.push(...wrapOverviewLine(theme.fg("dim", OVERVIEW_BULLET_PREFIX), line, width));
+  return lines;
+}
 
 // src/pr-display.ts
 var REVIEW_ENTRY_MAP = {
@@ -112,38 +177,9 @@ function parsePullRequestList(stdout) {
   }
 }
 
-// src/utils.ts
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-function getFolderName(cwd) {
-  const parts = cwd.split(/[\\/]/).filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] : cwd || "unknown";
-}
-function sanitizeStatusText(text) {
-  return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
-}
-function styleStatus(theme, key, text) {
-  const style = STATUS_STYLE_MAP[key];
-  return style ? style(theme, text) : text;
-}
-async function getRepoName(cwd, exec) {
-  const result = await exec("git", ["remote", "get-url", "origin"], { cwd });
-  if (result.code !== 0 || !result.stdout?.trim()) return null;
-  const url = result.stdout.trim();
-  const match = url.match(/\/([^/]+?)(?:\.git)?$/);
-  if (!match) return null;
-  return match[1];
-}
-async function hasUncommittedChanges(cwd, exec) {
-  const result = await exec("git", ["status", "--porcelain=1", "--untracked-files=normal"], { cwd });
-  if (result.code !== 0) return false;
-  return result.stdout.trim().length > 0;
-}
-
 // src/build.ts
 function buildFooterStatusEntries(_ctx, footerData) {
-  return Array.from(footerData.getExtensionStatuses().entries()).filter(([key]) => key !== NAME_STATUS_KEY).map(([key, text]) => [key, sanitizeStatusText(text)]).filter(([, text]) => Boolean(text));
+  return Array.from(footerData.getExtensionStatuses().entries()).filter(([key]) => key !== NAME_STATUS_KEY && !isOverviewStatusKey(key)).map(([key, text]) => [key, sanitizeStatusText(text)]).filter(([, text]) => Boolean(text));
 }
 function buildFooterLineParts(theme, ctx, footerData, repoName, hasDirtyChanges, prStatus, width) {
   const model = ctx.model?.id || "no-model";
@@ -152,6 +188,7 @@ function buildFooterLineParts(theme, ctx, footerData, repoName, hasDirtyChanges,
   const filled = Math.round(pct / 100 * BAR_WIDTH);
   const bar = "#".repeat(filled) + "-".repeat(BAR_WIDTH - filled);
   const statusEntries = buildFooterStatusEntries(ctx, footerData);
+  const overview = buildFooterOverview(footerData);
   const statusTexts = statusEntries.map(([, text]) => text);
   const prEntries = buildPullRequestStatusEntries(prStatus);
   const prText = prEntries.length > 0 ? theme.fg("muted", " \xB7 ") + prEntries.map(([key, text]) => styleStatus(theme, key, text)).join(theme.fg("muted", " \xB7 ")) : "";
@@ -167,8 +204,8 @@ function buildFooterLineParts(theme, ctx, footerData, repoName, hasDirtyChanges,
   const remaining = 100 - pct;
   const barColor = remaining <= 15 ? "error" : remaining <= 40 ? "warning" : "dim";
   const right = theme.fg(barColor, `[${bar}] ${pct}% `);
-  const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(mid) - visibleWidth(right)));
-  return { statusEntries, left, mid, right, pad };
+  const pad = " ".repeat(Math.max(1, width - visibleWidth2(left) - visibleWidth2(mid) - visibleWidth2(right)));
+  return { statusEntries, overview, left, mid, right, pad };
 }
 
 // src/footer.ts
@@ -257,9 +294,10 @@ function installFooter(ctx, exec) {
       invalidate() {
       },
       render(width) {
-        const { statusEntries, left, mid, right, pad } = buildFooterLineParts(theme, ctx, footerData, repoName, hasDirtyChanges, prStatus, width);
-        const lines = [truncateToWidth(left + mid + pad + right, width)], delimiter = theme.fg("dim", " \xB7 ");
-        if (statusEntries.length > 0) lines.push(truncateToWidth(` ${statusEntries.map(([k, t]) => styleStatus(theme, k, t)).join(delimiter)}`, width));
+        const { statusEntries, overview, left, mid, right, pad } = buildFooterLineParts(theme, ctx, footerData, repoName, hasDirtyChanges, prStatus, width);
+        const lines = [truncateToWidth2(left + mid + pad + right, width)], delimiter = theme.fg("dim", " \xB7 ");
+        if (statusEntries.length > 0) lines.push(truncateToWidth2(` ${statusEntries.map(([k, t]) => styleStatus(theme, k, t)).join(delimiter)}`, width));
+        if (overview) lines.push(...buildFooterOverviewLines(theme, overview, width));
         return lines;
       }
     };

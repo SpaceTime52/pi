@@ -1,5 +1,5 @@
 import { truncateToWidth } from "@mariozechner/pi-tui";
-import { buildFooterLineParts } from "./build.js";
+import { buildFooterLineParts, buildFooterOverviewLines } from "./build.js";
 import { getPullRequestStatus, samePullRequestStatus } from "./pr.js";
 import type { ExecFn, FooterContext, PullRequestStatus } from "./types.js";
 import { DIRTY_CHECK_INTERVAL_MS, PR_CHECK_INTERVAL_MS } from "./types.js";
@@ -40,9 +40,10 @@ export function installFooter(ctx: FooterContext, exec: ExecFn) {
 			dispose() { disposed = true; unsubscribeBranch(); if (dirtyTimer) clearInterval(dirtyTimer); if (prTimer) clearInterval(prTimer); },
 			invalidate() {},
 			render(width: number): string[] {
-				const { statusEntries, left, mid, right, pad } = buildFooterLineParts(theme, ctx, footerData, repoName, hasDirtyChanges, prStatus, width);
+				const { statusEntries, overview, left, mid, right, pad } = buildFooterLineParts(theme, ctx, footerData, repoName, hasDirtyChanges, prStatus, width);
 				const lines = [truncateToWidth(left + mid + pad + right, width)], delimiter = theme.fg("dim", " · ");
 				if (statusEntries.length > 0) lines.push(truncateToWidth(` ${statusEntries.map(([k, t]) => styleStatus(theme, k, t)).join(delimiter)}`, width));
+				if (overview) lines.push(...buildFooterOverviewLines(theme, overview, width));
 				return lines;
 			},
 		};

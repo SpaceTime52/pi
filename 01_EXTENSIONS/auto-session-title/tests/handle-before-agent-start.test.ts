@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearOverviewUi, findLatestOverview, getOverviewOverlayOptions, restoreOverview } from "../src/handlers.js";
 import { stubContext, stubRuntime } from "./helpers.js";
 
@@ -24,6 +24,21 @@ describe("overview restoration core", () => {
 
 	it("falls back to the overview entry id when no checkpoint was stored", () => {
 		expect(findLatestOverview([{ type: "custom", id: "7", customType: "auto-session-title.overview", data: { title: "세션", summary: ["resume 복원을 확인함"] } }])).toEqual({ entryId: "7", coveredThroughEntryId: "7", title: "세션", summary: ["resume 복원을 확인함"] });
+	});
+
+	it("sends persisted overview to footer statuses when status sink exists", () => {
+		const runtime = stubRuntime("이전 이름");
+		const base = stubContext([{ type: "custom", id: "3", customType: "auto-session-title.overview", data: { title: "현재 세션", summary: ["푸터 아래 전체 요약을 표시함", "resume 복원을 붙임"] } }]);
+		const setStatus = vi.fn();
+		const ctx = { ...base, ui: { ...base.ui, setStatus } };
+		restoreOverview(runtime, ctx);
+		expect(runtime.setSessionName).toHaveBeenCalledWith("현재 세션");
+		expect(setStatus).toHaveBeenCalledWith("auto-session-title.overview.title", "현재 세션");
+		expect(setStatus).toHaveBeenCalledWith("auto-session-title.overview.summary.0", "푸터 아래 전체 요약을 표시함");
+		expect(setStatus).toHaveBeenCalledWith("auto-session-title.overview.summary.1", "resume 복원을 붙임");
+		expect(ctx.ui.custom).not.toHaveBeenCalled();
+		expect(ctx.ui.setWidget).not.toHaveBeenCalled();
+		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 현재 세션");
 	});
 
 	it("restores overlay, session name, and terminal title from persisted overview", () => {

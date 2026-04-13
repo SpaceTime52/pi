@@ -1,5 +1,5 @@
 import { findLatestOverview } from "./overview-entry.js";
-import { ensureOverviewOverlay } from "./overlay-state.js";
+import { syncOverviewUi } from "./overview-ui.js";
 import { buildTerminalTitle, normalizeTitle } from "./title.js";
 import type { OverviewContext, SessionOverview } from "./overview-types.js";
 
@@ -35,7 +35,7 @@ function resolvePreviewLanguage(request: string): "ko" | "en" {
 }
 
 function buildPreviewSummary(title: string, request: string): string[] {
-	return resolvePreviewLanguage(request) === "ko" ? [`현재 ${title} 요청을 정리 중이다.`, "정식 요약은 첫 응답이 끝나면 현재 상태 기준으로 갱신된다."] : [`Working on: ${title}.`, "The overview will refresh after the first response completes."];
+	return resolvePreviewLanguage(request) === "ko" ? [`현재 ${title} 요청 처리 중이다.`] : [`Working on: ${title}.`];
 }
 
 function buildPreviewOverview(text: string): SessionOverview | undefined {
@@ -53,7 +53,7 @@ export function previewOverviewFromInput(ctx: OverviewContext, text: string): bo
 	if (findLatestOverview(ctx.sessionManager.getBranch())) return false;
 	const preview = buildPreviewOverview(text);
 	if (!preview) return false;
-	ensureOverviewOverlay(ctx, preview, preview.title);
+	syncOverviewUi(ctx, preview, preview.title);
 	syncTitle(ctx, preview.title);
 	return true;
 }

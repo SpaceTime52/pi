@@ -57,7 +57,8 @@ describe("hooks", () => {
 	});
 
 	it("clears overview UI on session shutdown", async () => {
-		await createSessionShutdownHandler()({}, stubContext());
-		expect(clearOverviewUi).toHaveBeenCalledWith(expect.any(Set));
+		const ctx = stubContext();
+		await createSessionShutdownHandler()({}, ctx);
+		expect(clearOverviewUi).toHaveBeenCalledWith(expect.any(Set), ctx);
 	});
 });

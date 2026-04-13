@@ -16,6 +16,7 @@ export type ExecFn = (command: string, args: string[], options?: { cwd?: string 
 export interface FooterTui { requestRender(): void; }
 export interface FooterTheme { fg: (color: ThemeColor, text: string) => string; bg: (color: ThemeBg, text: string) => string; bold: (text: string) => string; }
 export type FooterStatusEntry = readonly [string, string];
+export interface FooterOverview { title?: string; summary: string[]; }
 export interface FooterStatusData { getExtensionStatuses: () => ReadonlyMap<string, string>; getGitBranch: () => string | null; onBranchChange: (listener: () => void) => () => void; }
 export interface FooterComponent { render(width: number): string[]; invalidate(): void; dispose(): void; }
 export interface FooterContext {

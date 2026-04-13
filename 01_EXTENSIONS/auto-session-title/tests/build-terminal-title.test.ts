@@ -10,9 +10,9 @@ describe("buildOverviewWidgetText", () => {
 		].join("\n"));
 	});
 
-	it("renders placeholder content with a fallback title", () => {
-		expect(buildOverviewWidgetText(undefined, "임시 제목")).toContain("임시 제목\n요약이 아직 없습니다.");
-		expect(buildOverviewWidgetText()).toContain("세션 요약\n요약이 아직 없습니다.");
+	it("renders only the title when there is no summary yet", () => {
+		expect(buildOverviewWidgetText(undefined, "임시 제목")).toBe("임시 제목");
+		expect(buildOverviewWidgetText()).toBe("세션 요약");
 	});
 });
 

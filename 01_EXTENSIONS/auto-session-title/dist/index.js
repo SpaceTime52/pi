@@ -33,7 +33,7 @@ function resolveOverviewTitle(overview, fallbackTitle) {
   return overview?.title || fallbackTitle || "\uC138\uC158 \uC694\uC57D";
 }
 function buildOverviewBodyLines(overview) {
-  return overview?.summary ?? ["\uC694\uC57D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.", "\uCCAB \uC694\uCCAD\uC774\uB098 \uB2E4\uC74C \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uC790\uB3D9\uC73C\uB85C \uC815\uB9AC\uB429\uB2C8\uB2E4."];
+  return overview?.summary ?? [];
 }
 
 // src/overlay-component.ts
@@ -189,6 +189,54 @@ function clearOverlayState() {
   hideOverviewOverlay();
 }
 
+// src/overview-status.ts
+var OVERVIEW_STATUS_TITLE_KEY = "auto-session-title.overview.title";
+var OVERVIEW_STATUS_SUMMARY_PREFIX = "auto-session-title.overview.summary.";
+var activeOverviewStatusKeys = [];
+function clearStatusKeys(ctx, keys) {
+  for (const key of keys) ctx.ui.setStatus(key, void 0);
+}
+function syncOverviewStatus(ctx, overview, fallbackTitle) {
+  if (!ctx.hasUI || typeof ctx.ui.setStatus !== "function") return false;
+  const title = overview?.title || fallbackTitle;
+  const entries = [];
+  if (title) entries.push([OVERVIEW_STATUS_TITLE_KEY, title]);
+  for (const [index, line] of (overview?.summary ?? []).entries()) {
+    entries.push([`${OVERVIEW_STATUS_SUMMARY_PREFIX}${index}`, line]);
+  }
+  const nextKeys = entries.map(([key]) => key);
+  clearStatusKeys(ctx, activeOverviewStatusKeys.filter((key) => !nextKeys.includes(key)));
+  for (const [key, text] of entries) ctx.ui.setStatus(key, text);
+  activeOverviewStatusKeys = nextKeys;
+  return true;
+}
+function clearOverviewStatus(ctx) {
+  if (!ctx) {
+    activeOverviewStatusKeys = [];
+    return;
+  }
+  if (ctx.hasUI && typeof ctx.ui.setStatus === "function") clearStatusKeys(ctx, activeOverviewStatusKeys);
+  activeOverviewStatusKeys = [];
+}
+
+// src/overview-ui.ts
+function syncOverviewUi(ctx, overview, fallbackTitle) {
+  if (!ctx.hasUI) return;
+  if (syncOverviewStatus(ctx, overview, fallbackTitle)) {
+    clearOverlayState();
+    return;
+  }
+  if (!overview && !fallbackTitle) {
+    clearOverlayState();
+    return;
+  }
+  ensureOverviewOverlay(ctx, overview, fallbackTitle);
+}
+function clearOverviewDisplay(ctx) {
+  clearOverviewStatus(ctx);
+  clearOverlayState();
+}
+
 // src/title.ts
 var DEFAULT_MAX_TITLE_LENGTH = 48;
 function collapseWhitespace(text) {
@@ -248,7 +296,7 @@ function resolvePreviewLanguage(request) {
   return latin > hangul ? "en" : "ko";
 }
 function buildPreviewSummary(title, request) {
-  return resolvePreviewLanguage(request) === "ko" ? [`\uD604\uC7AC ${title} \uC694\uCCAD\uC744 \uC815\uB9AC \uC911\uC774\uB2E4.`, "\uC815\uC2DD \uC694\uC57D\uC740 \uCCAB \uC751\uB2F5\uC774 \uB05D\uB098\uBA74 \uD604\uC7AC \uC0C1\uD0DC \uAE30\uC900\uC73C\uB85C \uAC31\uC2E0\uB41C\uB2E4."] : [`Working on: ${title}.`, "The overview will refresh after the first response completes."];
+  return resolvePreviewLanguage(request) === "ko" ? [`\uD604\uC7AC ${title} \uC694\uCCAD \uCC98\uB9AC \uC911\uC774\uB2E4.`] : [`Working on: ${title}.`];
 }
 function buildPreviewOverview(text) {
   const request = stripRequestNoise(text.replace(/```[\s\S]*?```/g, " ").split(/\r?\n\s*\r?\n/).find((part) => part.trim()) ?? "");
@@ -263,7 +311,7 @@ function previewOverviewFromInput(ctx, text) {
   if (findLatestOverview(ctx.sessionManager.getBranch())) return false;
   const preview = buildPreviewOverview(text);
   if (!preview) return false;
-  ensureOverviewOverlay(ctx, preview, preview.title);
+  syncOverviewUi(ctx, preview, preview.title);
   syncTitle(ctx, preview.title);
   return true;
 }
@@ -465,10 +513,10 @@ function restoreOverview(runtime2, ctx) {
   if (overview && runtime2.getSessionName() !== overview.title) runtime2.setSessionName(overview.title);
   const title = resolveFallbackTitle(overview, runtime2, ctx);
   if (!overview && !title) {
-    clearOverlayState();
+    clearOverviewDisplay(ctx);
     return;
   }
-  ensureOverviewOverlay(ctx, overview, title);
+  syncOverviewUi(ctx, overview, title);
   syncTerminalTitle(ctx, title);
 }
 async function refreshOverview(inFlight2, runtime2, ctx) {
@@ -494,17 +542,17 @@ async function refreshOverview(inFlight2, runtime2, ctx) {
     if (!next) return restoreOverview(runtime2, ctx);
     if (shouldPersist(previous, next, coveredThroughEntryId)) runtime2.appendEntry(OVERVIEW_CUSTOM_TYPE, toStoredOverview(next, coveredThroughEntryId));
     if (runtime2.getSessionName() !== next.title) runtime2.setSessionName(next.title);
-    ensureOverviewOverlay(ctx, next, next.title);
+    syncOverviewUi(ctx, next, next.title);
     syncTerminalTitle(ctx, next.title);
   } finally {
     inFlight2.delete(sessionId);
     if (rerunRequested.delete(sessionId) && isActive(runtime2)) await refreshOverview(inFlight2, runtime2, ctx);
   }
 }
-function clearOverviewUi(inFlight2, _ctx) {
+function clearOverviewUi(inFlight2, ctx) {
   inFlight2.clear();
   rerunRequested.clear();
-  clearOverlayState();
+  clearOverviewDisplay(ctx);
 }
 
 // src/hooks.ts
@@ -554,12 +602,12 @@ function createSessionTreeHandler(getSessionName, setSessionName, appendEntry) {
   };
 }
 function createSessionShutdownHandler() {
-  return async (_event, _ctx) => {
+  return async (_event, ctx) => {
     activeSessionId = void 0;
     lifecycleId += 1;
     viewId += 1;
     previewViewId = -1;
-    clearOverviewUi(inFlight);
+    clearOverviewUi(inFlight, ctx);
   };
 }
 

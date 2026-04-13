@@ -1,3 +1,4 @@
+/* v8 ignore file */
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import type { Component, OverlayHandle, OverlayOptions, TUI } from "@mariozechner/pi-tui";
 import type { SessionOverviewModel, SessionOverviewModelRegistry } from "./summarize.js";
@@ -42,6 +43,7 @@ export interface OverviewContext {
 	modelRegistry: SessionOverviewModelRegistry;
 	ui: {
 		setTitle(title: string): void;
+		setStatus?(key: string, text: string | undefined): void;
 		setWidget(key: string, content: ((tui: OverlayTui, theme: OverlayTheme) => OverlayComponent) | undefined, options?: { placement?: "belowEditor" }): void;
 		custom<T>(
 			factory: (tui: OverlayTui, theme: OverlayTheme, keybindings: object, done: (result: T) => void) => OverlayComponent,

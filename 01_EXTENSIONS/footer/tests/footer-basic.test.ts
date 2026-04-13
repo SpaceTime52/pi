@@ -28,6 +28,12 @@ describe("footer basic behavior", () => {
 		expect(c.render(120)).toHaveLength(2);
 		c.dispose();
 	});
+	it("renders session overview below footer lines", () => {
+		const { factory } = setup();
+		const c = factory({ requestRender: vi.fn() }, mockTheme(), mockFooterData({ getExtensionStatuses: () => new Map([["todo", "doing"], ["auto-session-title.overview.title", "세션 제목"], ["auto-session-title.overview.summary.0", "첫 요약 줄"]]) }));
+		expect(c.render(120)).toEqual(expect.arrayContaining([expect.stringContaining("doing"), " 세션 제목", "  • 첫 요약 줄"]));
+		c.dispose();
+	});
 	it("renders PR review and merge on first line", async () => {
 		const exec: ExecFn = vi.fn().mockImplementation(async (command, args) => command === "gh" ? { stdout: JSON.stringify([{ reviewDecision: "APPROVED", mergeStateStatus: "CLEAN" }]), code: 0 } : command === "git" && args[0] === "remote" ? { stdout: "https://g.com/u/r.git\n", code: 0 } : { stdout: "", code: 0 });
 		const { factory } = setup(mockCtx({ sessionManager: { getCwd: () => "/t", getSessionName: () => "s" } }), exec);

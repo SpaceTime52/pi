@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearOverviewUi, refreshOverview } from "../src/handlers.js";
+import { clearOverviewUi, refreshOverview, restoreOverview } from "../src/handlers.js";
 import { stubContext, stubRuntime } from "./helpers.js";
 
 const { resolveSessionOverview } = vi.hoisted(() => ({ resolveSessionOverview: vi.fn() }));
@@ -20,6 +20,20 @@ describe("refreshOverview effects", () => {
 		expect(runtime.setSessionName).toHaveBeenCalledWith("세션 요약 제목");
 		expect(ctx.ui.setTitle).toHaveBeenCalledWith("π - 세션 요약 제목");
 		expect(ctx.overlay.component?.render(36).join("\n")).toContain("세션 요약 제목");
+	});
+
+	it("clears stale footer summary lines when next overview is shorter", async () => {
+		const setStatus = vi.fn();
+		const previous = { type: "custom", id: "ov1", customType: "auto-session-title.overview", data: { title: "기존 제목", summary: ["기존 첫 줄", "지워질 둘째 줄"], coveredThroughEntryId: "1" } };
+		const ctx = stubContext([previous, { type: "message", id: "2", message: { role: "assistant", content: [{ type: "text", text: "새 출력" }] } }]);
+		ctx.ui = { ...ctx.ui, setStatus };
+		restoreOverview(stubRuntime("기존 제목"), ctx);
+		setStatus.mockClear();
+		resolveSessionOverview.mockResolvedValue({ title: "새 제목", summary: ["남길 한 줄"] });
+		await refreshOverview(new Set(), stubRuntime(), ctx);
+		expect(setStatus).toHaveBeenCalledWith("auto-session-title.overview.title", "새 제목");
+		expect(setStatus).toHaveBeenCalledWith("auto-session-title.overview.summary.0", "남길 한 줄");
+		expect(setStatus).toHaveBeenCalledWith("auto-session-title.overview.summary.1", undefined);
 	});
 
 	it("advances the checkpoint even when the visible overview stays the same", async () => {

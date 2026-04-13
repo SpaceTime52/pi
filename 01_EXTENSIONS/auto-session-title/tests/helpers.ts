@@ -20,7 +20,7 @@ export interface StubWidgetState {
 	theme: { fg: ReturnType<typeof vi.fn> };
 }
 export type StubContext = OverviewContext & {
-	ui: { setTitle: ReturnType<typeof vi.fn>; setWidget: ReturnType<typeof vi.fn>; custom: ReturnType<typeof vi.fn> };
+	ui: { setTitle: ReturnType<typeof vi.fn>; setStatus?: ReturnType<typeof vi.fn>; setWidget: ReturnType<typeof vi.fn>; custom: ReturnType<typeof vi.fn> };
 	sessionManager: { getSessionId: ReturnType<typeof vi.fn>; getSessionName: ReturnType<typeof vi.fn>; getBranch: ReturnType<typeof vi.fn> };
 	overlay: StubOverlayState;
 	widget: StubWidgetState;
