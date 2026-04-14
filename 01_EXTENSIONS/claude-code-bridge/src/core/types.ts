@@ -93,5 +93,5 @@ export interface PiBridge { sendMessage(message: any, options?: any): unknown; s
 
 export interface Ctx {
 	cwd: string; hasUI: boolean; modelRegistry: ExtensionContext["modelRegistry"]; model: ExtensionContext["model"];
-	ui: Pick<ExtensionContext["ui"], "confirm" | "notify">; sessionManager: Pick<ExtensionContext["sessionManager"], "getSessionFile">;
+	ui: Pick<ExtensionContext["ui"], "confirm" | "notify"> & Partial<Pick<ExtensionContext["ui"], "custom">>; sessionManager: Pick<ExtensionContext["sessionManager"], "getSessionFile">;
 }

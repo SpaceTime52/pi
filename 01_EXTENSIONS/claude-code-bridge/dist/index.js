@@ -1282,6 +1282,124 @@ function createInputHandler(pi) {
   };
 }
 
+// src/runtime/ask-dialog-component.ts
+import { matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+var DIALOG_WIDTH = 72;
+var TICK_MS = 250;
+var ClaudeAskDialog = class {
+  constructor(theme, message, allowLabel, timeoutMs, done, requestRender) {
+    this.theme = theme;
+    this.message = message;
+    this.allowLabel = allowLabel;
+    this.timeoutMs = timeoutMs;
+    this.done = done;
+    this.requestRender = requestRender;
+    this.deadline = Date.now() + timeoutMs;
+    this.lastRenderedSeconds = Math.ceil(timeoutMs / 1e3);
+    this.timer = setInterval(() => this.onTick(), TICK_MS);
+  }
+  theme;
+  message;
+  allowLabel;
+  timeoutMs;
+  done;
+  requestRender;
+  selected = "yes";
+  deadline;
+  lastRenderedSeconds;
+  timer;
+  closed = false;
+  handleInput(data) {
+    if (matchesKey(data, "escape")) return void this.finish(false);
+    if (matchesKey(data, "left") || matchesKey(data, "up") || matchesKey(data, "shift+tab")) return void this.pick("yes");
+    if (matchesKey(data, "right") || matchesKey(data, "down") || matchesKey(data, "tab")) return void this.pick("no");
+    if (matchesKey(data, "return") || matchesKey(data, "enter")) return void this.finish(this.selected === "yes");
+    if (data === "y" || data === "Y") return void this.finish(true);
+    if (data === "n" || data === "N") return void this.finish(false);
+  }
+  render(width) {
+    const innerWidth = Math.max(22, Math.min(width, DIALOG_WIDTH)) - 2;
+    const row = (content = "") => `${this.theme.fg("border", "\u2502")}${pad(truncateToWidth(content, innerWidth, ""), innerWidth)}${this.theme.fg("border", "\u2502")}`;
+    const yes = this.button("Yes", this.selected === "yes");
+    const no = this.button(`No (${this.seconds()}s)`, this.selected === "no");
+    const header = this.theme.fg("accent", this.theme.bold("Claude hook confirmation"));
+    const help = this.theme.fg("dim", "\u2190/\u2192 switch \u2022 Enter confirm \u2022 Esc/N no \u2022 Y yes");
+    const lines = wrapTextWithAnsi(this.message, innerWidth - 2).filter(Boolean);
+    return [
+      this.theme.fg("border", `\u256D${"\u2500".repeat(innerWidth)}\u256E`),
+      row(center(header, innerWidth)),
+      row(),
+      ...lines.map((line) => row(` ${line}`)),
+      ...lines.length > 0 ? [row()] : [],
+      row(` ${this.theme.fg("text", this.allowLabel)}`),
+      row(),
+      row(center(`${yes}  ${no}`, innerWidth)),
+      row(),
+      row(center(help, innerWidth)),
+      this.theme.fg("border", `\u2570${"\u2500".repeat(innerWidth)}\u256F`)
+    ];
+  }
+  invalidate() {
+  }
+  dispose() {
+    this.closed = true;
+    clearInterval(this.timer);
+  }
+  onTick() {
+    if (this.closed) return;
+    const seconds = this.seconds();
+    if (seconds <= 0) return void this.finish(false);
+    if (seconds !== this.lastRenderedSeconds) this.lastRenderedSeconds = seconds, this.requestRender();
+  }
+  pick(next) {
+    if (this.selected !== next) this.selected = next, this.requestRender();
+  }
+  finish(result) {
+    if (!this.closed) this.closed = true, clearInterval(this.timer), this.done(result);
+  }
+  seconds() {
+    return Math.max(0, Math.ceil((this.deadline - Date.now()) / 1e3));
+  }
+  button(label, selected) {
+    const text = ` ${label} `;
+    return selected ? this.theme.bg("selectedBg", this.theme.fg("accent", this.theme.bold(text))) : this.theme.fg("muted", `[${text}]`);
+  }
+};
+function pad(text, width) {
+  return text + " ".repeat(Math.max(0, width - visibleWidth(text)));
+}
+function center(text, width) {
+  return `${" ".repeat(Math.max(0, Math.floor((width - visibleWidth(text)) / 2)))}${text}`;
+}
+
+// src/runtime/ask-dialog.ts
+var ASK_CONFIRM_TIMEOUT_MS = 1e4;
+var DIALOG_MIN_WIDTH = 48;
+var DIALOG_WIDTH2 = 72;
+async function confirmClaudeAsk(ctx, message, allowLabel) {
+  if (!ctx.hasUI) return false;
+  return confirmClaudeAskWithUi(ctx.ui, message, allowLabel);
+}
+async function confirmClaudeAskWithUi(ui, message, allowLabel) {
+  const fallbackMessage = `${message}
+
+${allowLabel}`;
+  const result = await showCustomDialog(ui, message, allowLabel);
+  if (typeof result === "boolean") return result;
+  return ui.confirm("Claude hook confirmation", fallbackMessage, { timeout: ASK_CONFIRM_TIMEOUT_MS });
+}
+async function showCustomDialog(ui, message, allowLabel) {
+  if (!ui.custom) return void 0;
+  try {
+    return await ui.custom(
+      (tui, theme, _keybindings, done) => new ClaudeAskDialog(theme, message, allowLabel, ASK_CONFIRM_TIMEOUT_MS, done, () => tui.requestRender()),
+      { overlay: true, overlayOptions: { anchor: "center", width: DIALOG_WIDTH2, minWidth: DIALOG_MIN_WIDTH, margin: 1 } }
+    );
+  } catch {
+    return void 0;
+  }
+}
+
 // src/runtime/tool-call.ts
 function createToolCallHandler(pi) {
   return async (event, ctx) => {
@@ -1320,9 +1438,7 @@ async function resolveDecision(results, event, ctx, name, state) {
   }
   queueAdditionalContext(decision.additionalContext);
   if (decision.updatedInput) applyUpdatedInput(event.toolName, event.input, decision.updatedInput);
-  if (decision.ask && (!ctx.hasUI || !await ctx.ui.confirm("Claude hook confirmation", `${decision.ask}
-
-Allow ${name}?`))) return { block: true, reason: ctx.hasUI ? "Blocked by Claude ask hook" : `${decision.ask} (no UI available)` };
+  if (decision.ask && !await confirmClaudeAsk(ctx, decision.ask, `Allow ${name}?`)) return { block: true, reason: ctx.hasUI ? "Blocked by Claude ask hook" : `${decision.ask} (no UI available)` };
   if (event.toolName === "bash") event.input.command = `${buildShellPreamble(state)}
 ${event.input.command}`.trim();
 }
@@ -1376,7 +1492,7 @@ function createUserBashHandler(pi) {
       if (result.code === 2) return blocked(result.stderr.trim() || "Blocked by Claude PreToolUse hook");
       const specific = hookSpecificOutput(result, "PreToolUse");
       if (specific?.permissionDecision === "deny") return blocked(specific.permissionDecisionReason || "Denied by Claude PreToolUse hook");
-      if (specific?.permissionDecision === "ask" && (!ctx.hasUI || !await ctx.ui.confirm("Claude hook confirmation", specific.permissionDecisionReason || "Allow bash command?"))) return blocked(ctx.hasUI ? "Blocked by Claude ask hook" : `${specific.permissionDecisionReason || "Blocked by Claude ask hook"} (no UI available)`);
+      if (specific?.permissionDecision === "ask" && !await confirmClaudeAsk(ctx, specific.permissionDecisionReason || "Claude hook requests confirmation", "Allow bash command?")) return blocked(ctx.hasUI ? "Blocked by Claude ask hook" : `${specific.permissionDecisionReason || "Blocked by Claude ask hook"} (no UI available)`);
     }
     const local = createLocalBashOperations();
     const preamble = buildShellPreamble2(state);

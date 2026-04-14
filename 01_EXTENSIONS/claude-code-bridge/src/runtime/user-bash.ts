@@ -4,6 +4,7 @@ import { buildClaudeInputBase } from "../hooks/tools.js";
 import { hookSpecificOutput } from "./common.js";
 import { runHandlers } from "./handlers.js";
 import { ensureState } from "./store.js";
+import { confirmClaudeAsk } from "./ask-dialog.js";
 
 export function createUserBashHandler(pi: any) {
 	return async (event: any, ctx: Ctx) => {
@@ -14,7 +15,7 @@ export function createUserBashHandler(pi: any) {
 			if (result.code === 2) return blocked(result.stderr.trim() || "Blocked by Claude PreToolUse hook");
 			const specific = hookSpecificOutput(result, "PreToolUse");
 			if (specific?.permissionDecision === "deny") return blocked(specific.permissionDecisionReason || "Denied by Claude PreToolUse hook");
-			if (specific?.permissionDecision === "ask" && (!(ctx.hasUI) || !(await ctx.ui.confirm("Claude hook confirmation", specific.permissionDecisionReason || "Allow bash command?")))) return blocked(ctx.hasUI ? "Blocked by Claude ask hook" : `${specific.permissionDecisionReason || "Blocked by Claude ask hook"} (no UI available)`);
+			if (specific?.permissionDecision === "ask" && !(await confirmClaudeAsk(ctx, specific.permissionDecisionReason || "Claude hook requests confirmation", "Allow bash command?"))) return blocked(ctx.hasUI ? "Blocked by Claude ask hook" : `${specific.permissionDecisionReason || "Blocked by Claude ask hook"} (no UI available)`);
 		}
 		const local = createLocalBashOperations();
 		const preamble = buildShellPreamble(state);

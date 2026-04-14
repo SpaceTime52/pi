@@ -5,6 +5,7 @@ import { runHandlers } from "./handlers.js";
 import { ensureState, queueAdditionalContext } from "./store.js";
 import { emitInstructionLoads } from "./instructions-loaded.js";
 import { blockToLoads } from "../state/instructions.js";
+import { confirmClaudeAsk } from "./ask-dialog.js";
 
 export function createToolCallHandler(pi: any) {
 	return async (event: any, ctx: Ctx) => {
@@ -45,7 +46,7 @@ async function resolveDecision(results: any[], event: any, ctx: Ctx, name: strin
 	}
 	queueAdditionalContext(decision.additionalContext);
 	if (decision.updatedInput) applyUpdatedInput(event.toolName, event.input, decision.updatedInput);
-	if (decision.ask && (!(ctx.hasUI) || !(await ctx.ui.confirm("Claude hook confirmation", `${decision.ask}\n\nAllow ${name}?`)))) return { block: true, reason: ctx.hasUI ? "Blocked by Claude ask hook" : `${decision.ask} (no UI available)` };
+	if (decision.ask && !(await confirmClaudeAsk(ctx, decision.ask, `Allow ${name}?`))) return { block: true, reason: ctx.hasUI ? "Blocked by Claude ask hook" : `${decision.ask} (no UI available)` };
 	if (event.toolName === "bash") event.input.command = `${buildShellPreamble(state)}\n${event.input.command}`.trim();
 }
 

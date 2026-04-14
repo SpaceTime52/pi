@@ -29,6 +29,7 @@ FEATURES
   - user-scope HTTP hook의 allowedHttpHookUrls / httpHookAllowedEnvVars 제한 반영
   - FileChanged top-level watchPaths 반영
   - repo-scoped hook은 기본적으로 자동 실행되고, 필요하면 세션 단위로 비활성화 가능
+  - ask permission hook 확인창은 10초 타임아웃, 타임아웃 시 no 처리
 
 SAFETY
   - ~/.pi 아래에 자체 파일을 쓰지 않음
