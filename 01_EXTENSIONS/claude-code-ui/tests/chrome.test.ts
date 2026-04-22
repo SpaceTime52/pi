@@ -36,7 +36,7 @@ describe("applyClaudeChrome", () => {
 		factory({}, {}, {});
 		expect(editorCtor).toHaveBeenCalled();
 		expect(setWorkingIndicator).toHaveBeenCalled();
-		expect(setHiddenThinkingLabel).toHaveBeenCalledWith("thinking");
+		expect(setHiddenThinkingLabel).toHaveBeenCalledWith("reasoning");
 		expect(setTitle).toHaveBeenCalledWith("Claude Code · demo");
 	});
 

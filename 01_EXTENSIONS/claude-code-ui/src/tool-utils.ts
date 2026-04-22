@@ -1,7 +1,15 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
 
 export function toolPrefix(theme: Theme, label: string) {
-	return `${theme.fg("accent", "●")} ${theme.fg("toolTitle", theme.bold(label))}`;
+	return `${theme.fg("accent", "⏺")} ${theme.fg("toolTitle", theme.bold(label))}`;
+}
+
+export function toolResult(theme: Theme, text: string) {
+	return `${theme.fg("dim", "  ↳ ")}${text}`;
+}
+
+export function indentBlock(text: string, prefix = "    ") {
+	return text.split("\n").map((line) => `${prefix}${line}`).join("\n");
 }
 
 export function summarizeTextPreview(theme: Theme, text: string, maxLines: number) {

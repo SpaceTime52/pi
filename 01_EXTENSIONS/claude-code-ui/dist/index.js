@@ -4,7 +4,13 @@ import { Text } from "@mariozechner/pi-tui";
 
 // src/tool-utils.ts
 function toolPrefix(theme, label) {
-  return `${theme.fg("accent", "\u25CF")} ${theme.fg("toolTitle", theme.bold(label))}`;
+  return `${theme.fg("accent", "\u23FA")} ${theme.fg("toolTitle", theme.bold(label))}`;
+}
+function toolResult(theme, text) {
+  return `${theme.fg("dim", "  \u21B3 ")}${text}`;
+}
+function indentBlock(text, prefix = "    ") {
+  return text.split("\n").map((line) => `${prefix}${line}`).join("\n");
 }
 function summarizeTextPreview(theme, text, maxLines) {
   const lines = text.split("\n");
@@ -18,20 +24,21 @@ function createClaudeBashTool(cwd) {
   const base = createBashToolDefinition(cwd);
   return defineTool({
     ...base,
+    renderShell: "self",
     renderCall(args, theme) {
       const command = args.command.length > 88 ? `${args.command.slice(0, 85)}\u2026` : args.command;
       return new Text(`${toolPrefix(theme, "Bash")} ${theme.fg("muted", command)}`, 0, 0);
     },
     renderResult(result, { expanded, isPartial }, theme) {
-      if (isPartial) return new Text(theme.fg("warning", "running\u2026"), 0, 0);
+      if (isPartial) return new Text(toolResult(theme, theme.fg("warning", "running\u2026")), 0, 0);
       const first = result.content[0];
       const output = first?.type === "text" ? first.text : "";
       const exitCode = output.match(/exit code: (\d+)/)?.[1];
       let text = exitCode && exitCode !== "0" ? theme.fg("error", `exit ${exitCode}`) : theme.fg("success", "done");
-      text += theme.fg("dim", ` \xB7 ${output.split("\n").filter((line) => line.trim()).length} lines`);
+      text = toolResult(theme, text + theme.fg("dim", ` \xB7 ${output.split("\n").filter((line) => line.trim()).length} lines`));
       if (result.details?.truncation?.truncated) text += theme.fg("dim", " \xB7 truncated");
       if (expanded && output.trim()) text += `
-${summarizeTextPreview(theme, output, 18)}`;
+${indentBlock(summarizeTextPreview(theme, output, 18))}`;
       return new Text(text, 0, 0);
     }
   });
@@ -49,22 +56,24 @@ function createClaudeEditTool(cwd) {
   const base = createEditToolDefinition(cwd);
   return defineTool2({
     ...base,
+    renderShell: "self",
     renderCall(args, theme) {
       return new Text2(`${toolPrefix(theme, "Edit")} ${theme.fg("muted", args.path)}`, 0, 0);
     },
     renderResult(result, { expanded, isPartial }, theme) {
-      if (isPartial) return new Text2(theme.fg("warning", "editing\u2026"), 0, 0);
+      if (isPartial) return new Text2(toolResult(theme, theme.fg("warning", "editing\u2026")), 0, 0);
       const content = result.content[0];
-      if (content?.type === "text" && content.text.startsWith("Error")) return new Text2(theme.fg("error", content.text.split("\n")[0]), 0, 0);
-      if (!result.details?.diff) return new Text2(theme.fg("success", "applied"), 0, 0);
+      if (content?.type === "text" && content.text.startsWith("Error")) return new Text2(toolResult(theme, theme.fg("error", content.text.split("\n")[0])), 0, 0);
+      if (!result.details?.diff) return new Text2(toolResult(theme, theme.fg("success", "applied")), 0, 0);
       const diffLines = result.details.diff.split("\n");
-      let text = theme.fg("success", `+${diffLines.filter((line) => line.startsWith("+") && !line.startsWith("+++")).length}`);
-      text += theme.fg("dim", " \xB7 ") + theme.fg("error", `-${diffLines.filter((line) => line.startsWith("-") && !line.startsWith("---")).length}`);
-      if (!expanded) return new Text2(text, 0, 0);
+      const additions = diffLines.filter((line) => line.startsWith("+") && !line.startsWith("+++")).length;
+      const removals = diffLines.filter((line) => line.startsWith("-") && !line.startsWith("---")).length;
+      const summary = `${theme.fg("success", `+${additions}`)}${theme.fg("dim", " \xB7 ")}${theme.fg("error", `-${removals}`)}`;
+      if (!expanded) return new Text2(toolResult(theme, summary), 0, 0);
       const preview = diffLines.slice(0, 24).map((line) => renderDiffLine(theme, line));
       if (diffLines.length > 24) preview.push(theme.fg("dim", `\u2026 ${diffLines.length - 24} more diff lines`));
-      return new Text2(`${text}
-${preview.join("\n")}`, 0, 0);
+      return new Text2(`${toolResult(theme, summary)}
+${indentBlock(preview.join("\n"))}`, 0, 0);
     }
   });
 }
@@ -76,17 +85,18 @@ function createClaudeReadTool(cwd) {
   const base = createReadToolDefinition(cwd);
   return defineTool3({
     ...base,
+    renderShell: "self",
     renderCall(args, theme) {
       return new Text3(`${toolPrefix(theme, "Read")} ${theme.fg("muted", args.path)}`, 0, 0);
     },
     renderResult(result, { expanded, isPartial }, theme) {
-      if (isPartial) return new Text3(theme.fg("warning", "reading\u2026"), 0, 0);
+      if (isPartial) return new Text3(toolResult(theme, theme.fg("warning", "reading\u2026")), 0, 0);
       const content = result.content[0];
-      if (content?.type !== "text") return new Text3(theme.fg("success", "loaded"), 0, 0);
-      let text = theme.fg("success", `${content.text.split("\n").length} lines`);
+      if (content?.type !== "text") return new Text3(toolResult(theme, theme.fg("success", "loaded")), 0, 0);
+      let text = toolResult(theme, theme.fg("success", `${content.text.split("\n").length} lines`));
       if (result.details?.truncation?.truncated) text += theme.fg("dim", ` \xB7 truncated from ${result.details.truncation.totalLines}`);
       if (expanded) text += `
-${summarizeTextPreview(theme, content.text, 14)}`;
+${indentBlock(summarizeTextPreview(theme, content.text, 14))}`;
       return new Text3(text, 0, 0);
     }
   });
@@ -232,7 +242,7 @@ function applyClaudeChrome(ctx) {
   ctx.ui.setWidget("claude-code-ui-prompt", void 0);
   ctx.ui.setEditorComponent((tui, theme, keybindings) => new ClaudeCodeEditor(tui, theme, keybindings));
   ctx.ui.setWorkingIndicator(WORKING_INDICATOR);
-  ctx.ui.setHiddenThinkingLabel("thinking");
+  ctx.ui.setHiddenThinkingLabel("reasoning");
   ctx.ui.setTitle(`Claude Code \xB7 ${getProjectName(ctx)}`);
   if (!themeResult.success) {
     ctx.ui.notify(
@@ -267,28 +277,22 @@ function formatWorkingLine(parts) {
 // src/working-line.ts
 var activeCtx;
 var startedAt = 0;
-var phrase = "Thinking...";
 var suffix;
-var thinkingStartedAt;
-var thoughtDurationMs;
 var timer;
 function toolLabel(toolName) {
-  return { bash: "running bash", read: "reading file", write: "writing file", edit: "editing file" }[toolName] ?? `running ${toolName}`;
+  return { bash: "Running bash", read: "Reading file", write: "Writing file", edit: "Editing file" }[toolName] ?? `Running ${toolName}`;
 }
-function thinkingLabel() {
-  if (thinkingStartedAt !== void 0) return "thinking";
-  if (thoughtDurationMs !== void 0) return `thought for ${Math.max(1, Math.round(thoughtDurationMs / 1e3))}s`;
+function currentLabel() {
+  return suffix ?? pickWorkingPhrase(() => 0);
 }
 function renderWorkingLine() {
-  activeCtx?.ui.setWorkingMessage(formatWorkingLine([phrase, suffix, formatElapsed(Date.now() - startedAt), thinkingLabel()]));
+  activeCtx?.ui.setWorkingMessage(formatWorkingLine([currentLabel(), formatElapsed(Date.now() - startedAt)]));
 }
 function resetWorkingLine(ctx) {
   if (timer) clearInterval(timer);
   timer = void 0;
   startedAt = 0;
   suffix = void 0;
-  thinkingStartedAt = void 0;
-  thoughtDurationMs = void 0;
   (activeCtx ?? ctx)?.ui.setWorkingMessage();
   activeCtx = void 0;
 }
@@ -297,7 +301,6 @@ function onAgentStart(_event, ctx) {
   resetWorkingLine();
   activeCtx = ctx;
   startedAt = Date.now();
-  phrase = pickWorkingPhrase();
   renderWorkingLine();
   timer = setInterval(renderWorkingLine, 1e3);
 }
@@ -311,13 +314,8 @@ function onToolExecutionEnd(_event) {
   suffix = void 0;
   renderWorkingLine();
 }
-function onMessageUpdate(event) {
+function onMessageUpdate(_event) {
   if (!activeCtx) return;
-  if (event.assistantMessageEvent.type === "thinking_start") thinkingStartedAt = Date.now();
-  if (event.assistantMessageEvent.type === "thinking_end" && thinkingStartedAt !== void 0) {
-    thoughtDurationMs = Date.now() - thinkingStartedAt;
-    thinkingStartedAt = void 0;
-  }
   renderWorkingLine();
 }
 function onAgentEnd(_event, ctx) {
@@ -334,15 +332,16 @@ function createClaudeWriteTool(cwd) {
   const base = createWriteToolDefinition(cwd);
   return defineTool4({
     ...base,
+    renderShell: "self",
     renderCall(args, theme) {
       const suffix2 = theme.fg("dim", ` \xB7 ${args.content.split("\n").length} lines`);
       return new Text4(`${toolPrefix(theme, "Write")} ${theme.fg("muted", args.path)}${suffix2}`, 0, 0);
     },
     renderResult(result, { isPartial }, theme) {
-      if (isPartial) return new Text4(theme.fg("warning", "writing\u2026"), 0, 0);
+      if (isPartial) return new Text4(toolResult(theme, theme.fg("warning", "writing\u2026")), 0, 0);
       const content = result.content[0];
-      if (content?.type === "text" && content.text.startsWith("Error")) return new Text4(theme.fg("error", content.text.split("\n")[0]), 0, 0);
-      return new Text4(theme.fg("success", "written"), 0, 0);
+      if (content?.type === "text" && content.text.startsWith("Error")) return new Text4(toolResult(theme, theme.fg("error", content.text.split("\n")[0])), 0, 0);
+      return new Text4(toolResult(theme, theme.fg("success", "written")), 0, 0);
     }
   });
 }

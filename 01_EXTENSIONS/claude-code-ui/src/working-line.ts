@@ -3,26 +3,23 @@ import { formatElapsed, formatWorkingLine, pickWorkingPhrase } from "./working-l
 
 let activeCtx: ExtensionContext | undefined;
 let startedAt = 0;
-let phrase = "Thinking...";
 let suffix: string | undefined;
-let thinkingStartedAt: number | undefined;
-let thoughtDurationMs: number | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 
 type ToolEvent = { toolName: string };
+
 type MessageEvent = { assistantMessageEvent: { type: string } };
 
 function toolLabel(toolName: string) {
-	return { bash: "running bash", read: "reading file", write: "writing file", edit: "editing file" }[toolName] ?? `running ${toolName}`;
+	return { bash: "Running bash", read: "Reading file", write: "Writing file", edit: "Editing file" }[toolName] ?? `Running ${toolName}`;
 }
 
-function thinkingLabel() {
-	if (thinkingStartedAt !== undefined) return "thinking";
-	if (thoughtDurationMs !== undefined) return `thought for ${Math.max(1, Math.round(thoughtDurationMs / 1000))}s`;
+function currentLabel() {
+	return suffix ?? pickWorkingPhrase(() => 0);
 }
 
 function renderWorkingLine() {
-	activeCtx?.ui.setWorkingMessage(formatWorkingLine([phrase, suffix, formatElapsed(Date.now() - startedAt), thinkingLabel()]));
+	activeCtx?.ui.setWorkingMessage(formatWorkingLine([currentLabel(), formatElapsed(Date.now() - startedAt)]));
 }
 
 function resetWorkingLine(ctx?: ExtensionContext) {
@@ -30,8 +27,6 @@ function resetWorkingLine(ctx?: ExtensionContext) {
 	timer = undefined;
 	startedAt = 0;
 	suffix = undefined;
-	thinkingStartedAt = undefined;
-	thoughtDurationMs = undefined;
 	(activeCtx ?? ctx)?.ui.setWorkingMessage();
 	activeCtx = undefined;
 }
@@ -41,7 +36,6 @@ export function onAgentStart(_event: AgentStartEvent, ctx: ExtensionContext) {
 	resetWorkingLine();
 	activeCtx = ctx;
 	startedAt = Date.now();
-	phrase = pickWorkingPhrase();
 	renderWorkingLine();
 	timer = setInterval(renderWorkingLine, 1000);
 }
@@ -58,13 +52,8 @@ export function onToolExecutionEnd(_event: object) {
 	renderWorkingLine();
 }
 
-export function onMessageUpdate(event: MessageEvent) {
+export function onMessageUpdate(_event: MessageEvent) {
 	if (!activeCtx) return;
-	if (event.assistantMessageEvent.type === "thinking_start") thinkingStartedAt = Date.now();
-	if (event.assistantMessageEvent.type === "thinking_end" && thinkingStartedAt !== undefined) {
-		thoughtDurationMs = Date.now() - thinkingStartedAt;
-		thinkingStartedAt = undefined;
-	}
 	renderWorkingLine();
 }
 

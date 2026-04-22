@@ -7,6 +7,8 @@ import { render, theme } from "./helpers.ts";
 describe("bash and edit tool renderers", () => {
 	it("renders bash calls and output states", () => {
 		const bash = createClaudeBashTool(process.cwd());
+		expect(bash.renderShell).toBe("self");
+		expect(render(bash.renderCall?.({ command: "echo hi", timeout: 1 }, theme)!)).toContain("⏺");
 		expect(render(bash.renderCall?.({ command: "echo hi", timeout: 1 }, theme)!)).toContain("echo hi");
 		expect(render(bash.renderCall?.({ command: "x".repeat(100), timeout: 1 }, theme)!)).toContain("…");
 		expect(render(bash.renderResult?.({ content: [] } as AgentToolResult<BashToolDetails | undefined>, { expanded: false, isPartial: true, showImages: false, isError: false }, theme)!)).toContain("running…");
@@ -19,6 +21,7 @@ describe("bash and edit tool renderers", () => {
 
 	it("renders edit calls and diff states", () => {
 		const edit = createClaudeEditTool(process.cwd());
+		expect(edit.renderShell).toBe("self");
 		expect(renderDiffLine(theme, "+new")).toContain("toolDiffAdded");
 		expect(renderDiffLine(theme, "-old")).toContain("toolDiffRemoved");
 		expect(renderDiffLine(theme, " context")).toContain("toolDiffContext");
