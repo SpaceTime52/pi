@@ -43,7 +43,8 @@ export function patchAssistantMessagePrototype(prototype?: AssistantPrototype) {
 		const hiddenLabel = this.hiddenThinkingLabel?.trim();
 		const hasText = hasVisibleText(this.lastMessage);
 		const shouldHide = this.hideThinkingBlock && !hiddenLabel && hasHiddenThinking(this.lastMessage);
-		return shouldHide && !hasText && !lines.length ? [] : lines;
+		if (shouldHide && !hasText && !lines.length) return [];
+		return hasText && lines.length ? ["", ...lines] : lines;
 	};
 	prototype.__claudeCodeUiPatched = true;
 	return true;

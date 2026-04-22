@@ -3,7 +3,6 @@ import { resolveFromModule } from "./internal-module.js";
 
 type LoaderPrototype = {
 	render(width: number): string[];
-	frames?: string[];
 	__claudeCodeUiPatched?: boolean;
 };
 
@@ -18,9 +17,9 @@ function trim(lines: string[]) {
 	return lines;
 }
 
-function isDefaultWorkingLine(loader: LoaderPrototype, lines: string[]) {
-	const text = stripAnsi(lines.join("\n")).trim();
-	return !loader.frames?.length && /^Working\.\.\.(?: \(.*\))?$/.test(text);
+function isDefaultWorkingLine(lines: string[]) {
+	const text = stripAnsi(lines.join("\n")).trim().replace(/^[^\p{L}\p{N}]+/u, "").trimStart();
+	return /^Working\.\.\.(?: \(.*\))?$/.test(text);
 }
 
 export function patchLoaderPrototype(prototype?: LoaderPrototype) {
@@ -28,7 +27,7 @@ export function patchLoaderPrototype(prototype?: LoaderPrototype) {
 	const render = prototype.render;
 	prototype.render = function renderPatched(width) {
 		const lines = trim(render.call(this, width));
-		return !lines.length || isDefaultWorkingLine(this, lines) ? [] : lines;
+		return !lines.length || isDefaultWorkingLine(lines) ? [] : ["", ...lines];
 	};
 	prototype.__claudeCodeUiPatched = true;
 	return true;

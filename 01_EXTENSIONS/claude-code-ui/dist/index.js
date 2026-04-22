@@ -153,7 +153,8 @@ function patchAssistantMessagePrototype(prototype) {
     const hiddenLabel = this.hiddenThinkingLabel?.trim();
     const hasText = hasVisibleText(this.lastMessage);
     const shouldHide = this.hideThinkingBlock && !hiddenLabel && hasHiddenThinking(this.lastMessage);
-    return shouldHide && !hasText && !lines.length ? [] : lines;
+    if (shouldHide && !hasText && !lines.length) return [];
+    return hasText && lines.length ? ["", ...lines] : lines;
   };
   prototype.__claudeCodeUiPatched = true;
   return true;
@@ -257,8 +258,11 @@ function createClaudeFooter(ctx) {
 }
 
 // src/indicator.ts
+var DIM = "\x1B[90m";
+var RESET = "\x1B[39m";
 var WORKING_INDICATOR = {
-  frames: []
+  frames: [`${DIM}\xB7${RESET}`, `${DIM}\u2022${RESET}`, `${DIM}\u25CF${RESET}`, `${DIM}\u2022${RESET}`],
+  intervalMs: 140
 };
 
 // src/theme.ts
@@ -296,16 +300,16 @@ function trim2(lines) {
   while (lines.length && !stripAnsi(lines.at(-1) ?? "").trim()) lines.pop();
   return lines;
 }
-function isDefaultWorkingLine(loader, lines) {
-  const text = stripAnsi(lines.join("\n")).trim();
-  return !loader.frames?.length && /^Working\.\.\.(?: \(.*\))?$/.test(text);
+function isDefaultWorkingLine(lines) {
+  const text = stripAnsi(lines.join("\n")).trim().replace(/^[^\p{L}\p{N}]+/u, "").trimStart();
+  return /^Working\.\.\.(?: \(.*\))?$/.test(text);
 }
 function patchLoaderPrototype(prototype) {
   if (!prototype || prototype.__claudeCodeUiPatched) return false;
   const render = prototype.render;
   prototype.render = function renderPatched(width) {
     const lines = trim2(render.call(this, width));
-    return !lines.length || isDefaultWorkingLine(this, lines) ? [] : lines;
+    return !lines.length || isDefaultWorkingLine(lines) ? [] : ["", ...lines];
   };
   prototype.__claudeCodeUiPatched = true;
   return true;

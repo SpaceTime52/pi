@@ -19,7 +19,7 @@ describe("assistant message patch", () => {
 		await applyAssistantMessagePatch(async () => ({}));
 	});
 
-	it("trims message edge gaps without hiding visible content", async () => {
+	it("keeps a single spacer before visible assistant text", async () => {
 		class LeadingGapMessage {
 			hideThinkingBlock = true;
 			hiddenThinkingLabel = "";
@@ -55,7 +55,7 @@ describe("assistant message patch", () => {
 		expect(patchAssistantMessagePrototype(VisibleThinkingLines.prototype)).toBe(true);
 		await applyAssistantMessagePatch(async () => ({ AssistantMessageComponent: LoadedMessage }));
 		expect(new LoadedMessage().render()).toEqual([]);
-		expect(new LeadingGapMessage().render()).toEqual(["hello"]);
+		expect(new LeadingGapMessage().render()).toEqual(["", "hello"]);
 		expect(new MissingMessage().render()).toEqual([]);
 		expect(new VisibleThinkingLines().render()).toEqual(["Thinking..."]);
 	});
