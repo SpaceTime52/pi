@@ -364,7 +364,7 @@ function buildLeftColumn(ctx, theme) {
   const modelLabel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "no-model";
   const entryCount = getEntryCount(ctx);
   const sessionLabel = entryCount === 0 ? "No recent activity yet" : `${entryCount} ${entryCount === 1 ? "entry" : "entries"} loaded in this session`;
-  const workspaceLabel = isHomeDirectory(ctx.cwd) ? theme.fg("warning", "Launched from your home directory. A project folder works best.") : theme.fg("success", "Project directory detected and ready for work.");
+  const workspaceLabel = isHomeDirectory(ctx.cwd) ? theme.fg("warning", "Home directory detected. Open a project folder.") : theme.fg("success", "Project directory ready.");
   return [
     ...getPiMascot(theme),
     theme.bold(`Welcome back ${getDisplayName()}!`),
