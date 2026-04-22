@@ -295,8 +295,9 @@ async function analyze(ctx, state, agentIsIdle, stagnating, signal, onDelta) {
   const userPrompt = buildUserPrompt(state, snapshot, agentIsIdle, stagnating, compactionSummary);
   try {
     return await callSupervisorModel(ctx, state.provider, state.modelId, systemPrompt, userPrompt, signal, onDelta);
-  } catch {
-    return agentIsIdle ? { action: "steer", message: "Please continue working toward the goal.", reasoning: "Analysis error", confidence: 0 } : { action: "continue", reasoning: "Analysis error", confidence: 0 };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return { action: "continue", reasoning: `Analysis error: ${detail}`, confidence: 0 };
   }
 }
 
@@ -569,10 +570,39 @@ function extractThinking(accumulated) {
   return raw.replace(/\\n/g, " ").replace(/\\"/g, '"').trim();
 }
 var MAX_IDLE_STEERS = 5;
+var ANALYSIS_WARNING_INTERVAL_MS = 15e3;
+function normalizeMessage(message) {
+  return message.trim().replace(/\s+/g, " ");
+}
+function isDuplicateSteer(state, message) {
+  const last = state.interventions[state.interventions.length - 1]?.message;
+  return !!last && normalizeMessage(last) === normalizeMessage(message);
+}
 function src_default(pi) {
   const state = new SupervisorStateManager(pi);
   let currentCtx;
   let idleSteers = 0;
+  let lastAnalysisWarningAt = 0;
+  function maybeWarnAnalysisError(ctx, reasoning) {
+    if (!reasoning.startsWith("Analysis error:")) return;
+    const now = Date.now();
+    if (now - lastAnalysisWarningAt < ANALYSIS_WARNING_INTERVAL_MS) return;
+    lastAnalysisWarningAt = now;
+    const detail = reasoning.slice("Analysis error:".length).trim() || "unknown error";
+    ctx.ui.notify(`Supervisor analysis failed for this turn: ${detail}`, "warning");
+  }
+  function sendIdleSteer(message) {
+    setTimeout(() => {
+      try {
+        pi.sendUserMessage(message);
+      } catch {
+        try {
+          pi.sendUserMessage(message, { deliverAs: "followUp" });
+        } catch {
+        }
+      }
+    }, 0);
+  }
   const onSessionLoad = (ctx) => {
     currentCtx = ctx;
     state.loadFromSession(ctx);
@@ -604,8 +634,9 @@ function src_default(pi) {
     } catch {
       return;
     }
+    maybeWarnAnalysisError(ctx, decision.reasoning);
     const threshold = s.sensitivity === "medium" ? 0.9 : 0.85;
-    if (decision.action === "steer" && decision.message && decision.confidence >= threshold) {
+    if (decision.action === "steer" && decision.message && decision.confidence >= threshold && !isDuplicateSteer(s, decision.message)) {
       state.addIntervention({
         turnCount: s.turnCount,
         message: decision.message,
@@ -627,7 +658,8 @@ function src_default(pi) {
       const thinking = extractThinking(accumulated);
       updateUI(ctx, state.getState(), { type: "analyzing", turn: s.turnCount, thinking });
     });
-    if (decision.action === "steer" && decision.message) {
+    maybeWarnAnalysisError(ctx, decision.reasoning);
+    if (decision.action === "steer" && decision.message && !isDuplicateSteer(s, decision.message)) {
       idleSteers++;
       state.addIntervention({
         turnCount: s.turnCount,
@@ -636,7 +668,7 @@ function src_default(pi) {
         timestamp: Date.now()
       });
       updateUI(ctx, state.getState(), { type: "steering", message: decision.message });
-      pi.sendUserMessage(decision.message, { deliverAs: "followUp" });
+      sendIdleSteer(decision.message);
     } else if (decision.action === "done") {
       idleSteers = 0;
       updateUI(ctx, state.getState(), { type: "done" });
