@@ -12,8 +12,8 @@
     pi update
 
   EXTENSIONS
-    auto-session-title … 첫 사용자 메시지 기반 세션 제목 자동 생성
     mcp … MCP 서버 통합 (proxy tool, lazy connection, metadata caching)
+    subagents … `@tintinweb/pi-subagents` 래퍼, npm install + 단일 번들 노출
 
   SKILLS
     (none)
