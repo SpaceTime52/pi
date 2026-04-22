@@ -1,3 +1,4 @@
+import { summarizeComparisonPrompt } from "./comparison-title.js";
 import { looksLikePromptCopy, normalizeTitle } from "./title-format.js";
 
 function sanitizeRequestText(text: string): string {
@@ -85,6 +86,8 @@ export function buildFallbackTitle(userPrompt: string): string {
 	if (!cleaned) return "";
 	const summarized = summarizeKnownTask(cleaned);
 	if (summarized) return normalizeTitle(summarized);
+	const comparisonSummary = summarizeComparisonPrompt(cleaned, stripRequestFraming);
+	if (comparisonSummary) return comparisonSummary;
 	const questionSummary = summarizeHowToPrompt(cleaned);
 	if (questionSummary) return questionSummary;
 	const parts = cleaned.split(/[\n\r]+|(?<=[.!?。！？])\s+/u).map((part) => stripRequestFraming(part)).filter(Boolean);
