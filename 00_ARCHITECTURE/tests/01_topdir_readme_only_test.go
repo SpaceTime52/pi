@@ -21,6 +21,9 @@ func TestTopdir_ReadmeOnly(t *testing.T) {
 				t.Fatalf("디렉터리 읽기 실패: %v", err)
 			}
 			for _, c := range children {
+				if e.Name() == "04_THEMES" && !c.IsDir() && filepath.Ext(c.Name()) == ".json" {
+					continue
+				}
 				if !c.IsDir() && c.Name() != "README" {
 					t.Errorf("허용되지 않은 파일: %s/%s", e.Name(), c.Name())
 				}

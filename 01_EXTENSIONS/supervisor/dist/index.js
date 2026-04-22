@@ -334,7 +334,6 @@ async function analyze(ctx, state, agentIsIdle, stagnating, signal, onDelta) {
 // node_modules/@jeonghyeon.net/pi-supervisor/src/ui/status-widget.ts
 import { truncateToWidth } from "@mariozechner/pi-tui";
 var WIDGET_ID = "supervisor";
-var STATUS_ID = "supervisor";
 var MAX_OUTCOME_DISPLAY = 48;
 var MAX_STEER_DISPLAY = 50;
 var MAX_THINKING_DISPLAY = 80;
@@ -350,12 +349,11 @@ function truncate(s, max) {
   return s.length <= max ? s : s.slice(0, max - 1) + "\u2026";
 }
 function updateUI(ctx, state, action = { type: "watching" }) {
+  ctx.ui.setStatus("supervisor", void 0);
   if (!state || !state.active) {
-    ctx.ui.setStatus(STATUS_ID, void 0);
     ctx.ui.setWidget(WIDGET_ID, void 0);
     return;
   }
-  ctx.ui.setStatus(STATUS_ID, "\u{1F3AF}");
   if (!_widgetVisible) {
     ctx.ui.setWidget(WIDGET_ID, void 0);
     return;
@@ -488,7 +486,7 @@ async function openSettings(ctx, state, defaultProvider, defaultModelId, default
       {
         id: "widget",
         label: "Widget",
-        description: "Show/hide the supervisor widget in the footer",
+        description: "Show/hide the supervisor widget",
         currentValue: isWidgetVisible() ? "visible" : "hidden",
         values: ["visible", "hidden"]
       }

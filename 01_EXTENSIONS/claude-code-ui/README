@@ -1,0 +1,10 @@
+claude-code-ui … Claude Code 스타일 UI chrome과 dark 테마를 기본 적용
+
+목적
+  프로젝트에 들어오면 Claude Code에 더 가까운 dark 기본 UI로 시작하게 한다.
+
+주요 기능
+  `session_start` 시 `claude-code-dark` 자동 적용
+  커스텀 header / footer / editor chrome 적용
+  Claude 스타일 working indicator와 thinking label 적용
+  read / bash / edit / write 도구 렌더링을 compact하게 재구성
