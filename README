@@ -16,6 +16,7 @@
     subagent … `@jeonghyeon.net/pi-subagents` 기반 subagent 실행/관리
     supervisor … `@jeonghyeon.net/pi-supervisor` 기반 목표 감시/steer
     tasks … `@jeonghyeon.net/pi-tasks` 기반 작업 추적
+    web-access … `pi-web-access` 기반 웹 검색/콘텐츠 수집
 
   SKILLS
     (none)
