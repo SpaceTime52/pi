@@ -1,7 +1,7 @@
 import { loadSettings } from "./settings.js";
 import { buildPostToolUsePayload, buildPreToolUsePayload, makeBasePayload } from "./payloads.js";
 import { runHooks } from "./process.js";
-import { notifyHookCount, notifyOnceForParseError, notifySessionStartHookResult } from "./notifications.js";
+import { notifyOnceForParseError, notifySessionStartHookResult } from "./notifications.js";
 import { createTranscriptFile, getLastAssistantMessage } from "./transcript.js";
 import { extractDecision, toBlockReason } from "./text.js";
 import { getHookSessionId, getStopHookActive, resetSessionState, setSessionStartState, setStopHookActive } from "./session-state.js";
@@ -12,7 +12,6 @@ async function handleSessionStart(event: { reason?: string }, ctx: RuntimeContex
   if (event.reason === "resume" || event.reason === "fork") return;
   const loaded = loadSettings(ctx.cwd);
   notifyOnceForParseError(ctx, loaded);
-  notifyHookCount(ctx, loaded.settings);
   for (const result of await runHooks(loaded.settings, "SessionStart", ctx, makeBasePayload("SessionStart", ctx))) {
     notifySessionStartHookResult(ctx, result);
   }

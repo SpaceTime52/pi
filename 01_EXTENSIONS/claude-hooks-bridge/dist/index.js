@@ -259,23 +259,6 @@ function notifyOnceForParseError(ctx, loaded) {
   if (!loaded.parseError || !ctx.hasUI || !shouldNotifyParseError(loaded.path)) return;
   ctx.ui.notify(`[claude-hooks-bridge] ${loaded.parseError}`, "warning");
 }
-function countHooks(settings) {
-  let total = 0;
-  if (!settings.hooks) return total;
-  for (const groups of Object.values(settings.hooks)) {
-    if (!Array.isArray(groups)) continue;
-    for (const group of groups) {
-      if (!Array.isArray(group.hooks)) continue;
-      total += group.hooks.filter((hook) => hook?.type === "command" && typeof hook.command === "string").length;
-    }
-  }
-  return total;
-}
-function notifyHookCount(ctx, settings) {
-  if (settings && ctx.hasUI && countHooks(settings) > 0) {
-    ctx.ui.notify(`[claude-hooks-bridge] loaded ${countHooks(settings)} hook(s) from ${SETTINGS_REL_PATH}`, "info");
-  }
-}
 function notifySessionStartHookResult(ctx, result) {
   if (!ctx.hasUI) return;
   const out = result.stdout.trim();
@@ -337,7 +320,6 @@ async function handleSessionStart(event, ctx) {
   if (event.reason === "resume" || event.reason === "fork") return;
   const loaded = loadSettings(ctx.cwd);
   notifyOnceForParseError(ctx, loaded);
-  notifyHookCount(ctx, loaded.settings);
   for (const result of await runHooks(loaded.settings, "SessionStart", ctx, makeBasePayload("SessionStart", ctx))) {
     notifySessionStartHookResult(ctx, result);
   }
