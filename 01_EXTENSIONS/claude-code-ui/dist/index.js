@@ -96,15 +96,26 @@ function setSummary(context, summary) {
   context.state.summary = summary;
   context.invalidate();
 }
+function summarizeCommand(command, max = 88) {
+  const lines = command.split("\n").map((line) => line.trim()).filter(Boolean);
+  const first = (lines[0] ?? "").replace(/\s+/g, " ");
+  const clipped = first.length > max ? `${first.slice(0, max - 1)}\u2026` : first;
+  return {
+    preview: clipped,
+    lineCount: lines.length,
+    multiline: lines.length > 1
+  };
+}
 function createClaudeBashTool(cwd) {
   const base = createBashToolDefinition(cwd);
   return defineTool({
     ...base,
     renderShell: "self",
     renderCall(args, theme, context) {
-      const command = args.command.length > 88 ? `${args.command.slice(0, 85)}\u2026` : args.command;
+      const command = summarizeCommand(args.command);
       const text = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
-      text.setText(`${toolPrefix(theme, "Bash")} ${theme.fg("muted", command)}${inlineSuffix(theme, context.state.summary)}`);
+      const meta = command.multiline ? theme.fg("dim", ` \xB7 ${command.lineCount} lines`) : "";
+      text.setText(`${toolPrefix(theme, "Bash")} ${theme.fg("muted", command.preview)}${meta}${inlineSuffix(theme, context.state.summary)}`);
       return text;
     },
     renderResult(result, { expanded, isPartial }, theme, context) {

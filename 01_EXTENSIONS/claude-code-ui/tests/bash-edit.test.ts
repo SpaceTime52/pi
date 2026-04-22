@@ -13,6 +13,25 @@ describe("bash and edit tool renderers", () => {
 		const call = bash.renderCall?.(args, theme, toolContext(args, state))!;
 		expect(render(call)).toContain("echo hi");
 		expect(render(bash.renderCall?.({ command: "x".repeat(100), timeout: 1 }, theme, toolContext(args, state))!)).toContain("…");
+		expect(
+			render(
+				bash.renderCall?.(
+					{ command: "cat > 01_EXTENSIONS/claude-hooks-bridge/src/types.ts <<'EOF'\nexport const x = 1\nEOF", timeout: 1 },
+					theme,
+					toolContext(args, state),
+				)!,
+			),
+		).toContain(" · 3 lines");
+		expect(
+			render(
+				bash.renderCall?.(
+					{ command: "cat > 01_EXTENSIONS/claude-hooks-bridge/src/types.ts <<'EOF'\nexport const x = 1\nEOF", timeout: 1 },
+					theme,
+					toolContext(args, state),
+				)!,
+			),
+		).not.toContain("\nexport const x = 1");
+		expect(render(bash.renderCall?.({ command: "\n  \n", timeout: 1 }, theme, toolContext(args, state))!)).not.toContain("\n");
 		expect(bash.renderCall?.(args, theme, toolContext(args, state, false, call))).toBe(call);
 		render(bash.renderResult?.({ content: [] } as AgentToolResult<BashToolDetails | undefined>, { expanded: false, isPartial: true, showImages: false, isError: false }, theme, toolContext(args, state, false, emptyComponent()))!);
 		expect(render(bash.renderCall?.(args, theme, toolContext(args, state))!)).toContain("running…");
