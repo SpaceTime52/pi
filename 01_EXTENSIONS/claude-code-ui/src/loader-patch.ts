@@ -17,10 +17,6 @@ function trim(lines: string[]) {
 	return lines;
 }
 
-function normalize(lines: string[]) {
-	return lines.map((line) => line.startsWith(" ") ? line.slice(1) : line);
-}
-
 function isDefaultWorkingLine(lines: string[]) {
 	const text = stripAnsi(lines.join("\n")).trim().replace(/^[^\p{L}\p{N}]+/u, "").trimStart();
 	return /^Working\.\.\.(?: \(.*\))?$/.test(text);
@@ -30,7 +26,7 @@ export function patchLoaderPrototype(prototype?: LoaderPrototype) {
 	if (!prototype || prototype.__claudeCodeUiPatched) return false;
 	const render = prototype.render;
 	prototype.render = function renderPatched(width) {
-		const lines = normalize(trim(render.call(this, width)));
+		const lines = trim(render.call(this, width));
 		return !lines.length || isDefaultWorkingLine(lines) ? [] : ["", ...lines];
 	};
 	prototype.__claudeCodeUiPatched = true;

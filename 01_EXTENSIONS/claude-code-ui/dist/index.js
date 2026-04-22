@@ -2,7 +2,47 @@
 import { defineTool, createBashToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Container, Text } from "@mariozechner/pi-tui";
 
+// src/ansi.ts
+var ANSI_RESET_BG = "\x1B[49m";
+var ANSI_RE = /\x1b\[[0-9;]*m/g;
+var OSC_RE = /\x1b\][\s\S]*?(?:\u0007|\x1b\\)/g;
+function colorizeBgRgb(text, rgb) {
+  const [r, g, b] = rgb;
+  return `\x1B[48;2;${r};${g};${b}m${text}${ANSI_RESET_BG}`;
+}
+function stripAnsi(text) {
+  return text.replace(OSC_RE, "").replace(ANSI_RE, "");
+}
+
 // src/tool-utils.ts
+var META_LINE = /^(prompt|timestamp|frames|model):/i;
+var TOOLISH_LINE = /^(fetch|get_|web_|code_|search|read|write|edit|bash|list|describe|connect|status)\b/i;
+function clip(text, max) {
+  return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
+}
+function summarizeActionArgs(record, max) {
+  const action = typeof record.action === "string" ? record.action : "";
+  if (!action) return "";
+  const tool = typeof record.tool === "string" ? toolLabel(record.tool) : "";
+  const server = typeof record.server === "string" ? record.server : "";
+  const query = typeof record.query === "string" ? `"${record.query}"` : "";
+  const parts = [action === "call" && tool ? tool : action];
+  if (action !== "call" && tool) parts.push(tool);
+  if (server) parts.push(server);
+  else if (query) parts.push(query);
+  return clip(parts.join(" \xB7 "), max);
+}
+function cleanPreviewLine(line) {
+  const text = stripAnsi(line).trim().replace(/\s+/g, " ");
+  if (!text || text === "---" || text.startsWith("Use get_search_content(")) return "";
+  if (META_LINE.test(text)) return "";
+  const heading = text.match(/^\*\*(.+)\*\*$/)?.[1];
+  const search = text.match(/^search \((.+)\)$/i)?.[1];
+  return search ? `search \xB7 ${search}` : heading ?? text;
+}
+function shouldMergePreviewLine(line, next) {
+  return !!next && !line.includes(" \xB7 ") && !TOOLISH_LINE.test(next) && line.length <= 24 && !/[.!?…:]$/.test(line);
+}
 function toolPrefix(theme, label) {
   return `${theme.fg("accent", "\u23FA")} ${theme.fg("toolTitle", theme.bold(label))}`;
 }
@@ -16,23 +56,38 @@ function toolLabel(name) {
 function summarizeArgs(args, max = 72) {
   if (!args || typeof args !== "object" || Array.isArray(args)) return "";
   const record = args;
-  const keys = ["action", "tool", "server", "query", "path", "taskId", "agent_id", "subject", "url", "command"];
+  const action = summarizeActionArgs(record, max);
+  if (action) return action;
+  const keys = ["tool", "server", "query", "path", "taskId", "agent_id", "subject", "url", "command"];
   const parts = keys.map((key) => record[key]).filter((value) => typeof value === "string" || typeof value === "number").slice(0, 2).map(String);
   if (!parts.length) {
     for (const [key, value] of Object.entries(record)) if ((typeof value === "string" || typeof value === "number" || typeof value === "boolean") && parts.push(`${key}=${value}`) >= 2) break;
   }
-  const text = parts.join(" \xB7 ");
-  return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
+  return clip(parts.join(" \xB7 "), max);
 }
 function branchBlock(theme, text) {
   const [first = "", ...rest] = text.split("\n");
-  return [`${theme.fg("dim", "  \u2514 ")}${first}`, ...rest.map((line) => `${theme.fg("dim", "    ")}${line}`)].join("\n");
+  return [`${theme.fg("dim", "\u2514 ")}${first}`, ...rest.map((line) => `${theme.fg("dim", "  ")}${line}`)].join("\n");
+}
+function compactPreviewLines(text, maxLines, maxWidth = 88) {
+  const raw = text.split("\n").map(cleanPreviewLine).filter(Boolean);
+  const lines = [];
+  for (let i = 0; i < raw.length; i++) {
+    const line = raw[i];
+    if (line === lines[lines.length - 1]) continue;
+    const next = raw[i + 1];
+    if (shouldMergePreviewLine(line, next)) {
+      lines.push(clip(`${line} \u2014 ${next}`, maxWidth));
+      i++;
+      continue;
+    }
+    lines.push(clip(line, maxWidth));
+  }
+  if (lines.length <= maxLines) return lines;
+  return [...lines.slice(0, maxLines - 1), clip(`\u2026 ${lines.length - maxLines + 1} more lines`, maxWidth)];
 }
 function summarizeTextPreview(theme, text, maxLines) {
-  const lines = text.split("\n");
-  const preview = lines.slice(0, maxLines).map((line) => theme.fg("toolOutput", line));
-  if (lines.length > maxLines) preview.push(theme.fg("dim", `\u2026 ${lines.length - maxLines} more lines`));
-  return preview.join("\n");
+  return compactPreviewLines(text, maxLines).map((line) => theme.fg("toolOutput", line)).join("\n");
 }
 
 // src/bash-tool.ts
@@ -128,18 +183,6 @@ function createClaudeReadTool(cwd) {
       return new Text3(branchBlock(theme, summarizeTextPreview(theme, content.text, 14)), 0, 0);
     }
   });
-}
-
-// src/ansi.ts
-var ANSI_RESET_BG = "\x1B[49m";
-var ANSI_RE = /\x1b\[[0-9;]*m/g;
-var OSC_RE = /\x1b\][\s\S]*?(?:\u0007|\x1b\\)/g;
-function colorizeBgRgb(text, rgb) {
-  const [r, g, b] = rgb;
-  return `\x1B[48;2;${r};${g};${b}m${text}${ANSI_RESET_BG}`;
-}
-function stripAnsi(text) {
-  return text.replace(OSC_RE, "").replace(ANSI_RE, "");
 }
 
 // src/internal-module.ts
@@ -336,9 +379,6 @@ function trim2(lines) {
   while (lines.length && !stripAnsi(lines.at(-1) ?? "").trim()) lines.pop();
   return lines;
 }
-function normalize(lines) {
-  return lines.map((line) => line.startsWith(" ") ? line.slice(1) : line);
-}
 function isDefaultWorkingLine(lines) {
   const text = stripAnsi(lines.join("\n")).trim().replace(/^[^\p{L}\p{N}]+/u, "").trimStart();
   return /^Working\.\.\.(?: \(.*\))?$/.test(text);
@@ -347,7 +387,7 @@ function patchLoaderPrototype(prototype) {
   if (!prototype || prototype.__claudeCodeUiPatched) return false;
   const render = prototype.render;
   prototype.render = function renderPatched(width) {
-    const lines = normalize(trim2(render.call(this, width)));
+    const lines = trim2(render.call(this, width));
     return !lines.length || isDefaultWorkingLine(lines) ? [] : ["", ...lines];
   };
   prototype.__claudeCodeUiPatched = true;
@@ -383,11 +423,10 @@ function patchToolExecutionPrototype(prototype, theme) {
   prototype.createResultFallback = function createResultFallbackPatched() {
     if (!isGenericTool(this)) return result.call(this);
     const output = this.getTextOutput() ?? "";
-    const lines = output.split("\n").filter((line) => line.trim()).length;
     const status = this.isPartial ? theme.fg("warning", "running\u2026") : this.result?.isError ? theme.fg("error", "error") : theme.fg("success", "done");
-    this.rendererState.summary = `${status}${lines ? theme.fg("dim", ` \xB7 ${lines} lines`) : ""}${this.result?.details?.truncation?.truncated ? theme.fg("dim", " \xB7 truncated") : ""}`;
+    this.rendererState.summary = `${status}${this.result?.details?.truncation?.truncated ? theme.fg("dim", " \xB7 truncated") : ""}`;
     if (!this.expanded || !output.trim()) return new Container4();
-    return new Text4(branchBlock(theme, summarizeTextPreview(theme, output, 18)), 0, 0);
+    return new Text4(branchBlock(theme, summarizeTextPreview(theme, output, 4)), 0, 0);
   };
   prototype.__claudeCodeUiPatched = true;
   return true;

@@ -4,10 +4,10 @@ import { applyToolExecutionPatch, patchToolExecutionPrototype } from "../src/too
 import { render, theme } from "./helpers.ts";
 
 describe("tool execution patch", () => {
-	it("renders generic extension tools in the compact Claude style", async () => {
+	it("renders generic extension tools in a compact Claude style", async () => {
 		class GenericToolExecution {
 			toolName = "mcp";
-			args = { action: "status", server: "creatrip-internal" };
+			args = { action: "call", tool: "fetch_content", server: "creatrip-internal" };
 			expanded = false;
 			isPartial = false;
 			result = { isError: false, details: { truncation: { truncated: true } } };
@@ -16,7 +16,7 @@ describe("tool execution patch", () => {
 			getRenderShell() { return "default"; }
 			createCallFallback() { return new Text("fallback", 0, 0); }
 			createResultFallback() { return new Text("result", 0, 0); }
-			getTextOutput() { return "line1\nline2"; }
+			getTextOutput() { return 'fetch https://www.google.com/search?q=x\n  prompt: "summarize it"\nsearch (383 chars)\n**페이지 정보**\nGoogle의 시스템이 비정상적인 트래픽을 감지했습니다.'; }
 		}
 		expect(patchToolExecutionPrototype()).toBe(false);
 		expect(patchToolExecutionPrototype(GenericToolExecution.prototype)).toBe(false);
@@ -26,14 +26,17 @@ describe("tool execution patch", () => {
 		expect(collapsed.createResultFallback()).toBeInstanceOf(Container);
 		const call = render(collapsed.createCallFallback() as { render(width: number): string[] });
 		expect(call).toContain("MCP");
-		expect(call).toContain("status");
-		expect(call).toContain("2 lines");
+		expect(call).toContain("Fetch Content");
+		expect(call).toContain("done");
 		expect(call).toContain("truncated");
+		expect(call).not.toContain("lines");
 		const expanded = new GenericToolExecution();
 		expanded.expanded = true;
 		const preview = render(expanded.createResultFallback() as { render(width: number): string[] });
 		expect(preview).toContain("└");
-		expect(preview).toContain("line1");
+		expect(preview).toContain("search · 383 chars");
+		expect(preview).toContain("페이지 정보 — Google의 시스템이");
+		expect(preview).not.toContain("prompt");
 		expect(patchToolExecutionPrototype(GenericToolExecution.prototype, theme)).toBe(false);
 		await applyToolExecutionPatch(async () => ({}));
 		class LoadedExecution extends GenericToolExecution {}
@@ -64,10 +67,7 @@ describe("tool execution patch", () => {
 		execution.result = { isError: true, details: {} };
 		execution.createResultFallback();
 		expect(execution.rendererState.summary).toContain("error");
-		class EmptyArgsTool extends RunningToolExecution {
-			args = {};
-			getTextOutput() { return undefined; }
-		}
+		class EmptyArgsTool extends RunningToolExecution { args = {}; getTextOutput() { return undefined; } }
 		const empty = new EmptyArgsTool();
 		expect(render(empty.createCallFallback() as { render(width: number): string[] })).toContain("Status Check");
 		expect(empty.createResultFallback()).toBeInstanceOf(Container);
@@ -75,17 +75,9 @@ describe("tool execution patch", () => {
 
 	it("leaves built-in and custom-rendered tools untouched", () => {
 		class ExistingRenderers {
-			toolName = "read";
-			args = {};
-			expanded = false;
-			isPartial = false;
-			rendererState = {};
-			toolDefinition = { renderCall: {} };
-			builtInToolDefinition = {};
-			getRenderShell() { return "default"; }
-			createCallFallback() { return new Text("fallback", 0, 0); }
-			createResultFallback() { return new Text("result", 0, 0); }
-			getTextOutput() { return ""; }
+			toolName = "read"; args = {}; expanded = false; isPartial = false; rendererState = {}; toolDefinition = { renderCall: {} }; builtInToolDefinition = {};
+			getRenderShell() { return "default"; } createCallFallback() { return new Text("fallback", 0, 0); }
+			createResultFallback() { return new Text("result", 0, 0); } getTextOutput() { return ""; }
 		}
 		expect(patchToolExecutionPrototype(ExistingRenderers.prototype, theme)).toBe(true);
 		const execution = new ExistingRenderers();

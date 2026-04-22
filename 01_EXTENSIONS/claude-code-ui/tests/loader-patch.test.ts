@@ -31,7 +31,7 @@ describe("loader patch", () => {
 		await applyLoaderPatch(async () => ({}));
 	});
 
-	it("keeps visible working lines aligned with tools and a single spacer above them", async () => {
+	it("keeps visible working lines with their loader padding and a single spacer above them", async () => {
 		class VisibleLoader {
 			render() {
 				return ["", " Running bash · 2s", ""];
@@ -52,6 +52,6 @@ describe("loader patch", () => {
 		await applyLoaderPatch(async () => ({ Loader: LoadedLoader }));
 		expect(new LoadedLoader().render()).toEqual([]);
 		expect(new EmptyLoader().render()).toEqual([]);
-		expect(new VisibleLoader().render()).toEqual(["", "Running bash · 2s"]);
+		expect(new VisibleLoader().render()).toEqual(["", " Running bash · 2s"]);
 	});
 });

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { colorizeBgRgb, colorizeRgb, stripAnsi } from "../src/ansi.ts";
 import { WORKING_INDICATOR } from "../src/indicator.ts";
 import { buildChromeRule, buildPromptFrame, findBottomRuleIndex, frameBodyLine } from "../src/rules.ts";
-import { summarizeArgs, summarizeTextPreview, toolLabel, toolPrefix } from "../src/tool-utils.ts";
+import { compactPreviewLines, summarizeArgs, summarizeTextPreview, toolLabel, toolPrefix } from "../src/tool-utils.ts";
 import { theme } from "./helpers.ts";
 
 describe("claude-code-ui utils", () => {
@@ -36,19 +36,27 @@ describe("claude-code-ui utils", () => {
 		expect(findBottomRuleIndex(["a", "b"])).toBe(-1);
 	});
 
-	it("formats tool labels, args and previews", () => {
+	it("formats tool labels, args and compact previews", () => {
+		const transcript = 'fetch https://www.google.com/search?q=x\n  prompt: "summarize it"\nsearch (383 chars)\n**페이지 정보**\nGoogle의 시스템이 비정상적인 트래픽을 감지했습니다.';
 		expect(toolPrefix(theme, "Read")).toContain("Read");
 		expect(toolLabel("mcp")).toBe("MCP");
 		expect(toolLabel("task-create")).toBe("Task Create");
-		expect(toolLabel("task__create")).toBe("Task  Create");
-		expect(summarizeArgs({ action: "status", server: "creatrip-internal" })).toContain("status");
+		expect(summarizeArgs({ action: "call", tool: "fetch_content", server: "creatrip-internal" })).toContain("Fetch Content");
+		expect(summarizeArgs({ action: "search", query: "크리에이트립" })).toContain('"크리에이트립"');
+		expect(summarizeArgs({ action: "describe", tool: "get_search_content" })).toContain("Get Search Content");
 		expect(summarizeArgs({ value: true })).toContain("value=true");
 		expect(summarizeArgs({ a: 1, b: 2, c: 3 })).toContain("a=1 · b=2");
 		expect(summarizeArgs({})).toBe("");
 		expect(summarizeArgs({ action: "status", server: "creatrip-internal" }, 6)).toContain("…");
 		expect(summarizeArgs([])).toBe("");
 		expect(summarizeArgs(undefined)).toBe("");
-		expect(summarizeTextPreview(theme, "a\nb\nc", 2)).toContain("1 more lines");
-		expect(summarizeTextPreview(theme, "a\nb", 5)).not.toContain("more lines");
+		expect(compactPreviewLines(transcript, 4)).toEqual([
+			"fetch https://www.google.com/search?q=x",
+			"search · 383 chars",
+			"페이지 정보 — Google의 시스템이 비정상적인 트래픽을 감지했습니다.",
+		]);
+		expect(compactPreviewLines("fetch a\nsearch (1 chars)\n**info**\nhello", 2)[1]).toContain("more lines");
+		expect(compactPreviewLines("---\nUse get_search_content({ responseId: \"1\" })\nsearch (1 chars)\nsearch (1 chars)", 4)).toEqual(["search · 1 chars"]);
+		expect(summarizeTextPreview(theme, transcript, 4)).not.toContain("prompt");
 	});
 });

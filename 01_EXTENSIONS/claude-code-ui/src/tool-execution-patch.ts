@@ -40,11 +40,10 @@ export function patchToolExecutionPrototype(prototype?: ToolExecutionPrototype, 
 	prototype.createResultFallback = function createResultFallbackPatched() {
 		if (!isGenericTool(this)) return result.call(this);
 		const output = this.getTextOutput() ?? "";
-		const lines = output.split("\n").filter((line) => line.trim()).length;
 		const status = this.isPartial ? theme.fg("warning", "running…") : this.result?.isError ? theme.fg("error", "error") : theme.fg("success", "done");
-		this.rendererState.summary = `${status}${lines ? theme.fg("dim", ` · ${lines} lines`) : ""}${this.result?.details?.truncation?.truncated ? theme.fg("dim", " · truncated") : ""}`;
+		this.rendererState.summary = `${status}${this.result?.details?.truncation?.truncated ? theme.fg("dim", " · truncated") : ""}`;
 		if (!this.expanded || !output.trim()) return new Container();
-		return new Text(branchBlock(theme, summarizeTextPreview(theme, output, 18)), 0, 0);
+		return new Text(branchBlock(theme, summarizeTextPreview(theme, output, 4)), 0, 0);
 	};
 	prototype.__claudeCodeUiPatched = true;
 	return true;
