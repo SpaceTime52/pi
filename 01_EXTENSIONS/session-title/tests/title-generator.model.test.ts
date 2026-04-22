@@ -16,10 +16,12 @@ describe("title generator model path", () => {
 		expect(completeSimple).toHaveBeenCalledTimes(1);
 	});
 
-	it("falls back when the model stops early or returns an empty title", async () => {
+	it("falls back when the model stops early, returns an empty title, or mirrors the request", async () => {
 		completeSimple.mockResolvedValueOnce({ stopReason: "length", content: [{ type: "text", text: "Truncated" }] });
 		completeSimple.mockResolvedValueOnce({ stopReason: "stop", content: [{ type: "text", text: "" }] });
-		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("add terminal title sync");
-		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("add terminal title sync");
+		completeSimple.mockResolvedValueOnce({ stopReason: "stop", content: [{ type: "text", text: "Please add terminal title sync" }] });
+		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
+		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
+		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
 	});
 });

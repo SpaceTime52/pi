@@ -8,6 +8,8 @@ export const MAX_TERMINAL_TITLE_CHARS = 60;
 export const TITLE_SYSTEM_PROMPT = [
 	"You write short, explicit session titles for a coding task.",
 	"Preserve the user's language.",
+	"Rewrite the request as an organized summary title instead of copying the request verbatim.",
+	"Keep the core task, but drop URLs, politeness, commit/push/test instructions, and placement logistics unless they are central.",
 	"Make the title concrete and action-oriented.",
 	"Include the action and the main object or scope when possible.",
 	"Avoid vague titles like 'extension', 'bug', 'question', or 'help'.",
@@ -49,6 +51,13 @@ export function normalizeTitle(rawTitle: string): string {
 		normalized = stripWrappingPair(normalized, open, close);
 	}
 	return clip(normalized.replace(/\s+/gu, " ").replace(/[.。!！?？:：;；,，\-–—\s]+$/gu, "").trim(), MAX_TITLE_CHARS);
+}
+
+const REQUEST_NOISE_RE = /(please|can you|could you|would you|help me|i need you to|이거|참고해서|좀|혹시|작업해줘|구현해줘|만들어줘|해줘|해주세요|commit|push|커밋|푸시)/iu;
+
+export function isClearSummaryTitle(title: string): boolean {
+	const normalized = normalizeTitle(title);
+	return normalized.length > 0 && !REQUEST_NOISE_RE.test(normalized) && !/[?？]/u.test(normalized);
 }
 
 export function formatStatusTitle(title: string): string {

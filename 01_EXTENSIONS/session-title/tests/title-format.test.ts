@@ -8,6 +8,7 @@ import {
 	extractTextContent,
 	formatStatusTitle,
 	formatTerminalTitle,
+	isClearSummaryTitle,
 	normalizeTitle,
 } from "../src/title-format.ts";
 
@@ -26,6 +27,8 @@ describe("title format helpers", () => {
 	});
 
 	it("formats status and terminal titles", () => {
+		expect(isClearSummaryTitle("세션/터미널 제목 자동 설정 extension")).toBe(true);
+		expect(isClearSummaryTitle("이거 참고해서 세션 이름 만들어줘")).toBe(false);
 		expect(formatStatusTitle(`a ${"b".repeat(MAX_STATUS_CHARS + 10)}`).length).toBeLessThanOrEqual(MAX_STATUS_CHARS);
 		expect(formatTerminalTitle(undefined, "")).toBe("π - pi");
 		const terminalTitle = formatTerminalTitle(`Ship ${"x".repeat(MAX_TERMINAL_TITLE_CHARS + 10)}`, "/tmp/pi-project");
