@@ -1,8 +1,0 @@
-
-  에이전트 작업 완료 시 터미널 네이티브 알림을 보낸다.
-  알림 제목은 세션명(없으면 π)만 사용하고, 본문 summary는 보내지 않는다.
-  터미널 제목이나 세션 상태는 notify가 건드리지 않는다.
-
-  SUPPORTED
-    OSC 777    Ghostty, iTerm2, WezTerm, rxvt-unicode
-    OSC 99     Kitty

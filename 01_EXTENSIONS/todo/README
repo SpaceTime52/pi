@@ -1,9 +1,0 @@
-
-  LLM이 사용할 수 있는 todo 관리 도구.
-  세션 엔트리 기반 상태 관리로 브랜치 전환 시 자동 복원.
-
-  ACTIONS
-    list       전체 목록
-    add        항목 추가 (text 필수)
-    toggle     완료/미완료 토글 (id 필수)
-    clear      전체 삭제
