@@ -212,7 +212,7 @@ var ClaudeCodeEditor = class extends CustomEditor {
       for (let i = 1; i < bottomIndex; i++) lines[i] = frameBodyLine(lines[i], width, this.borderColor);
     }
     if (bottomFramed) lines[bottomIndex] = buildPromptFrame(width, "", "\u2514", "\u2518", this.borderColor);
-    return ["", ...lines];
+    return lines;
   }
   isTopRule(line) {
     const raw = stripAnsi(line);
@@ -258,11 +258,12 @@ function createClaudeFooter(ctx) {
 }
 
 // src/indicator.ts
-var DIM = "\x1B[90m";
+var ACCENT = "\x1B[38;2;215;119;87m";
 var RESET = "\x1B[39m";
+var FRAMES = ["\xB7", "\u273B", "\u273D", "\u2736", "\u2733", "\u2722"];
 var WORKING_INDICATOR = {
-  frames: [`${DIM}\xB7${RESET}`, `${DIM}\u2022${RESET}`, `${DIM}\u25CF${RESET}`, `${DIM}\u2022${RESET}`],
-  intervalMs: 140
+  frames: FRAMES.map((frame) => `${ACCENT}${frame}${RESET}`),
+  intervalMs: 120
 };
 
 // src/theme.ts
@@ -300,6 +301,9 @@ function trim2(lines) {
   while (lines.length && !stripAnsi(lines.at(-1) ?? "").trim()) lines.pop();
   return lines;
 }
+function normalize(lines) {
+  return lines.map((line) => line.startsWith(" ") ? line.slice(1) : line);
+}
 function isDefaultWorkingLine(lines) {
   const text = stripAnsi(lines.join("\n")).trim().replace(/^[^\p{L}\p{N}]+/u, "").trimStart();
   return /^Working\.\.\.(?: \(.*\))?$/.test(text);
@@ -308,7 +312,7 @@ function patchLoaderPrototype(prototype) {
   if (!prototype || prototype.__claudeCodeUiPatched) return false;
   const render = prototype.render;
   prototype.render = function renderPatched(width) {
-    const lines = trim2(render.call(this, width));
+    const lines = normalize(trim2(render.call(this, width)));
     return !lines.length || isDefaultWorkingLine(lines) ? [] : ["", ...lines];
   };
   prototype.__claudeCodeUiPatched = true;

@@ -17,7 +17,7 @@ describe("loader patch", () => {
 		}
 		class SpinnerDefaultLoader {
 			render() {
-				return ["", "· Working... (escape to interrupt)", ""];
+				return ["", " ✻ Working... (escape to interrupt)", ""];
 			}
 		}
 		expect(patchLoaderPrototype()).toBe(false);
@@ -31,10 +31,10 @@ describe("loader patch", () => {
 		await applyLoaderPatch(async () => ({}));
 	});
 
-	it("keeps visible working lines with a single spacer above them", async () => {
+	it("keeps visible working lines aligned with tools and a single spacer above them", async () => {
 		class VisibleLoader {
 			render() {
-				return ["", "Running bash · 2s", ""];
+				return ["", " Running bash · 2s", ""];
 			}
 		}
 		class EmptyLoader {

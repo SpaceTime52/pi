@@ -13,8 +13,9 @@ describe("claude-code-ui utils", () => {
 		expect(colored).toContain("[38;2;1;2;3m");
 		expect(stripAnsi(colored)).toBe("x");
 		expect(stripAnsi(osc)).toBe("x");
-		expect(WORKING_INDICATOR.frames).toHaveLength(4);
-		expect(stripAnsi(WORKING_INDICATOR.frames[0] ?? "")).toBe("·");
+		expect(WORKING_INDICATOR.frames).toHaveLength(6);
+		expect(WORKING_INDICATOR.intervalMs).toBe(120);
+		expect(stripAnsi(WORKING_INDICATOR.frames.join(""))).toContain("·✻✽✶✳✢");
 	});
 
 	it("builds chrome rules, prompt frames and finds rule rows", () => {
