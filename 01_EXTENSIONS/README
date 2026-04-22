@@ -6,6 +6,7 @@
   포함된 extension
     claude-code-ui
     claude-hooks-bridge
+    diff-review
     mcp
     session-title
     spinner
