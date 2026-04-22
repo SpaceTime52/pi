@@ -1,10 +1,10 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ buildReviewHtml: vi.fn(), getCommitFiles: vi.fn(), getReviewData: vi.fn(), loadReviewFileContents: vi.fn(), openQuietGlimpse: vi.fn() }));
+const mocks = vi.hoisted(() => ({ buildReviewHtml: vi.fn(), getCommitFiles: vi.fn(), getReviewData: vi.fn(), isWorkingTreeCommitSha: vi.fn(), loadReviewFileContents: vi.fn(), openQuietGlimpse: vi.fn() }));
 vi.mock("../src/ui.ts", () => ({ buildReviewHtml: mocks.buildReviewHtml }));
 vi.mock("../lib/git-commit-files.ts", () => ({ getCommitFiles: mocks.getCommitFiles }));
-vi.mock("../lib/git-review-data.ts", () => ({ getReviewData: mocks.getReviewData }));
+vi.mock("../lib/git-review-data.ts", () => ({ getReviewData: mocks.getReviewData, isWorkingTreeCommitSha: mocks.isWorkingTreeCommitSha }));
 vi.mock("../lib/git-file-contents.ts", () => ({ loadReviewFileContents: mocks.loadReviewFileContents }));
 vi.mock("../lib/glimpse-window.js", () => ({ openQuietGlimpse: mocks.openQuietGlimpse }));
 import registerDiffReview from "../src/diff-review.ts";
@@ -14,7 +14,7 @@ const data = { repoRoot: "/repo", branchBaseRef: "origin/main", branchMergeBaseS
 function ctx() { return { cwd: "/repo", ui: { getEditorText: vi.fn(() => "existing"), notify: vi.fn(), pasteToEditor: vi.fn() } }; }
 
 describe("diff-review behavior", () => {
-	beforeEach(() => { vi.resetAllMocks(); mocks.buildReviewHtml.mockReturnValue("<html>"); });
+	beforeEach(() => { vi.resetAllMocks(); mocks.buildReviewHtml.mockReturnValue("<html>"); mocks.isWorkingTreeCommitSha.mockImplementation((sha: string) => sha === "__pi_working_tree__"); });
 
 	it("opens, serves commit/file requests, refreshes, and submits comments", async () => {
 		const win = new FakeWindow();
@@ -33,7 +33,9 @@ describe("diff-review behavior", () => {
 		win.emit("message", { type: "request-review-data", requestId: "3" });
 		await Promise.resolve();
 		win.emit("message", { type: "submit", overallComment: "Overall", comments: [{ id: "x", fileId: "f1", scope: "branch", side: "modified", startLine: 3, endLine: 3, body: "Fix this" }] });
-		expect(context.ui.notify).toHaveBeenCalledWith("A diff review window is already open.", "warning");
+		win.close();
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		expect(context.ui.notify).toHaveBeenCalledWith("A review window is already open.", "warning");
 		expect(context.ui.pasteToEditor).toHaveBeenCalledWith("\n\nPlease address the following feedback\n\nOverall\n\n1. [branch diff] src/a.ts:3 (new)\n   Fix this");
 		expect(win.sent.join("\n")).toContain("commit-data");
 		expect(win.sent.join("\n")).toContain("file-data");
@@ -56,8 +58,9 @@ describe("diff-review behavior", () => {
 		win.close();
 		mocks.getReviewData.mockRejectedValueOnce(new Error("boom"));
 		await handler("", context);
-		expect(context.ui.notify).toHaveBeenCalledWith("No reviewable changes found.", "info");
-		expect(context.ui.notify).toHaveBeenCalledWith("Diff review cancelled.", "info");
-		expect(context.ui.notify).toHaveBeenCalledWith("Diff review failed: boom", "error");
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		expect(context.ui.notify).toHaveBeenCalledWith("No reviewable files found.", "info");
+		expect(context.ui.notify).toHaveBeenCalledWith("Review cancelled.", "info");
+		expect(context.ui.notify).toHaveBeenCalledWith("Review failed: boom", "error");
 	});
 });

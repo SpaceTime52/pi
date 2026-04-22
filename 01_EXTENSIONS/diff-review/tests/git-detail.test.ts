@@ -14,7 +14,7 @@ describe("loadReviewFileContents", () => {
 		const api = { exec: async (command: string, args: string[]) => ({ code: 0, stdout: command === "git" && args[0] === "rev-parse" ? "parent\n" : args.join(" ").includes("show") ? "git\n" : "", stderr: "" }) };
 		await expect(loadReviewFileContents(api, repoRoot, file, "branch", null, "base123")).resolves.toMatchObject({ originalContent: "git\n", modifiedContent: "live\n" });
 		await expect(loadReviewFileContents(api, repoRoot, file, "commits", "sha1", "base123")).resolves.toMatchObject({ originalContent: "git\n", modifiedContent: "git\n" });
-		await expect(loadReviewFileContents(api, repoRoot, file, "all", null, "base123")).resolves.toMatchObject({ originalContent: "", modifiedContent: "live\n" });
+		await expect(loadReviewFileContents(api, repoRoot, file, "all", null, "base123")).resolves.toMatchObject({ originalContent: "live\n", modifiedContent: "live\n" });
 	});
 
 	it("handles deleted files and working-tree pseudo commits", async () => {
