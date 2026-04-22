@@ -1,0 +1,62 @@
+import * as path from "node:path";
+
+export const TITLE_STATUS_KEY = "session-title";
+export const MAX_PROMPT_CHARS = 800;
+export const MAX_TITLE_CHARS = 48;
+export const MAX_STATUS_CHARS = 72;
+export const MAX_TERMINAL_TITLE_CHARS = 60;
+export const TITLE_SYSTEM_PROMPT = [
+	"You write short, explicit session titles for a coding task.",
+	"Preserve the user's language.",
+	"Make the title concrete and action-oriented.",
+	"Include the action and the main object or scope when possible.",
+	"Avoid vague titles like 'extension', 'bug', 'question', or 'help'.",
+	"Return only the title text with no labels, quotes, or markdown.",
+	`Keep it to one line and under ${MAX_TITLE_CHARS} characters.`,
+].join(" ");
+
+function clip(text: string, maxChars: number): string {
+	if (text.length <= maxChars) return text;
+	return `${text.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
+function stripWrappingPair(text: string, open: string, close: string): string {
+	if (text.startsWith(open) && text.endsWith(close) && text.length > open.length + close.length) {
+		return text.slice(open.length, text.length - close.length).trim();
+	}
+	return text;
+}
+
+export function buildTitlePrompt(userPrompt: string): string {
+	return `User request:\n${userPrompt.slice(0, MAX_PROMPT_CHARS)}`;
+}
+
+export function extractTextContent(content: ReadonlyArray<{ type: string; text?: string }>): string {
+	return content
+		.filter((part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string")
+		.map((part) => part.text)
+		.join("")
+		.trim();
+}
+
+export function normalizeTitle(rawTitle: string): string {
+	const firstLine = rawTitle.split(/\r?\n/gu).map((line) => line.trim()).find(Boolean) ?? "";
+	let normalized = firstLine
+		.replace(/^[-*•]\s*/u, "")
+		.replace(/^(title|session title|session name|name|제목|세션 제목|세션 이름)\s*[:：-]\s*/iu, "")
+		.trim();
+	for (const [open, close] of [["\"", "\""], ["'", "'"], ["`", "`"], ["(", ")"], ["[", "]"], ["“", "”"], ["‘", "’"]]) {
+		normalized = stripWrappingPair(normalized, open, close);
+	}
+	return clip(normalized.replace(/\s+/gu, " ").replace(/[.。!！?？:：;；,，\-–—\s]+$/gu, "").trim(), MAX_TITLE_CHARS);
+}
+
+export function formatStatusTitle(title: string): string {
+	return clip(title.replace(/\s+/gu, " ").trim(), MAX_STATUS_CHARS);
+}
+
+export function formatTerminalTitle(title: string | undefined, cwd: string): string {
+	const projectName = path.basename(cwd) || "pi";
+	const clippedTitle = title ? clip(title.replace(/\s+/gu, " ").trim(), MAX_TERMINAL_TITLE_CHARS) : undefined;
+	return clippedTitle ? `π - ${clippedTitle} - ${projectName}` : `π - ${projectName}`;
+}
