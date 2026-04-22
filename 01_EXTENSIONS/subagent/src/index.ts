@@ -1,1 +1,1 @@
-export { default } from "@tintinweb/pi-subagents/dist/index.js";
+export { default } from "@jeonghyeon.net/pi-subagents/dist/index.js";

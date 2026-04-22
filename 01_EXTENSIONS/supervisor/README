@@ -1,4 +1,4 @@
-supervisor … 목표 달성까지 대화를 감시하고 steer
+supervisor … `@jeonghyeon.net/pi-supervisor` 기반 목표 달성 감시/steer
 
 목적
   에이전트가 중간에 딴길로 새지 않도록 바깥에서 대화를 감시하고, 필요한 순간에 목표 중심으로 다시 유도한다.

@@ -10,8 +10,8 @@
     "test": "vitest run --coverage"
   },
   "devDependencies": {
+    "@jeonghyeon.net/pi-subagents": "*",
     "@mariozechner/pi-coding-agent": "*",
-    "@tintinweb/pi-subagents": "0.5.2",
     "@vitest/coverage-v8": "^3.1.0",
     "esbuild": "^0.28.0",
     "typescript": "^5.8.0",

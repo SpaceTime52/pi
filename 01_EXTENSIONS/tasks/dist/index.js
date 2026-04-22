@@ -1,9 +1,9 @@
-// node_modules/@tintinweb/pi-tasks/dist/index.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/index.js
 import { randomUUID } from "node:crypto";
 import { join as join3, resolve } from "node:path";
 import { Type } from "@sinclair/typebox";
 
-// node_modules/@tintinweb/pi-tasks/dist/auto-clear.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/auto-clear.js
 var AutoClearManager = class {
   getStore;
   getMode;
@@ -76,7 +76,7 @@ var AutoClearManager = class {
   }
 };
 
-// node_modules/@tintinweb/pi-tasks/dist/process-tracker.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/process-tracker.js
 var ProcessTracker = class {
   processes = /* @__PURE__ */ new Map();
   /** Register a spawned process for a task. */
@@ -188,7 +188,7 @@ var ProcessTracker = class {
   }
 };
 
-// node_modules/@tintinweb/pi-tasks/dist/task-store.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/task-store.js
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
@@ -465,7 +465,7 @@ var TaskStore = class {
   }
 };
 
-// node_modules/@tintinweb/pi-tasks/dist/tasks-config.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/tasks-config.js
 import { mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname2, join as join2 } from "node:path";
 var CONFIG_PATH = join2(process.cwd(), ".pi", "tasks-config.json");
@@ -481,7 +481,7 @@ function saveTasksConfig(config) {
   writeFileSync2(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
-// node_modules/@tintinweb/pi-tasks/dist/ui/settings-menu.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/ui/settings-menu.js
 import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
 import { Container, SettingsList, Spacer, Text } from "@mariozechner/pi-tui";
 async function openSettingsMenu(ui, cfg, onBack, clearDelayTurns) {
@@ -546,7 +546,7 @@ async function openSettingsMenu(ui, cfg, onBack, clearDelayTurns) {
   return onBack();
 }
 
-// node_modules/@tintinweb/pi-tasks/dist/ui/task-widget.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/ui/task-widget.js
 import { truncateToWidth } from "@mariozechner/pi-tui";
 var SPINNER = ["\u2733", "\u2734", "\u2735", "\u2736", "\u2737", "\u2738", "\u2739", "\u273A", "\u273B", "\u273C", "\u273D"];
 var MAX_VISIBLE_TASKS = 10;
@@ -747,7 +747,7 @@ var TaskWidget = class {
   }
 };
 
-// node_modules/@tintinweb/pi-tasks/dist/index.js
+// node_modules/@jeonghyeon.net/pi-tasks/dist/index.js
 var DEBUG = !!process.env.PI_TASKS_DEBUG;
 function debug(...args) {
   if (DEBUG)
@@ -837,11 +837,11 @@ function dist_default(pi) {
       clearTimeout(timer);
       const remoteVersion = raw?.data?.version;
       if (remoteVersion === void 0) {
-        pendingWarning = "@tintinweb/pi-subagents is outdated \u2014 please update for task execution support.";
+        pendingWarning = "@jeonghyeon.net/pi-subagents is outdated \u2014 please update for task execution support.";
       } else if (remoteVersion > PROTOCOL_VERSION) {
-        pendingWarning = `@tintinweb/pi-tasks is outdated (protocol v${PROTOCOL_VERSION}, pi-subagents has v${remoteVersion}) \u2014 please update for task execution support.`;
+        pendingWarning = `@jeonghyeon.net/pi-tasks is outdated (protocol v${PROTOCOL_VERSION}, pi-subagents has v${remoteVersion}) \u2014 please update for task execution support.`;
       } else if (remoteVersion < PROTOCOL_VERSION) {
-        pendingWarning = `@tintinweb/pi-subagents is outdated (protocol v${remoteVersion}, pi-tasks has v${PROTOCOL_VERSION}) \u2014 please update for task execution support.`;
+        pendingWarning = `@jeonghyeon.net/pi-subagents is outdated (protocol v${remoteVersion}, pi-tasks has v${PROTOCOL_VERSION}) \u2014 please update for task execution support.`;
       } else {
         subagentsAvailable = true;
       }
@@ -1474,7 +1474,7 @@ ${processOutput.output}`);
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       if (!subagentsAvailable) {
-        return textResult("Subagent execution is currently unavailable. Ensure the @tintinweb/pi-subagents extension is loaded and try again.");
+        return textResult("Subagent execution is currently unavailable. Ensure the @jeonghyeon.net/pi-subagents extension is loaded and try again.");
       }
       const results = [];
       const launched = [];

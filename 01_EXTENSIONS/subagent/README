@@ -1,4 +1,4 @@
-subagent … Claude Code 스타일 subagent 실행/관리
+subagent … `@jeonghyeon.net/pi-subagents` 기반 subagent 실행/관리
 
 목적
   메인 에이전트가 하위 에이전트를 호출해 탐색, 구현, 검토 같은 작업을 병렬로 위임할 수 있게 한다.

@@ -1,4 +1,4 @@
-// node_modules/pi-supervisor/src/state.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/state.ts
 var ENTRY_TYPE = "supervisor-state";
 var DEFAULT_PROVIDER = "anthropic";
 var DEFAULT_MODEL_ID = "claude-haiku-4-5-20251001";
@@ -71,12 +71,12 @@ var SupervisorStateManager = class {
   }
 };
 
-// node_modules/pi-supervisor/src/engine.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/engine.ts
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-// node_modules/pi-supervisor/src/model-client.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/model-client.ts
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -154,7 +154,7 @@ function safeContinue(reason) {
   return { action: "continue", reasoning: reason, confidence: 0 };
 }
 
-// node_modules/pi-supervisor/src/engine.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/engine.ts
 var SUPERVISOR_MD = "SUPERVISOR.md";
 var CONFIG_DIR = ".pi";
 var GLOBAL_AGENT_DIR = join(homedir(), ".pi", "agent");
@@ -300,7 +300,7 @@ async function analyze(ctx, state, agentIsIdle, stagnating, signal, onDelta) {
   }
 }
 
-// node_modules/pi-supervisor/src/ui/status-widget.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/ui/status-widget.ts
 import { truncateToWidth } from "@mariozechner/pi-tui";
 var WIDGET_ID = "supervisor";
 var STATUS_ID = "supervisor";
@@ -376,7 +376,7 @@ function updateUI(ctx, state, action = { type: "watching" }) {
   });
 }
 
-// node_modules/pi-supervisor/src/ui/model-picker.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/ui/model-picker.ts
 import { ModelSelectorComponent, SettingsManager } from "@mariozechner/pi-coding-agent";
 async function pickModel(ctx, currentProvider, currentModelId) {
   const currentModel = currentProvider && currentModelId ? ctx.modelRegistry.find(currentProvider, currentModelId) : void 0;
@@ -404,7 +404,7 @@ async function pickModel(ctx, currentProvider, currentModelId) {
   });
 }
 
-// node_modules/pi-supervisor/src/ui/settings-panel.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/ui/settings-panel.ts
 import { SettingsList } from "@mariozechner/pi-tui";
 import { ModelSelectorComponent as ModelSelectorComponent2, SettingsManager as SettingsManager2 } from "@mariozechner/pi-coding-agent";
 var SENSITIVITIES = ["low", "medium", "high"];
@@ -523,7 +523,7 @@ async function openSettings(ctx, state, defaultProvider, defaultModelId, default
   });
 }
 
-// node_modules/pi-supervisor/src/workspace-config.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/workspace-config.ts
 import { existsSync as existsSync2, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { join as join2 } from "node:path";
 var PI_DIR = ".pi";
@@ -555,7 +555,7 @@ function saveWorkspaceModel(cwd, provider, modelId) {
   }
 }
 
-// node_modules/pi-supervisor/src/index.ts
+// node_modules/@jeonghyeon.net/pi-supervisor/src/index.ts
 import { Type } from "@sinclair/typebox";
 function extractThinking(accumulated) {
   const keyIdx = accumulated.indexOf('"reasoning"');

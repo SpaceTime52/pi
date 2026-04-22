@@ -1,1 +1,1 @@
-export { default } from "pi-supervisor/src/index";
+export { default } from "@jeonghyeon.net/pi-supervisor/src/index";

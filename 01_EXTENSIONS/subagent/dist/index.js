@@ -8,10 +8,10 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// node_modules/@tintinweb/pi-subagents/dist/default-agents.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/default-agents.js
 var READ_ONLY_TOOLS, DEFAULT_AGENTS;
 var init_default_agents = __esm({
-  "node_modules/@tintinweb/pi-subagents/dist/default-agents.js"() {
+  "node_modules/@jeonghyeon.net/pi-subagents/dist/default-agents.js"() {
     READ_ONLY_TOOLS = ["read", "bash", "grep", "find", "ls"];
     DEFAULT_AGENTS = /* @__PURE__ */ new Map([
       [
@@ -136,7 +136,7 @@ List 3-5 files most critical for implementing this plan:
   }
 });
 
-// node_modules/@tintinweb/pi-subagents/dist/agent-types.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/agent-types.js
 import { createBashTool, createEditTool, createFindTool, createGrepTool, createLsTool, createReadTool, createWriteTool } from "@mariozechner/pi-coding-agent";
 function registerAgents(userAgents) {
   agents.clear();
@@ -224,7 +224,7 @@ function getConfig(type) {
 }
 var TOOL_FACTORIES, BUILTIN_TOOL_NAMES, agents, MEMORY_TOOL_NAMES, READONLY_MEMORY_TOOL_NAMES;
 var init_agent_types = __esm({
-  "node_modules/@tintinweb/pi-subagents/dist/agent-types.js"() {
+  "node_modules/@jeonghyeon.net/pi-subagents/dist/agent-types.js"() {
     init_default_agents();
     TOOL_FACTORIES = {
       read: (cwd) => createReadTool(cwd),
@@ -242,7 +242,7 @@ var init_agent_types = __esm({
   }
 });
 
-// node_modules/@tintinweb/pi-subagents/dist/context.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/context.js
 function extractText(content) {
   return content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
 }
@@ -282,11 +282,11 @@ ${parts.join("\n\n")}
 `;
 }
 var init_context = __esm({
-  "node_modules/@tintinweb/pi-subagents/dist/context.js"() {
+  "node_modules/@jeonghyeon.net/pi-subagents/dist/context.js"() {
   }
 });
 
-// node_modules/@tintinweb/pi-subagents/dist/ui/agent-widget.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/ui/agent-widget.js
 import { truncateToWidth } from "@mariozechner/pi-tui";
 function formatTokens(count) {
   if (count >= 1e6)
@@ -343,7 +343,7 @@ function describeActivity(activeTools, responseText) {
 }
 var MAX_WIDGET_LINES, SPINNER, ERROR_STATUSES, TOOL_DISPLAY, AgentWidget;
 var init_agent_widget = __esm({
-  "node_modules/@tintinweb/pi-subagents/dist/ui/agent-widget.js"() {
+  "node_modules/@jeonghyeon.net/pi-subagents/dist/ui/agent-widget.js"() {
     init_agent_types();
     MAX_WIDGET_LINES = 12;
     SPINNER = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
@@ -640,7 +640,7 @@ var init_agent_widget = __esm({
   }
 });
 
-// node_modules/@tintinweb/pi-subagents/dist/ui/conversation-viewer.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/ui/conversation-viewer.js
 var conversation_viewer_exports = {};
 __export(conversation_viewer_exports, {
   ConversationViewer: () => ConversationViewer
@@ -648,7 +648,7 @@ __export(conversation_viewer_exports, {
 import { matchesKey, truncateToWidth as truncateToWidth2, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 var CHROME_LINES, MIN_VIEWPORT, ConversationViewer;
 var init_conversation_viewer = __esm({
-  "node_modules/@tintinweb/pi-subagents/dist/ui/conversation-viewer.js"() {
+  "node_modules/@jeonghyeon.net/pi-subagents/dist/ui/conversation-viewer.js"() {
     init_context();
     init_agent_widget();
     CHROME_LINES = 6;
@@ -856,22 +856,22 @@ var init_conversation_viewer = __esm({
   }
 });
 
-// node_modules/@tintinweb/pi-subagents/dist/index.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/index.js
 import { existsSync as existsSync4, mkdirSync as mkdirSync3, readFileSync as readFileSync3, unlinkSync } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join6 } from "node:path";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 
-// node_modules/@tintinweb/pi-subagents/dist/agent-manager.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/agent-manager.js
 import { randomUUID as randomUUID2 } from "node:crypto";
 
-// node_modules/@tintinweb/pi-subagents/dist/agent-runner.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/agent-runner.js
 init_agent_types();
 init_context();
 import { createAgentSession, DefaultResourceLoader, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 
-// node_modules/@tintinweb/pi-subagents/dist/env.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/env.js
 async function detectEnv(pi, cwd) {
   let isGitRepo = false;
   let branch = "";
@@ -895,7 +895,7 @@ async function detectEnv(pi, cwd) {
   };
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/memory.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/memory.js
 import { existsSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -1008,7 +1008,7 @@ No memory is available yet. Other agents or sessions with write access can creat
   return header + memoryContent;
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/prompts.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/prompts.js
 function buildAgentPrompt(config, cwd, env, parentSystemPrompt, extras) {
   const envBlock = `# Environment
 Working directory: ${cwd}
@@ -1059,7 +1059,7 @@ You are a general-purpose coding agent for complex, multi-step tasks.
 You have full access to read, write, edit files, and execute commands.
 Do what has been asked; nothing more, nothing less.`;
 
-// node_modules/@tintinweb/pi-subagents/dist/skill-loader.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/skill-loader.js
 import { homedir as homedir2 } from "node:os";
 import { join as join2 } from "node:path";
 function preloadSkills(skillNames, cwd) {
@@ -1099,7 +1099,7 @@ function tryReadSkillFile(dir, name) {
   return void 0;
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/agent-runner.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/agent-runner.js
 var EXCLUDED_TOOL_NAMES = ["Agent", "get_subagent_result", "steer_subagent"];
 var defaultMaxTurns;
 function normalizeMaxTurns(n) {
@@ -1376,7 +1376,7 @@ ${toolCalls.join("\n")}`);
   return parts.join("\n\n");
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/worktree.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/worktree.js
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync as existsSync2 } from "node:fs";
@@ -1476,7 +1476,7 @@ function pruneWorktrees(cwd) {
   }
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/agent-manager.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/agent-manager.js
 var DEFAULT_MAX_CONCURRENT = 4;
 var AgentManager = class {
   agents = /* @__PURE__ */ new Map();
@@ -1782,10 +1782,10 @@ Changes saved to branch \`${wtResult.branch}\`. Merge with: \`git merge ${wtResu
   }
 };
 
-// node_modules/@tintinweb/pi-subagents/dist/index.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/index.js
 init_agent_types();
 
-// node_modules/@tintinweb/pi-subagents/dist/cross-extension-rpc.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/cross-extension-rpc.js
 var PROTOCOL_VERSION = 2;
 function handleRpc(events, channel, fn) {
   return events.on(channel, async (raw) => {
@@ -1822,7 +1822,7 @@ function registerRpcHandlers(deps) {
   return { unsubPing, unsubSpawn, unsubStop };
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/custom-agents.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/custom-agents.js
 init_agent_types();
 import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync2 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
@@ -1915,7 +1915,7 @@ function inheritField(val) {
   return items.length > 0 ? items : false;
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/group-join.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/group-join.js
 var DEFAULT_TIMEOUT = 3e4;
 var STRAGGLER_TIMEOUT = 15e3;
 var GroupJoinManager = class {
@@ -2017,7 +2017,7 @@ var GroupJoinManager = class {
   }
 };
 
-// node_modules/@tintinweb/pi-subagents/dist/invocation-config.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/invocation-config.js
 function resolveAgentInvocationConfig(agentConfig, params) {
   return {
     modelInput: agentConfig?.model ?? params.model,
@@ -2034,7 +2034,7 @@ function resolveJoinMode(defaultJoinMode, runInBackground) {
   return runInBackground ? defaultJoinMode : void 0;
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/model-resolver.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/model-resolver.js
 function resolveModel(input, registry) {
   const all = registry.getAvailable?.() ?? registry.getAll();
   const availableSet = new Set(all.map((m) => `${m.provider}/${m.id}`.toLowerCase()));
@@ -2082,7 +2082,7 @@ Available models:
 ${modelList}`;
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/output-file.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/output-file.js
 import { appendFileSync, chmodSync, mkdirSync as mkdirSync2, writeFileSync } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
 import { join as join5 } from "node:path";
@@ -2137,7 +2137,7 @@ function streamToOutputFile(session, path, agentId, cwd) {
   };
 }
 
-// node_modules/@tintinweb/pi-subagents/dist/index.js
+// node_modules/@jeonghyeon.net/pi-subagents/dist/index.js
 init_agent_widget();
 function textResult(msg, details) {
   return { content: [{ type: "text", text: msg }], details };
