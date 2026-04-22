@@ -1,1 +1,1 @@
-export { default } from "pi-supervisor/src/index.ts";
+export { default } from "pi-supervisor/src/index";
