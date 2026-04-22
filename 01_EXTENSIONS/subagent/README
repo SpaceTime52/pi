@@ -1,4 +1,4 @@
-subagents … `@tintinweb/pi-subagents` 래퍼
+subagent … `@tintinweb/pi-subagents` 래퍼
 
 노출 방식
   이 디렉터리에서 `npm install`로 upstream 패키지 설치

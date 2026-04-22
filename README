@@ -13,7 +13,7 @@
 
   EXTENSIONS
     mcp … MCP 서버 통합 (proxy tool, lazy connection, metadata caching)
-    subagents … `@tintinweb/pi-subagents` 래퍼, npm install + 단일 번들 노출
+    subagent … `@tintinweb/pi-subagents` 래퍼, npm install + 단일 번들 노출
 
   SKILLS
     (none)
