@@ -68,11 +68,10 @@ Commit messages explain the *why*, not just the *what*:
 
 ```
 # Good: Explains intent
-feat: add email validation to registration endpoint
+feat: add boundary validation to registration flow
 
-Prevents invalid email formats from reaching the database.
-Uses Zod schema validation at the route handler level,
-consistent with existing validation patterns in auth.ts.
+Prevents malformed input from reaching downstream systems.
+Follows the project's existing validation and error-handling patterns.
 
 # Bad: Describes what's obvious from the diff
 update auth.ts
@@ -194,16 +193,16 @@ After any modification, provide a structured summary. This makes review easier, 
 
 ```
 CHANGES MADE:
-- src/routes/tasks.ts: Added validation middleware to POST endpoint
-- src/lib/validation.ts: Added TaskCreateSchema using Zod
+- [path/to/entrypoint]: Added boundary validation for the new behavior
+- [path/to/shared-logic]: Added reusable validation or normalization logic
 
 THINGS I DIDN'T TOUCH (intentionally):
-- src/routes/auth.ts: Has similar validation gap but out of scope
-- src/middleware/error.ts: Error format could be improved (separate task)
+- [related area]: Similar issue exists but is out of scope
+- [adjacent area]: Improvement noted for follow-up work
 
 POTENTIAL CONCERNS:
-- The Zod schema is strict — rejects extra fields. Confirm this is desired.
-- Added zod as a dependency (72KB gzipped) — already in package.json
+- Validation may reject previously tolerated input. Confirm this is desired.
+- The change may affect compatibility expectations for existing callers.
 ```
 
 This pattern catches wrong assumptions early and gives reviewers a clear map of the change. The "DIDN'T TOUCH" section is especially important — it shows you exercised scope discipline and didn't go on an unsolicited renovation.
@@ -230,8 +229,8 @@ Automate this with the hook system your project already uses. In pi projects, ke
 ## Handling Generated Files
 
 - **Commit generated files** only if the project expects them (e.g., lockfiles, checked-in migrations, generated schemas)
-- **Don't commit** build output (`dist/`, `.next/`), environment files (`.env`), or IDE config (`.vscode/settings.json` unless shared)
-- **Have a `.gitignore`** that covers: `node_modules/`, `dist/`, `.env`, `.env.local`, `*.pem`
+- **Don't commit** generated output, environment files with secrets, or editor-specific config unless the project intentionally shares them
+- **Have a `.gitignore`** that covers the project's generated artifacts, secrets, credentials, caches, and other local-only files
 
 ## Using Git for Debugging
 
@@ -244,10 +243,10 @@ git bisect good <known-good-commit>
 
 # View what changed recently
 git log --oneline -20
-git diff HEAD~5..HEAD -- src/
+git diff HEAD~5..HEAD -- [relevant path]
 
-# Find who last changed a specific line
-git blame src/services/task.ts
+# Find who last changed a specific line or block
+git blame [relevant file]
 
 # Search commit messages for a keyword
 git log --grep="validation" --oneline
@@ -262,7 +261,7 @@ git log --grep="validation" --oneline
 | "I'll squash it all later" | Squashing destroys the development narrative. Prefer clean incremental commits from the start. |
 | "Branches add overhead" | Short-lived branches are free and prevent conflicting work from colliding. Long-lived branches are the problem — merge within 1-3 days. |
 | "I'll split this change later" | Large changes are harder to review, riskier to deploy, and harder to revert. Split before submitting, not after. |
-| "I don't need a .gitignore" | Until `.env` with production secrets gets committed. Set it up immediately. |
+| "I don't need a .gitignore" | Local-only artifacts and secrets eventually leak without one. Set it up early. |
 
 ## Red Flags
 
@@ -270,7 +269,7 @@ git log --grep="validation" --oneline
 - Commit messages like "fix", "update", "misc"
 - Formatting changes mixed with behavior changes
 - No `.gitignore` in the project
-- Committing `node_modules/`, `.env`, or build artifacts
+- Committing generated artifacts, secrets, or local-only files
 - Long-lived branches that diverge significantly from main
 - Force-pushing to shared branches
 
@@ -283,4 +282,4 @@ For every commit:
 - [ ] Tests pass before committing
 - [ ] No secrets in the diff
 - [ ] No formatting-only changes mixed with behavior changes
-- [ ] `.gitignore` covers standard exclusions
+- [ ] `.gitignore` covers the project's real local-only exclusions

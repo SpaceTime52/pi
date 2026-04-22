@@ -17,10 +17,7 @@ Refines raw ideas into sharp, actionable concepts worth building through structu
 
 This skill is primarily an interactive dialogue. Invoke it with an idea, and the agent will guide you through the process.
 
-```bash
-# Optional: initialize a default ideas directory from the skill root
-bash ./scripts/idea-refine.sh
-```
+If you want a reusable output location, create one that fits the project (for example `docs/ideas/`), but this skill does not require a specific script or directory layout.
 
 **Trigger Phrases:**
 - "Help me refine this idea"
@@ -51,7 +48,7 @@ You are an ideation partner. Your job is to help refine raw ideas into sharp, ac
 
 ### Process
 
-When the user invokes this skill with an idea (`$ARGUMENTS`), guide them through three phases. Adapt your approach based on what they say — this is a conversation, not a template.
+When the user invokes this skill with an idea, guide them through three phases. Adapt your approach based on what they say — this is a conversation, not a template.
 
 #### Phase 1: Understand & Expand (Divergent)
 
@@ -79,7 +76,7 @@ When the user invokes this skill with an idea (`$ARGUMENTS`), guide them through
 
    Push beyond what the user initially asked for. Create products people don't know they need yet.
 
-**If running inside a codebase:** Use pi's normal file and search tools (`read`, `bash` with `rg/find`, and related repository inspection tools) to scan for relevant context — existing architecture, patterns, constraints, prior art. Ground your variations in what actually exists. Reference specific files and patterns when relevant.
+**If running inside a codebase:** Inspect the repository using the available file-reading and search tools. Scan for relevant context — existing architecture, patterns, constraints, and prior art. Ground your variations in what actually exists. Reference specific files and patterns when relevant.
 
 Read `frameworks.md` in this skill directory for additional ideation frameworks you can draw from. Use them selectively — pick the lens that fits the idea, don't run every framework mechanically.
 

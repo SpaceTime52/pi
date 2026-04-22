@@ -5,7 +5,7 @@ description: Simplifies code for clarity. Use when refactoring code for clarity 
 
 # Code Simplification
 
-> Inspired by the [Claude Code Simplifier plugin](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md). Adapted here as a model-agnostic, process-driven skill for any AI coding agent.
+> A model-agnostic, process-driven simplification workflow for any AI coding agent.
 
 ## Overview
 
@@ -46,7 +46,7 @@ ASK BEFORE EVERY CHANGE:
 Simplification means making code more consistent with the codebase, not imposing external preferences. Before simplifying:
 
 ```
-1. Read the project's rules and conventions (README, docs, AGENTS.md/CLAUDE.md if present, or pi-specific project guidance)
+1. Read the project's rules and conventions (README, docs, guidance files, or other documented project standards)
 2. Study how neighboring code handles similar patterns
 3. Match the project's style for:
    - Import ordering and module system
@@ -115,7 +115,7 @@ BEFORE SIMPLIFYING, ANSWER:
 - What are the edge cases and error paths?
 - Are there tests that define the expected behavior?
 - Why might it have been written this way? (Performance? Platform constraint? Historical reason?)
-- Check git blame: what was the original context for this code?
+- Check version history: what was the original context for this code?
 ```
 
 If you can't answer these, you're not ready to simplify. Read more context first.
@@ -156,7 +156,7 @@ Scan for these patterns — each one is a concrete signal, not a vague smell:
 
 ### Step 3: Apply Changes Incrementally
 
-Make one simplification at a time. Run tests after each change. **Submit refactoring changes separately from feature or bug fix changes.** A PR that refactors and adds a feature is two PRs — split them.
+Make one simplification at a time. Run tests after each change. **Submit refactoring changes separately from feature or bug fix changes.** A change that refactors and adds a feature is really two changes — split them.
 
 ```
 FOR EACH SIMPLIFICATION:
@@ -168,7 +168,7 @@ FOR EACH SIMPLIFICATION:
 
 Avoid batching multiple simplifications into a single untested change. If something breaks, you need to know which simplification caused it.
 
-**The Rule of 500:** If a refactoring would touch more than 500 lines, invest in automation (codemods, sed scripts, AST transforms) rather than making the changes by hand. Manual edits at that scale are error-prone and exhausting to review.
+**The Rule of 500:** If a refactoring would touch more than 500 lines, invest in automation or mechanical transformation tools rather than making the changes by hand. Manual edits at that scale are error-prone and exhausting to review.
 
 ### Step 4: Verify the Result
 
@@ -179,119 +179,39 @@ COMPARE BEFORE AND AFTER:
 - Is the simplified version genuinely easier to understand?
 - Did you introduce any new patterns inconsistent with the codebase?
 - Is the diff clean and reviewable?
-- Would a teammate approve this change?
+- Would another reviewer approve this change?
 ```
 
 If the "simplified" version is harder to understand or review, revert. Not every simplification attempt succeeds.
 
-## Language-Specific Guidance
+## Generic Simplification Examples
 
-### TypeScript / JavaScript
+```text
+Before:
+- deeply nested branching
+- duplicated decision logic
+- generic names like data/result/temp
+- wrappers that add no value
+- comments explaining obvious code
 
-```typescript
-// SIMPLIFY: Unnecessary async wrapper
-// Before
-async function getUser(id: string): Promise<User> {
-  return await userService.findById(id);
-}
-// After
-function getUser(id: string): Promise<User> {
-  return userService.findById(id);
-}
-
-// SIMPLIFY: Verbose conditional assignment
-// Before
-let displayName: string;
-if (user.nickname) {
-  displayName = user.nickname;
-} else {
-  displayName = user.fullName;
-}
-// After
-const displayName = user.nickname || user.fullName;
-
-// SIMPLIFY: Manual array building
-// Before
-const activeUsers: User[] = [];
-for (const user of users) {
-  if (user.isActive) {
-    activeUsers.push(user);
-  }
-}
-// After
-const activeUsers = users.filter((user) => user.isActive);
-
-// SIMPLIFY: Redundant boolean return
-// Before
-function isValid(input: string): boolean {
-  if (input.length > 0 && input.length < 100) {
-    return true;
-  }
-  return false;
-}
-// After
-function isValid(input: string): boolean {
-  return input.length > 0 && input.length < 100;
-}
+After:
+- guard clauses or clearer control flow
+- one well-named helper for repeated logic
+- names that explain the concept
+- direct use of the real operation when wrappers are unnecessary
+- comments reserved for non-obvious intent and constraints
 ```
 
-### Python
+```text
+Before:
+- one unit doing unrelated responsibilities
+- optional flags controlling many code paths
+- hidden side effects mixed with pure calculations
 
-```python
-# SIMPLIFY: Verbose dictionary building
-# Before
-result = {}
-for item in items:
-    result[item.id] = item.name
-# After
-result = {item.id: item.name for item in items}
-
-# SIMPLIFY: Nested conditionals with early return
-# Before
-def process(data):
-    if data is not None:
-        if data.is_valid():
-            if data.has_permission():
-                return do_work(data)
-            else:
-                raise PermissionError("No permission")
-        else:
-            raise ValueError("Invalid data")
-    else:
-        raise TypeError("Data is None")
-# After
-def process(data):
-    if data is None:
-        raise TypeError("Data is None")
-    if not data.is_valid():
-        raise ValueError("Invalid data")
-    if not data.has_permission():
-        raise PermissionError("No permission")
-    return do_work(data)
-```
-
-### React / JSX
-
-```tsx
-// SIMPLIFY: Verbose conditional rendering
-// Before
-function UserBadge({ user }: Props) {
-  if (user.isAdmin) {
-    return <Badge variant="admin">Admin</Badge>;
-  } else {
-    return <Badge variant="default">User</Badge>;
-  }
-}
-// After
-function UserBadge({ user }: Props) {
-  const variant = user.isAdmin ? 'admin' : 'default';
-  const label = user.isAdmin ? 'Admin' : 'User';
-  return <Badge variant={variant}>{label}</Badge>;
-}
-
-// SIMPLIFY: Prop drilling through intermediate components
-// Before — consider whether context or composition solves this better.
-// This is a judgment call — flag it, don't auto-refactor.
+After:
+- smaller units with one responsibility
+- explicit entry points for distinct behaviors
+- side effects isolated at clearer boundaries
 ```
 
 ## Common Rationalizations
@@ -303,7 +223,7 @@ function UserBadge({ user }: Props) {
 | "I'll just quickly simplify this unrelated code too" | Unscoped simplification creates noisy diffs and risks regressions in code you didn't intend to change. Stay focused. |
 | "The types make it self-documenting" | Types document structure, not intent. A well-named function explains *why* better than a type signature explains *what*. |
 | "This abstraction might be useful later" | Don't preserve speculative abstractions. If it's not used now, it's complexity without value. Remove it and re-add when needed. |
-| "The original author must have had a reason" | Maybe. Check git blame — apply Chesterton's Fence. But accumulated complexity often has no reason; it's just the residue of iteration under pressure. |
+| "The original author must have had a reason" | Maybe. Check version history and apply Chesterton's Fence. But accumulated complexity often has no reason; it's just the residue of iteration under pressure. |
 | "I'll refactor while adding this feature" | Separate refactoring from feature work. Mixed changes are harder to review, revert, and understand in history. |
 
 ## Red Flags

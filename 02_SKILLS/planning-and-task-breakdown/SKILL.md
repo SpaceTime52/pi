@@ -30,48 +30,46 @@ Before writing any code, operate in read-only mode:
 - Map dependencies between components
 - Note risks and unknowns
 
-**Do NOT write code during planning.** The output is a plan document, not implementation.
+**Do NOT write code during planning.** The output is a plan or task list, not implementation. In pi, the resulting tasks can later be translated into tracked tasks or subagent work units.
 
 ### Step 2: Identify the Dependency Graph
 
 Map what depends on what:
 
 ```
-Database schema
+Foundational data or state model
     │
-    ├── API models/types
+    ├── shared contracts / interfaces
     │       │
-    │       ├── API endpoints
+    │       ├── integration or boundary logic
     │       │       │
-    │       │       └── Frontend API client
-    │       │               │
-    │       │               └── UI components
+    │       │       └── user-facing or operator-facing workflows
     │       │
-    │       └── Validation logic
+    │       └── validation / policy logic
     │
-    └── Seed data / migrations
+    └── setup, fixtures, migrations, or supporting assets
 ```
 
-Implementation order follows the dependency graph bottom-up: build foundations first.
+Implementation order follows the dependency graph from foundations outward: build foundations first, then dependent layers.
 
 ### Step 3: Slice Vertically
 
-Instead of building all the database, then all the API, then all the UI — build one complete feature path at a time:
+Instead of building all low-level layers first and only integrating at the end, build one complete feature path at a time:
 
 **Bad (horizontal slicing):**
 ```
-Task 1: Build entire database schema
-Task 2: Build all API endpoints
-Task 3: Build all UI components
-Task 4: Connect everything
+Task 1: Build all model changes
+Task 2: Build all integration layers
+Task 3: Build all user-facing surfaces
+Task 4: Connect everything at the end
 ```
 
 **Good (vertical slicing):**
 ```
-Task 1: User can create an account (schema + API + UI for registration)
-Task 2: User can log in (auth schema + API + UI for login)
-Task 3: User can create a task (task schema + API + UI for creation)
-Task 4: User can view task list (query + API + UI for list view)
+Task 1: Complete the smallest end-to-end workflow slice
+Task 2: Add the next independently testable workflow slice
+Task 3: Add another user-visible or operator-visible capability
+Task 4: Expand breadth only after each slice works end to end
 ```
 
 Each vertical slice delivers working, testable functionality.
@@ -97,8 +95,8 @@ Each task follows this structure:
 **Dependencies:** [Task numbers this depends on, or "None"]
 
 **Files likely touched:**
-- `src/path/to/file.ts`
-- `tests/path/to/test.ts`
+- `[implementation path]`
+- `[test path]`
 
 **Estimated scope:** [Small: 1-2 files | Medium: 3-5 files | Large: 5+ files]
 ```
@@ -127,7 +125,7 @@ Add explicit checkpoints:
 | Size | Files | Scope | Example |
 |------|-------|-------|---------|
 | **XS** | 1 | Single function or config change | Add a validation rule |
-| **S** | 1-2 | One component or endpoint | Add a new API endpoint |
+| **S** | 1-2 | One focused unit of behavior | Add a new boundary handler or workflow step |
 | **M** | 3-5 | One feature slice | User registration flow |
 | **L** | 5-8 | Multi-component feature | Search with filtering and pagination |
 | **XL** | 8+ | **Too large — break it down further** | — |
@@ -190,8 +188,8 @@ If a task is L or larger, it should be broken into smaller tasks. An agent perfo
 When multiple agents or sessions are available:
 
 - **Safe to parallelize:** Independent feature slices, tests for already-implemented features, documentation
-- **Must be sequential:** Database migrations, shared state changes, dependency chains
-- **Needs coordination:** Features that share an API contract (define the contract first, then parallelize)
+- **Must be sequential:** Shared state changes, foundational contract changes, strict dependency chains
+- **Needs coordination:** Features that share a boundary contract (define the contract first, then parallelize)
 
 ## Common Rationalizations
 

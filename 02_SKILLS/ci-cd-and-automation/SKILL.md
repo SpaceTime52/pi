@@ -57,66 +57,42 @@ Pull Request Opened
 
 Use your CI provider's syntax, but keep the stages explicit and technology-agnostic:
 
-```yaml
-name: CI
-
-on:
-  pull_request:
-  push:
-
-jobs:
-  quality:
-    runs-on: <runner>
-    steps:
-      - checkout source
-      - setup runtime/tooling for the project
-      - run: [project install command]
-      - run: [project lint/format command]
-      - run: [project static-analysis/typecheck command]
-      - run: [project test command]
-      - run: [project build/package command]
-      - run: [project dependency audit command]
+```text
+CI workflow:
+- trigger on changes to the main integration branch and change-review events
+- checkout source
+- setup runtime/tooling for the project
+- run [project install command]
+- run [project lint/format command]
+- run [project static-analysis/typecheck command]
+- run [project test command]
+- run [project build/package command]
+- run [project dependency audit command]
 ```
 
 ### With Service or Datastore Integration Tests
 
-```yaml
-  integration:
-    runs-on: <runner>
-    services:
-      datastore:
-        image: <service image>
-        env:
-          <service env>: <value>
-
-    steps:
-      - checkout source
-      - setup runtime/tooling for the project
-      - run: [project install command]
-      - run: [project service setup or migration command]
-        env:
-          DATABASE_URL: postgresql://ci_user:${{ secrets.CI_DB_PASSWORD }}@localhost:5432/testdb
-      - name: Integration tests
-        run: npm run test:integration
-        env:
-          DATABASE_URL: postgresql://ci_user:${{ secrets.CI_DB_PASSWORD }}@localhost:5432/testdb
+```text
+Integration job:
+- provision the required service or datastore
+- inject provider-managed test credentials
+- run [project service setup or migration command]
+- run [project integration test command]
 ```
 
-> **Note:** Even for CI-only test databases, use GitHub Secrets for credentials rather than hardcoding values. This builds good habits and prevents accidental reuse of test credentials in other contexts.
+> **Note:** Even for CI-only environments, use the CI provider's secret-management system rather than hardcoding credentials. This builds good habits and prevents accidental credential reuse.
 
 ### End-to-End or System Tests
 
-```yaml
-  e2e:
-    runs-on: <runner>
-    steps:
-      - checkout source
-      - setup runtime/tooling
-      - run: [project install command]
-      - run: [project browser/system test setup command]
-      - run: [project build/package command]
-      - run: [project end-to-end test command]
-      - upload failure artifacts (screenshots, traces, logs) if supported by the provider
+```text
+System-test job:
+- checkout source
+- setup runtime/tooling
+- run [project install command]
+- run [project browser/system test setup command]
+- run [project build/package command]
+- run [project end-to-end test command]
+- upload failure artifacts (screenshots, traces, logs) if the provider supports it
 ```
 
 ## Feeding CI Failures Back to Agents
@@ -152,17 +128,13 @@ Build error → Agent checks config and dependencies
 
 ### Preview Deployments
 
-Every PR gets a preview deployment for manual testing:
+When the platform supports it, create preview environments for human verification before production release:
 
-```yaml
-# Deploy preview on PR (Vercel/Netlify/etc.)
-deploy-preview:
-  runs-on: ubuntu-latest
-  if: github.event_name == 'pull_request'
-  steps:
-    - uses: actions/checkout@v4
-    - name: Deploy preview
-      run: npx vercel --token=${{ secrets.VERCEL_TOKEN }}
+```text
+Preview deployment job:
+- checkout source
+- setup runtime/tooling
+- run [project preview deployment command]
 ```
 
 ### Feature Flags
@@ -174,12 +146,12 @@ Feature flags decouple deployment from release. Deploy incomplete or risky featu
 - **Canary new features.** Enable for 1% of users, then 10%, then 100%.
 - **Run A/B tests.** Compare behavior with and without the feature.
 
-```typescript
-// Simple feature flag pattern
-if (featureFlags.isEnabled('new-checkout-flow', { userId })) {
-  return renderNewCheckout();
-}
-return renderLegacyCheckout();
+```text
+Simple feature flag pattern:
+if feature_flag("new-checkout-flow", context):
+  use new behavior
+else:
+  use existing behavior
 ```
 
 **Flag lifecycle:** Create → Enable for testing → Canary → Full rollout → Remove the flag and dead code. Flags that live forever become technical debt — set a cleanup date when you create them.
@@ -187,7 +159,7 @@ return renderLegacyCheckout();
 ### Staged Rollouts
 
 ```
-PR merged to main
+Change merged to the default integration branch
     │
     ▼
   Staging deployment (auto)
@@ -206,52 +178,29 @@ PR merged to main
 
 Every deployment should be reversible:
 
-```yaml
-# Manual rollback workflow
-name: Rollback
-on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to rollback to'
-        required: true
-
-jobs:
-  rollback:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Rollback deployment
-        run: |
-          # Deploy the specified previous version
-          npx vercel rollback ${{ inputs.version }}
+```text
+Rollback workflow:
+- manual trigger provides a target release identifier
+- run [project rollback command using target-version]
+- verify recovery before resuming rollout
 ```
 
 ## Environment Management
 
 ```
-.env.example       → Committed (template for developers)
-.env                → NOT committed (local development)
-.env.test           → Committed (test environment, no real secrets)
-CI secrets          → Stored in GitHub Secrets / vault
-Production secrets  → Stored in deployment platform / vault
+example config      → Committed template for developers
+local secret config → NOT committed
+CI secrets          → Stored in the CI provider's secret manager / vault
+Production secrets  → Stored in the deployment platform or secret manager
 ```
 
 CI should never have production secrets. Use separate secrets for CI testing.
 
 ## Automation Beyond CI
 
-### Dependabot / Renovate
+### Automated Dependency Updates
 
-```yaml
-# .github/dependabot.yml
-version: 2
-updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-```
+Use the project's dependency-update tooling or platform automation to keep dependencies current on a predictable schedule.
 
 ### Build Cop Role
 
@@ -259,10 +208,10 @@ Designate someone responsible for keeping CI green. When the build breaks, the B
 
 ### PR Checks
 
-- **Required reviews:** At least 1 approval before merge
+- **Required reviews:** Use the project's chosen approval policy
 - **Required status checks:** CI must pass before merge
-- **Branch protection:** No force-pushes to main
-- **Auto-merge:** If all checks pass and approved, merge automatically
+- **Branch protection:** Protect the default integration branch from unsafe updates
+- **Auto-merge:** If all checks pass and approval policy is satisfied, merge automatically
 
 ## CI Optimization
 
@@ -271,7 +220,7 @@ When the pipeline exceeds 10 minutes, apply these strategies in order of impact:
 ```
 Slow CI pipeline?
 ├── Cache dependencies
-│   └── Use actions/cache or setup-node cache option for node_modules
+│   └── Use the CI provider's caching mechanism for dependency downloads or build artifacts
 ├── Run jobs in parallel
 │   └── Split lint, typecheck, test, build into separate parallel jobs
 ├── Only run what changed
@@ -281,35 +230,16 @@ Slow CI pipeline?
 ├── Optimize the test suite
 │   └── Remove slow tests from the critical path, run them on a schedule instead
 └── Use larger runners
-    └── GitHub-hosted larger runners or self-hosted for CPU-heavy builds
+    └── Choose larger hosted runners or self-hosted capacity for CPU-heavy builds
 ```
 
 **Example: caching and parallelism**
-```yaml
-jobs:
-  style:
-    runs-on: <runner>
-    steps:
-      - checkout source
-      - setup runtime/tooling
-      - run: [project install command]
-      - run: [project lint/format command]
-
-  analysis:
-    runs-on: <runner>
-    steps:
-      - checkout source
-      - setup runtime/tooling
-      - run: [project install command]
-      - run: [project static-analysis/typecheck command]
-
-  test:
-    runs-on: <runner>
-    steps:
-      - checkout source
-      - setup runtime/tooling
-      - run: [project install command]
-      - run: [project test command]
+```text
+Parallel jobs:
+- style job runs lint/format checks
+- analysis job runs static analysis or type checks
+- test job runs automated tests
+- shared dependency or artifact caches reduce repeated setup work
 ```
 
 ## Common Rationalizations
@@ -337,7 +267,7 @@ jobs:
 After setting up or modifying CI:
 
 - [ ] All quality gates are present (lint, types, tests, build, audit)
-- [ ] Pipeline runs on every PR and push to main
+- [ ] Pipeline runs on every change-review event and every push to the default integration branch
 - [ ] Failures block merge (branch protection configured)
 - [ ] CI results feed back into the development loop
 - [ ] Secrets are stored in the secrets manager, not in code

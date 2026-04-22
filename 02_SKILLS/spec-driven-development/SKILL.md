@@ -27,8 +27,9 @@ Spec-driven development has four phases. Do not advance to the next phase until 
 SPECIFY ──→ PLAN ──→ TASKS ──→ IMPLEMENT
    │          │        │          │
    ▼          ▼        ▼          ▼
- Human      Human    Human      Human
- reviews    reviews  reviews    reviews
+ owner/     owner/   owner/     owner/
+ reviewer   reviewer reviewer   reviewer
+ validates  validates validates  validates when needed
 ```
 
 ### Phase 1: Specify
@@ -75,9 +76,9 @@ Don't silently fill in ambiguous requirements. The spec's entire purpose is to s
 5. **Testing Strategy** — What framework, where tests live, coverage expectations, which test levels for which concerns.
 
 6. **Boundaries** — Three-tier system:
-   - **Always do:** Run tests before commits, follow naming conventions, validate inputs
-   - **Ask first:** Database schema changes, adding dependencies, changing CI config
-   - **Never do:** Commit secrets, edit vendor directories, remove failing tests without approval
+   - **Always do:** Run the relevant verification steps, follow naming conventions, validate inputs
+   - **Ask first:** Foundational data/model changes, adding dependencies, changing delivery/release automation
+   - **Never do:** Commit secrets, edit managed third-party code, remove failing tests without approval
 
 **Spec template:**
 
@@ -87,8 +88,8 @@ Don't silently fill in ambiguous requirements. The spec's entire purpose is to s
 ## Objective
 [What we're building and why. User stories or acceptance criteria.]
 
-## Tech Stack
-[Framework, language, key dependencies with versions]
+## Technology / Operating Context
+[Runtime, languages, tools, platforms, or other important environment details]
 
 ## Commands
 [Build, test, lint, dev — full commands]
@@ -117,12 +118,12 @@ Don't silently fill in ambiguous requirements. The spec's entire purpose is to s
 **Reframe instructions as success criteria.** When receiving vague requirements, translate them into concrete conditions:
 
 ```
-REQUIREMENT: "Make the dashboard faster"
+REQUIREMENT: "Make the system faster"
 
 REFRAMED SUCCESS CRITERIA:
-- Dashboard LCP < 2.5s on 4G connection
-- Initial data load completes in < 500ms
-- No layout shift during load (CLS < 0.1)
+- The slow path is identified with a measurable baseline
+- The agreed performance metric improves by a specific amount
+- No correctness or stability regressions are introduced
 → Are these the right targets?
 ```
 
@@ -137,6 +138,7 @@ With the validated spec, generate a technical implementation plan:
 3. Note risks and mitigation strategies
 4. Identify what can be built in parallel vs. what must be sequential
 5. Define verification checkpoints between phases
+6. In pi, decide whether the resulting tasks should become tracked tasks, subagent work units, or both
 
 The plan should be reviewable: the human should be able to read it and say "yes, that's the right approach" or "no, change X."
 
@@ -166,10 +168,10 @@ Execute tasks one at a time following `incremental-implementation` and `test-dri
 
 The spec is a living document, not a one-time artifact:
 
-- **Update when decisions change** — If you discover the data model needs to change, update the spec first, then implement.
+- **Update when decisions change** — If you discover a foundational assumption needs to change, update the spec first, then implement.
 - **Update when scope changes** — Features added or cut should be reflected in the spec.
-- **Commit the spec** — The spec belongs in version control alongside the code.
-- **Reference the spec in PRs** — Link back to the spec section that each PR implements.
+- **Commit the spec** — The spec belongs in version control alongside the work.
+- **Reference the spec in change review** — Link back to the spec section that each implementation slice covers.
 
 ## Common Rationalizations
 

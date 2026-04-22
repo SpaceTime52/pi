@@ -38,49 +38,29 @@ Avoid forcing consumers to choose between multiple versions of the same dependen
 
 Define the interface before implementing it. The contract is the spec — implementation follows.
 
-```typescript
-// Define the contract first
-interface TaskAPI {
-  // Creates a task and returns the created task with server-generated fields
-  createTask(input: CreateTaskInput): Promise<Task>;
-
-  // Returns paginated tasks matching filters
-  listTasks(params: ListTasksParams): Promise<PaginatedResult<Task>>;
-
-  // Returns a single task or throws NotFoundError
-  getTask(id: string): Promise<Task>;
-
-  // Partial update — only provided fields change
-  updateTask(id: string, input: UpdateTaskInput): Promise<Task>;
-
-  // Idempotent delete — succeeds even if already deleted
-  deleteTask(id: string): Promise<void>;
-}
+```text
+Contract first:
+- create(input) -> created resource with system-generated fields
+- list(filters, pagination) -> paginated collection result
+- get(id) -> single resource or not-found result
+- update(id, partial-input) -> updated resource
+- delete(id) -> idempotent success or explicit failure contract
 ```
 
 ### 2. Consistent Error Semantics
 
 Pick one error strategy and use it everywhere:
 
-```typescript
-// REST: HTTP status codes + structured error body
-// Every error response follows the same shape
-interface APIError {
-  error: {
-    code: string;        // Machine-readable: "VALIDATION_ERROR"
-    message: string;     // Human-readable: "Email is required"
-    details?: unknown;   // Additional context when helpful
-  };
-}
+```text
+Choose one error contract and apply it consistently:
+error:
+  code: machine-readable identifier
+  message: human-readable explanation
+  details: optional structured context
 
-// Status code mapping
-// 400 → Client sent invalid data
-// 401 → Not authenticated
-// 403 → Authenticated but not authorized
-// 404 → Resource not found
-// 409 → Conflict (duplicate, version mismatch)
-// 422 → Validation failed (semantically invalid)
-// 500 → Server error (never expose internal details)
+Map transport- or protocol-specific failure modes consistently
+(e.g. invalid input, unauthenticated, unauthorized, not found,
+conflict, semantic validation failure, internal error).
 ```
 
 **Don't mix patterns.** If some endpoints throw, others return null, and others return `{ error }` — the consumer can't predict behavior.
@@ -89,24 +69,12 @@ interface APIError {
 
 Trust internal code. Validate at system edges where external input enters:
 
-```typescript
-// Validate at the API boundary
-app.post('/api/tasks', async (req, res) => {
-  const result = CreateTaskSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(422).json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid task data',
-        details: result.error.flatten(),
-      },
-    });
-  }
-
-  // After validation, internal code trusts the types
-  const task = await taskService.create(result.data);
-  return res.status(201).json(task);
-});
+```text
+Validate at the boundary:
+1. Parse incoming data at the edge of the system
+2. Reject malformed or out-of-policy input with the standard error contract
+3. Pass only validated data into internal logic
+4. Return a success response in the system's standard shape
 ```
 
 Where validation belongs:
@@ -126,21 +94,16 @@ Where validation does NOT belong:
 
 Extend interfaces without breaking existing consumers:
 
-```typescript
-// Good: Add optional fields
-interface CreateTaskInput {
-  title: string;
-  description?: string;
-  priority?: 'low' | 'medium' | 'high';  // Added later, optional
-  labels?: string[];                       // Added later, optional
-}
+```text
+Good evolution:
+- add optional fields
+- add additive metadata
+- introduce new capabilities behind backward-compatible defaults
 
-// Bad: Change existing field types or remove fields
-interface CreateTaskInput {
-  title: string;
-  // description: string;  // Removed — breaks existing consumers
-  priority: number;         // Changed from string — breaks existing consumers
-}
+Bad evolution:
+- remove existing fields
+- change field meaning or type incompatibly
+- overload one field with a new incompatible purpose
 ```
 
 ### 5. Predictable Naming
@@ -154,6 +117,8 @@ interface CreateTaskInput {
 | Enum values | UPPER_SNAKE | `"IN_PROGRESS"`, `"COMPLETED"` |
 
 ## REST API Patterns
+
+If your interface is REST-like, apply the same principles with transport-specific conventions.
 
 ### Resource Design
 
@@ -170,22 +135,14 @@ POST   /api/tasks/:id/comments → Add a comment to a task
 
 ### Pagination
 
-Paginate list endpoints:
+Paginate collection-style interfaces:
 
-```typescript
-// Request
-GET /api/tasks?page=1&pageSize=20&sortBy=createdAt&sortOrder=desc
-
-// Response
-{
-  "data": [...],
-  "pagination": {
-    "page": 1,
-    "pageSize": 20,
-    "totalItems": 142,
-    "totalPages": 8
-  }
-}
+```text
+Request supplies page or cursor information plus sort/filter options.
+Response returns:
+- data/items
+- pagination or cursor metadata
+- enough information for the next page request
 ```
 
 ### Filtering
@@ -196,80 +153,57 @@ Use query parameters for filters:
 GET /api/tasks?status=in_progress&assignee=user123&createdAfter=2025-01-01
 ```
 
-### Partial Updates (PATCH)
+### Partial Updates
 
-Accept partial objects — only update what's provided:
+Accept partial updates only when the contract makes it clear which fields may change and which fields remain untouched:
 
-```typescript
-// Only title changes, everything else preserved
-PATCH /api/tasks/123
-{ "title": "Updated title" }
+```text
+Partial update request:
+- identifies the resource
+- provides only the fields to change
+- preserves everything not explicitly changed
 ```
 
-## TypeScript Interface Patterns
+## Interface Pattern Examples
 
-### Use Discriminated Unions for Variants
+### Use Explicit Variants
 
-```typescript
-// Good: Each variant is explicit
-type TaskStatus =
-  | { type: 'pending' }
-  | { type: 'in_progress'; assignee: string; startedAt: Date }
-  | { type: 'completed'; completedAt: Date; completedBy: string }
-  | { type: 'cancelled'; reason: string; cancelledAt: Date };
-
-// Consumer gets type narrowing
-function getStatusLabel(status: TaskStatus): string {
-  switch (status.type) {
-    case 'pending': return 'Pending';
-    case 'in_progress': return `In progress (${status.assignee})`;
-    case 'completed': return `Done on ${status.completedAt}`;
-    case 'cancelled': return `Cancelled: ${status.reason}`;
-  }
-}
+```text
+Represent variants explicitly so consumers can tell which fields exist in which state.
+Avoid "bag of optional fields" designs where every field may or may not be present.
 ```
 
-### Input/Output Separation
+### Separate Input From Output
 
-```typescript
-// Input: what the caller provides
-interface CreateTaskInput {
-  title: string;
-  description?: string;
-}
+```text
+Input contract:
+- only fields the caller may supply
 
-// Output: what the system returns (includes server-generated fields)
-interface Task {
-  id: string;
-  title: string;
-  description: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-}
+Output contract:
+- validated caller fields
+- system-generated identifiers
+- timestamps, ownership, version, or derived state
 ```
 
-### Use Branded Types for IDs
+### Distinguish Identifier Kinds
 
-```typescript
-type TaskId = string & { readonly __brand: 'TaskId' };
-type UserId = string & { readonly __brand: 'UserId' };
-
-// Prevents accidentally passing a UserId where a TaskId is expected
-function getTask(id: TaskId): Promise<Task> { ... }
+```text
+Keep identifiers for different domains or resources distinct.
+A caller should not be able to confuse a user identifier with a task identifier,
+a record key with a public slug, or a local handle with a remote reference.
 ```
 
 ## Common Rationalizations
 
 | Rationalization | Reality |
 |---|---|
-| "We'll document the API later" | The types ARE the documentation. Define them first. |
-| "We don't need pagination for now" | You will the moment someone has 100+ items. Add it from the start. |
-| "PATCH is complicated, let's just use PUT" | PUT requires the full object every time. PATCH is what clients actually want. |
-| "We'll version the API when we need to" | Breaking changes without versioning break consumers. Design for extension from the start. |
-| "Nobody uses that undocumented behavior" | Hyrum's Law: if it's observable, somebody depends on it. Treat every public behavior as a commitment. |
-| "We can just maintain two versions" | Multiple versions multiply maintenance cost and create diamond dependency problems. Prefer the One-Version Rule. |
-| "Internal APIs don't need contracts" | Internal consumers are still consumers. Contracts prevent coupling and enable parallel work. |
+| "We'll document the interface later" | The contract is part of the design. Define it first. |
+| "We don't need pagination or bounded traversal for now" | You will once collections grow. Design bounded access early. |
+| "We'll choose the update semantics later" | Ambiguous mutation semantics confuse consumers. Be explicit about full vs partial updates. |
+| "We'll version the interface when we need to" | Breaking changes without a compatibility plan break consumers. Design for extension from the start. |
+| "Nobody uses that undocumented behavior" | Hyrum's Law: if it's observable, somebody depends on it. Treat public behavior as a commitment. |
+| "We can just maintain two versions" | Multiple versions multiply maintenance cost and create compatibility problems. Prefer the One-Version Rule. |
+| "Internal interfaces don't need contracts" | Internal consumers are still consumers. Contracts prevent coupling and enable parallel work. |
 
 ## Red Flags
 

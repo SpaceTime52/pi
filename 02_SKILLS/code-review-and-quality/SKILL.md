@@ -7,13 +7,13 @@ description: Conducts multi-axis code review. Use before merging any change. Use
 
 ## Overview
 
-Multi-dimensional code review with quality gates. Every change gets reviewed before merge — no exceptions. Review covers five axes: correctness, readability, architecture, security, and performance.
+Multi-dimensional code review with quality gates. Every change gets reviewed before integration — no exceptions. Review covers five axes: correctness, readability, architecture, security, and performance.
 
 **The approval standard:** Approve a change when it definitely improves overall code health, even if it isn't perfect. Perfect code doesn't exist — the goal is continuous improvement. Don't block a change because it isn't exactly how you would have written it. If it improves the codebase and follows the project's conventions, approve it.
 
 ## When to Use
 
-- Before merging any PR or change
+- Before integrating any reviewed change
 - After completing a feature implementation
 - When another agent or model produced code you need to evaluate
 - When refactoring existing code
@@ -201,7 +201,7 @@ This catches issues that a single model might miss — different models have dif
 ```
 Review this code change for correctness, security, and adherence to
 our project conventions. The spec says [X]. The change should [Y].
-Flag any issues as Critical, Important, or Suggestion.
+Label findings using this skill's severity scheme: Critical, required (no prefix), Nit, Optional/Consider, or FYI.
 ```
 
 ## Dead Code Hygiene
@@ -226,8 +226,8 @@ DEAD CODE IDENTIFIED:
 
 Slow reviews block entire teams. The cost of context-switching to review is less than the waiting cost imposed on others.
 
-- **Respond within one business day** — this is the maximum, not the target
-- **Ideal cadence:** Respond shortly after a review request arrives, unless deep in focused coding. A typical change should complete multiple review rounds in a single day
+- **Respond promptly** — avoid leaving review work idle without a reason
+- **Ideal cadence:** Respond shortly after a review request arrives, unless deep in focused coding. A typical change should complete multiple review rounds quickly
 - **Prioritize fast individual responses** over quick final approval. Quick feedback reduces frustration even if multiple rounds are needed
 - **Large changes:** Ask the author to split them rather than reviewing one massive changeset
 
@@ -260,7 +260,7 @@ Part of code review is dependency review:
 1. Does the existing stack solve this? (Often it does.)
 2. How large is the dependency? (Check bundle impact.)
 3. Is it actively maintained? (Check last commit, open issues.)
-4. Does it have known vulnerabilities? (`[project dependency audit command]`)
+4. Does it have known vulnerabilities according to the project's dependency/security review process, and is there a documented remediation path if not?
 5. What's the license? (Must be compatible with the project.)
 
 **Rule:** Prefer standard library and existing utilities over new dependencies. Every dependency is a liability.
@@ -341,7 +341,7 @@ Part of code review is dependency review:
 After review is complete:
 
 - [ ] All Critical issues are resolved
-- [ ] All Important issues are resolved or explicitly deferred with justification
+- [ ] All required issues are resolved or explicitly deferred with justification
 - [ ] Tests pass
 - [ ] Build succeeds
 - [ ] The verification story is documented (what changed, how it was verified)

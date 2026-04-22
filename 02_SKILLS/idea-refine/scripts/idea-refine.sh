@@ -1,15 +1,16 @@
 #!/bin/bash
 set -e
 
-# This script helps initialize the ideas directory for the idea-refine skill.
+# Optional helper: create a directory for idea documents.
+# Usage: ./scripts/idea-refine.sh [target-directory]
 
-IDEAS_DIR="docs/ideas"
+TARGET_DIR="${1:-ideas}"
 
-if [ ! -d "$IDEAS_DIR" ]; then
-  mkdir -p "$IDEAS_DIR"
-  echo "Created directory: $IDEAS_DIR" >&2
+if [ ! -d "$TARGET_DIR" ]; then
+  mkdir -p "$TARGET_DIR"
+  echo "Created directory: $TARGET_DIR" >&2
 else
-  echo "Directory already exists: $IDEAS_DIR" >&2
+  echo "Directory already exists: $TARGET_DIR" >&2
 fi
 
-echo "{\"status\": \"ready\", \"directory\": \"$IDEAS_DIR\"}"
+echo "{\"status\": \"ready\", \"directory\": \"$TARGET_DIR\"}"

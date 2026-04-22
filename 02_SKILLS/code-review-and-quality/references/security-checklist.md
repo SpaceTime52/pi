@@ -1,131 +1,76 @@
-# Security Checklist
+# Security Review Checklist
 
-Quick reference for web application security. Use alongside the `security-and-hardening` skill.
+Use this checklist when reviewing changes that affect trust boundaries, data handling, authentication, authorization, configuration, dependencies, or external integrations.
 
-## Table of Contents
+## 1. Trust Boundaries
 
-- [Pre-Commit Checks](#pre-commit-checks)
-- [Authentication](#authentication)
-- [Authorization](#authorization)
-- [Input Validation](#input-validation)
-- [Security Headers](#security-headers)
-- [CORS Configuration](#cors-configuration)
-- [Data Protection](#data-protection)
-- [Dependency Security](#dependency-security)
-- [Error Handling](#error-handling)
-- [OWASP Top 10 Quick Reference](#owasp-top-10-quick-reference)
+- [ ] Every external input is treated as untrusted data
+- [ ] Validation happens at the boundary where data enters the system
+- [ ] Parsing, decoding, or deserializing untrusted input is constrained and checked
+- [ ] Output is encoded or safely rendered for the destination context
 
-## Pre-Commit Checks
+## 2. Access Control
 
-- [ ] No secrets in code (`git diff --cached | grep -i "password\|secret\|api_key\|token"`)
-- [ ] `.gitignore` covers: `.env`, `.env.local`, `*.pem`, `*.key`
-- [ ] `.env.example` uses placeholder values (not real secrets)
+- [ ] Authentication is enforced where required
+- [ ] Authorization is checked for every protected action or resource
+- [ ] Sensitive actions require explicit role, ownership, or policy checks
+- [ ] Failure paths deny access safely by default
 
-## Authentication
+## 3. Secrets and Sensitive Data
 
-- [ ] Passwords hashed with bcrypt (≥12 rounds), scrypt, or argon2
-- [ ] Session cookies: `httpOnly`, `secure`, `sameSite: 'lax'`
-- [ ] Session expiration configured (reasonable max-age)
-- [ ] Rate limiting on login endpoint (≤10 attempts per 15 minutes)
-- [ ] Password reset tokens: time-limited (≤1 hour), single-use
-- [ ] Account lockout after repeated failures (optional, with notification)
-- [ ] MFA supported for sensitive operations (optional but recommended)
+- [ ] No secrets are committed to source control
+- [ ] Secrets are loaded from the project's approved secret-management path
+- [ ] Sensitive values are not logged, echoed, or exposed in error messages
+- [ ] API responses, exports, and telemetry exclude fields that should remain private
 
-## Authorization
+## 4. Dependency and Supply-Chain Safety
 
-- [ ] Every protected endpoint checks authentication
-- [ ] Every resource access checks ownership/role (prevents IDOR)
-- [ ] Admin endpoints require admin role verification
-- [ ] API keys scoped to minimum necessary permissions
-- [ ] JWT tokens validated (signature, expiration, issuer)
+- [ ] The project's dependency/security audit step has been run
+- [ ] New dependencies are justified and reviewed for maintenance, license, and risk
+- [ ] High/critical findings are fixed or explicitly documented with a review date
+- [ ] Build-time or development-only tooling is not silently promoted into runtime risk
 
-## Input Validation
+## 5. Data and State Safety
 
-- [ ] All user input validated at system boundaries (API routes, form handlers)
-- [ ] Validation uses allowlists (not denylists)
-- [ ] String lengths constrained (min/max)
-- [ ] Numeric ranges validated
-- [ ] Email, URL, and date formats validated with proper libraries
-- [ ] File uploads: type restricted, size limited, content verified
-- [ ] SQL queries parameterized (no string concatenation)
-- [ ] HTML output encoded (use framework auto-escaping)
-- [ ] URLs validated before redirect (prevent open redirect)
+- [ ] Data writes are bounded, validated, and reject malformed or out-of-policy input
+- [ ] Destructive operations have guardrails, confirmation, or rollback considerations where needed
+- [ ] File uploads, imports, or attachments are checked for type, size, and safety requirements
+- [ ] Caches, queues, and background jobs do not bypass authorization or retention rules
 
-## Security Headers
+## 6. External Integrations
 
+- [ ] Requests to third-party systems use the minimum required permissions and scopes
+- [ ] Retry, timeout, and failure handling are explicit
+- [ ] Returned data is validated before it affects logic or rendering
+- [ ] Webhooks, callbacks, or inbound messages are authenticated or signed where supported
+
+## 7. Operational Hardening
+
+- [ ] Security-relevant configuration is explicit and documented
+- [ ] Error responses avoid leaking internals
+- [ ] Logging and monitoring make abuse, failure, and access issues observable
+- [ ] Rate limits, quotas, throttles, or abuse controls exist where appropriate
+
+## 8. Review Questions
+
+Ask these during review:
+- [ ] What is the trust boundary here?
+- [ ] What can an attacker or malformed client control?
+- [ ] What should happen if validation fails?
+- [ ] What should happen if authorization fails?
+- [ ] What would the blast radius be if this path were abused?
+
+## 9. Secret-Scanning / Diff Hygiene
+
+Use the project's approved scanning or review workflow. If the project relies on manual checks, verify that staged changes do not contain credentials, keys, or tokens.
+
+## 10. Review Summary Template
+
+```markdown
+## Security Review Summary
+- Boundary: [where untrusted input or privileged action enters]
+- Main risks: [key security concerns]
+- Controls present: [validation, authz, secret handling, audit, limits]
+- Gaps: [what still needs work]
+- Decision: [approve / block / approve with follow-up]
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self'
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-X-XSS-Protection: 0  (disabled, rely on CSP)
-Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(), microphone=(), geolocation=()
-```
-
-## CORS Configuration
-
-```typescript
-// Restrictive (recommended)
-cors({
-  origin: ['https://yourdomain.com', 'https://app.yourdomain.com'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-})
-
-// NEVER use in production:
-cors({ origin: '*' })  // Allows any origin
-```
-
-## Data Protection
-
-- [ ] Sensitive fields excluded from API responses (`passwordHash`, `resetToken`, etc.)
-- [ ] Sensitive data not logged (passwords, tokens, full CC numbers)
-- [ ] PII encrypted at rest (if required by regulation)
-- [ ] HTTPS for all external communication
-- [ ] Database backups encrypted
-
-## Dependency Security
-
-```bash
-# Audit dependencies using the project's package/dependency tooling
-[project dependency audit command]
-
-# Apply fixes or upgrades through the project's normal update workflow
-[project dependency update/remediation command]
-
-# Re-run the audit with the project's strictest policy or severity threshold
-[project dependency audit command with policy/severity threshold]
-```
-
-## Error Handling
-
-```typescript
-// Production: generic error, no internals
-res.status(500).json({
-  error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' }
-});
-
-// NEVER in production:
-res.status(500).json({
-  error: err.message,
-  stack: err.stack,         // Exposes internals
-  query: err.sql,           // Exposes database details
-});
-```
-
-## OWASP Top 10 Quick Reference
-
-| # | Vulnerability | Prevention |
-|---|---|---|
-| 1 | Broken Access Control | Auth checks on every endpoint, ownership verification |
-| 2 | Cryptographic Failures | HTTPS, strong hashing, no secrets in code |
-| 3 | Injection | Parameterized queries, input validation |
-| 4 | Insecure Design | Threat modeling, spec-driven development |
-| 5 | Security Misconfiguration | Security headers, minimal permissions, audit deps |
-| 6 | Vulnerable Components | `[project dependency audit command]`, keep deps updated, minimal deps |
-| 7 | Auth Failures | Strong passwords, rate limiting, session management |
-| 8 | Data Integrity Failures | Verify updates/dependencies, signed artifacts |
-| 9 | Logging Failures | Log security events, don't log secrets |
-| 10 | SSRF | Validate/allowlist URLs, restrict outbound requests |

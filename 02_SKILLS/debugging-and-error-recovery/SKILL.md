@@ -56,10 +56,10 @@ Can you reproduce the failure?
 Cannot reproduce on demand:
 ├── Timing-dependent?
 │   ├── Add timestamps to logs around the suspected area
-│   ├── Try with artificial delays (setTimeout, sleep) to widen race windows
+│   ├── Try with artificial delays or controlled scheduling to widen race windows
 │   └── Run under load or concurrency to increase collision probability
 ├── Environment-dependent?
-│   ├── Compare Node/browser versions, OS, environment variables
+│   ├── Compare runtime versions, OS, environment configuration
 │   ├── Check for differences in data (empty vs populated database)
 │   └── Try reproducing in CI where the environment is clean
 ├── State-dependent?
@@ -90,22 +90,21 @@ Narrow down WHERE the failure happens:
 
 ```
 Which layer is failing?
-├── UI/Frontend     → Check console, DOM, network tab
-├── API/Backend     → Check server logs, request/response
-├── Database        → Check queries, schema, data integrity
-├── Build tooling   → Check config, dependencies, environment
-├── External service → Check connectivity, API changes, rate limits
-└── Test itself     → Check if the test is correct (false negative)
+├── User-facing surface → Check visible output, runtime diagnostics, interaction path
+├── Service or boundary → Check logs, requests, responses, contracts
+├── Data or persistence → Check queries, schema, integrity, state transitions
+├── Build or tooling    → Check config, dependencies, environment
+├── External system     → Check connectivity, API changes, limits, permissions
+└── Test itself         → Check if the test is correct (false negative)
 ```
 
-**Use bisection for regression bugs:**
-```bash
-# Find which commit introduced the bug
-git bisect start
-git bisect bad                    # Current commit is broken
-git bisect good <known-good-sha> # This commit worked
-# Git will checkout midpoint commits; run the smallest reproducible verification at each
-git bisect run [project focused test command]
+**Use history bisection for regression bugs when your version-control system supports it:**
+```text
+1. mark a known-bad revision
+2. mark a known-good revision
+3. let the tool choose midpoint revisions
+4. run the smallest reproducible verification at each step
+5. stop when the first bad revision is isolated
 ```
 
 ### Step 3: Reduce
@@ -123,14 +122,14 @@ A minimal reproduction makes the root cause obvious and prevents fixing symptoms
 Fix the underlying issue, not the symptom:
 
 ```
-Symptom: "The user list shows duplicate entries"
+Symptom: "The system shows duplicate entries"
 
 Symptom fix (bad):
-  → Deduplicate in the UI component: [...new Set(users)]
+  → Deduplicate only at the presentation layer
 
 Root cause fix (good):
-  → The API endpoint has a JOIN that produces duplicates
-  → Fix the query, add a DISTINCT, or fix the data model
+  → Find where duplication is introduced
+  → Fix the retrieval, transformation, or state model that creates duplicates
 ```
 
 Ask: "Why does this happen?" until you reach the actual cause, not just where it manifests.
@@ -139,14 +138,11 @@ Ask: "Why does this happen?" until you reach the actual cause, not just where it
 
 Write a test that catches this specific failure:
 
-```typescript
-// The bug: task titles with special characters broke the search
-it('finds tasks with special characters in title', async () => {
-  await createTask({ title: 'Fix "quotes" & <brackets>' });
-  const results = await searchTasks('quotes');
-  expect(results).toHaveLength(1);
-  expect(results[0].title).toBe('Fix "quotes" & <brackets>');
-});
+```text
+Example regression test:
+- Arrange input that used to fail (for example, special characters, boundary values, or unusual state)
+- Execute the behavior that broke
+- Assert the specific expected result
 ```
 
 This test will prevent the same bug from recurring. It should fail without the fix and pass with it.
@@ -193,21 +189,20 @@ Build fails:
 ├── Type error → Read the error, check the types at the cited location
 ├── Import error → Check the module exists, exports match, paths are correct
 ├── Config error → Check build config files for syntax/schema issues
-├── Dependency error → Check package.json, run npm install
-└── Environment error → Check Node version, OS compatibility
+├── Dependency error → Check the dependency manifest and run the project's install/setup step
+└── Environment error → Check runtime version, OS compatibility, and required tooling
 ```
 
 ### Runtime Error Triage
 
 ```
 Runtime error:
-├── TypeError: Cannot read property 'x' of undefined
-│   └── Something is null/undefined that shouldn't be
-│       → Check data flow: where does this value come from?
-├── Network error / CORS
-│   └── Check URLs, headers, server CORS config
-├── Render error / White screen
-│   └── Check error boundary, console, component tree
+├── Unexpected missing value or invalid state
+│   └── Check data flow: where does this value come from?
+├── Network error / policy mismatch
+│   └── Check URLs, headers, permissions, and service policy/configuration
+├── Presentation/runtime failure
+│   └── Check runtime diagnostics, visible state, and the execution path
 └── Unexpected behavior (no error)
     └── Add logging at key points, verify data at each step
 ```
@@ -216,29 +211,15 @@ Runtime error:
 
 When under time pressure, use safe fallbacks:
 
-```typescript
-// Safe default + warning (instead of crashing)
-function getConfig(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    console.warn(`Missing config: ${key}, using default`);
-    return DEFAULTS[key] ?? '';
-  }
-  return value;
-}
+```text
+Safe default + warning (instead of crashing):
+- if optional configuration is missing, use a documented fallback where safe
+- emit a warning or metric so the issue is visible
 
-// Graceful degradation (instead of broken feature)
-function renderChart(data: ChartData[]) {
-  if (data.length === 0) {
-    return <EmptyState message="No data available for this period" />;
-  }
-  try {
-    return <Chart data={data} />;
-  } catch (error) {
-    console.error('Chart render failed:', error);
-    return <ErrorState message="Unable to display chart" />;
-  }
-}
+Graceful degradation (instead of broken feature):
+- if a non-critical subsystem fails, show a clear fallback state
+- preserve the rest of the experience if possible
+- log enough context to diagnose the failure later
 ```
 
 ## Instrumentation Guidelines
