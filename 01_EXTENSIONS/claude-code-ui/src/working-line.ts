@@ -1,5 +1,4 @@
 import type { AgentEndEvent, AgentStartEvent, ExtensionContext, SessionShutdownEvent } from "@mariozechner/pi-coding-agent";
-import { WORKING_INDICATOR } from "./indicator.js";
 import { formatElapsed, formatWorkingLine } from "./working-line-format.js";
 
 type ToolEvent = { toolName: string };
@@ -16,15 +15,8 @@ function toolLabel(toolName: string) {
 }
 
 function renderWorkingLine() {
-	activeCtx?.ui.setWorkingIndicator(WORKING_INDICATOR);
-	if (activeTool) {
-		activeCtx?.ui.setWorkingMessage(formatWorkingLine([toolLabel(activeTool), formatElapsed(Date.now() - startedAt)]));
-		return;
-	}
-	if (hasVisibleOutput || !startedAt) {
-		activeCtx?.ui.setWorkingMessage("");
-		return;
-	}
+	if (activeTool) return activeCtx?.ui.setWorkingMessage(formatWorkingLine([toolLabel(activeTool), formatElapsed(Date.now() - startedAt)]));
+	if (hasVisibleOutput || !startedAt) return activeCtx?.ui.setWorkingMessage("");
 	activeCtx?.ui.setWorkingMessage(formatWorkingLine(["Working", formatElapsed(Date.now() - startedAt)]));
 }
 
@@ -34,7 +26,6 @@ function resetWorkingLine(ctx?: ExtensionContext) {
 	startedAt = 0;
 	activeTool = undefined;
 	hasVisibleOutput = false;
-	(activeCtx ?? ctx)?.ui.setWorkingIndicator(WORKING_INDICATOR);
 	(activeCtx ?? ctx)?.ui.setWorkingMessage("");
 	activeCtx = undefined;
 }
@@ -66,10 +57,5 @@ export function onMessageUpdate(event: MessageEvent) {
 	renderWorkingLine();
 }
 
-export function onAgentEnd(_event: AgentEndEvent, ctx: ExtensionContext) {
-	resetWorkingLine(ctx);
-}
-
-export function onSessionShutdown(_event: SessionShutdownEvent, ctx: ExtensionContext) {
-	resetWorkingLine(ctx);
-}
+export function onAgentEnd(_event: AgentEndEvent, ctx: ExtensionContext) { resetWorkingLine(ctx); }
+export function onSessionShutdown(_event: SessionShutdownEvent, ctx: ExtensionContext) { resetWorkingLine(ctx); }

@@ -335,15 +335,6 @@ function createClaudeFooter(ctx) {
   });
 }
 
-// src/indicator.ts
-var ACCENT = "\x1B[38;2;215;119;87m";
-var RESET = "\x1B[39m";
-var FRAMES = ["\xB7", "\u273B", "\u273D", "\u2736", "\u2733", "\u2722"];
-var WORKING_INDICATOR = {
-  frames: FRAMES.map((frame) => `${ACCENT}${frame}${RESET}`),
-  intervalMs: 120
-};
-
 // src/theme.ts
 var THEME_NAME = "claude-code-dark";
 function applyClaudeTheme(ctx) {
@@ -362,7 +353,6 @@ function applyClaudeChrome(ctx) {
   ctx.ui.setFooter(createClaudeFooter(ctx));
   ctx.ui.setWidget("claude-code-ui-prompt", void 0);
   ctx.ui.setEditorComponent((tui, theme, keybindings) => new ClaudeCodeEditor(tui, theme, keybindings));
-  ctx.ui.setWorkingIndicator(WORKING_INDICATOR);
   ctx.ui.setHiddenThinkingLabel("");
   ctx.ui.setTitle(`Claude Code \xB7 ${getProjectName(ctx)}`);
   if (!themeResult.success) {
@@ -405,13 +395,26 @@ async function applyLoaderPatch(load = loadLoaderModule) {
 // src/tool-execution-patch.ts
 import { Container as Container4, Text as Text4 } from "@mariozechner/pi-tui";
 function isGenericTool(tool) {
-  return !!tool.toolDefinition && !tool.builtInToolDefinition && !tool.toolDefinition.renderCall && !tool.toolDefinition.renderResult;
+  return !!tool.toolDefinition && !tool.builtInToolDefinition;
+}
+function summarizeDetails(details) {
+  if (typeof details?.totalResults === "number") return `${details.totalResults} sources`;
+  if (typeof details?.successful === "number" && typeof details?.urlCount === "number") return `${details.successful}/${details.urlCount} URLs`;
+  if (typeof details?.totalChars === "number") return `${details.totalChars} chars`;
 }
 function patchToolExecutionPrototype(prototype, theme) {
   if (!prototype || !theme || prototype.__claudeCodeUiPatched) return false;
   const shell = prototype.getRenderShell;
+  const getCallRenderer = prototype.getCallRenderer;
+  const getResultRenderer = prototype.getResultRenderer;
   const call = prototype.createCallFallback;
   const result = prototype.createResultFallback;
+  prototype.getCallRenderer = function getCallRendererPatched() {
+    return isGenericTool(this) ? void 0 : getCallRenderer.call(this);
+  };
+  prototype.getResultRenderer = function getResultRendererPatched() {
+    return isGenericTool(this) ? void 0 : getResultRenderer.call(this);
+  };
   prototype.getRenderShell = function getRenderShellPatched() {
     return isGenericTool(this) ? "self" : shell.call(this);
   };
@@ -423,7 +426,7 @@ function patchToolExecutionPrototype(prototype, theme) {
   prototype.createResultFallback = function createResultFallbackPatched() {
     if (!isGenericTool(this)) return result.call(this);
     const output = this.getTextOutput() ?? "";
-    const status = this.isPartial ? theme.fg("warning", "running\u2026") : this.result?.isError ? theme.fg("error", "error") : theme.fg("success", "done");
+    const status = this.isPartial ? theme.fg("warning", "running\u2026") : this.result?.isError ? theme.fg("error", "error") : theme.fg("success", summarizeDetails(this.result?.details) ?? "done");
     this.rendererState.summary = `${status}${this.result?.details?.truncation?.truncated ? theme.fg("dim", " \xB7 truncated") : ""}`;
     if (!this.expanded || !output.trim()) return new Container4();
     return new Text4(branchBlock(theme, summarizeTextPreview(theme, output, 4)), 0, 0);
@@ -480,15 +483,8 @@ function toolLabel2(toolName) {
   return { bash: "Running bash", read: "Reading file", write: "Writing file", edit: "Editing file" }[toolName] ?? `Running ${toolName}`;
 }
 function renderWorkingLine() {
-  activeCtx?.ui.setWorkingIndicator(WORKING_INDICATOR);
-  if (activeTool) {
-    activeCtx?.ui.setWorkingMessage(formatWorkingLine([toolLabel2(activeTool), formatElapsed(Date.now() - startedAt)]));
-    return;
-  }
-  if (hasVisibleOutput || !startedAt) {
-    activeCtx?.ui.setWorkingMessage("");
-    return;
-  }
+  if (activeTool) return activeCtx?.ui.setWorkingMessage(formatWorkingLine([toolLabel2(activeTool), formatElapsed(Date.now() - startedAt)]));
+  if (hasVisibleOutput || !startedAt) return activeCtx?.ui.setWorkingMessage("");
   activeCtx?.ui.setWorkingMessage(formatWorkingLine(["Working", formatElapsed(Date.now() - startedAt)]));
 }
 function resetWorkingLine(ctx) {
@@ -497,7 +493,6 @@ function resetWorkingLine(ctx) {
   startedAt = 0;
   activeTool = void 0;
   hasVisibleOutput = false;
-  (activeCtx ?? ctx)?.ui.setWorkingIndicator(WORKING_INDICATOR);
   (activeCtx ?? ctx)?.ui.setWorkingMessage("");
   activeCtx = void 0;
 }

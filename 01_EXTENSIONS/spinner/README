@@ -1,0 +1,10 @@
+spinner … `@ryan_nookpi/pi-extension-claude-spinner` 기반 Claude spinner
+
+목적
+  claude-code-ui에서 spinner 설정을 분리하고,
+  npm 패키지 원본 구현 그대로 working indicator를 적용한다.
+
+주요 기능
+  session_start 시 Claude spinner 프레임 적용
+  프레임 `· ✻ ✽ ✶ ✳ ✢`
+  간격 120ms

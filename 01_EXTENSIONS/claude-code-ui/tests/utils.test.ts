@@ -1,7 +1,6 @@
 import { visibleWidth } from "@mariozechner/pi-tui";
 import { describe, expect, it } from "vitest";
 import { colorizeBgRgb, colorizeRgb, stripAnsi } from "../src/ansi.ts";
-import { WORKING_INDICATOR } from "../src/indicator.ts";
 import { buildChromeRule, buildPromptFrame, findBottomRuleIndex, frameBodyLine } from "../src/rules.ts";
 import { compactPreviewLines, summarizeArgs, summarizeTextPreview, toolLabel, toolPrefix } from "../src/tool-utils.ts";
 import { theme } from "./helpers.ts";
@@ -16,9 +15,6 @@ describe("claude-code-ui utils", () => {
 		expect(stripAnsi(colored)).toBe("x");
 		expect(stripAnsi(highlighted)).toBe("x");
 		expect(stripAnsi(osc)).toBe("x");
-		expect(WORKING_INDICATOR.frames).toHaveLength(6);
-		expect(WORKING_INDICATOR.intervalMs).toBe(120);
-		expect(stripAnsi(WORKING_INDICATOR.frames.join(""))).toContain("·✻✽✶✳✢");
 	});
 
 	it("builds chrome rules, prompt frames and finds rule rows", () => {

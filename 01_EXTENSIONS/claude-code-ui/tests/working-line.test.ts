@@ -1,23 +1,18 @@
 import type { AgentEndEvent, AgentStartEvent, ExtensionContext, SessionShutdownEvent } from "@mariozechner/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WORKING_INDICATOR } from "../src/indicator.ts";
 import { onAgentEnd, onAgentStart, onMessageUpdate, onSessionShutdown, onToolExecutionEnd, onToolExecutionStart } from "../src/working-line.ts";
 
-const setWorkingIndicator = vi.fn();
 const setWorkingMessage = vi.fn();
-const ctx = { hasUI: true, ui: { setWorkingIndicator, setWorkingMessage } } as ExtensionContext;
+const ctx = { hasUI: true, ui: { setWorkingMessage } } as ExtensionContext;
 
 describe("working-line handlers", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2024-01-01T00:00:00Z"));
-		setWorkingIndicator.mockReset();
 		setWorkingMessage.mockReset();
 	});
 
-	afterEach(() => {
-		vi.useRealTimers();
-	});
+	afterEach(() => { vi.useRealTimers(); });
 
 	it("shows elapsed working status until visible answer text starts", () => {
 		onToolExecutionStart({ toolName: "bash" });
@@ -27,7 +22,6 @@ describe("working-line handlers", () => {
 		onAgentStart({} as AgentStartEvent, { hasUI: false } as ExtensionContext);
 		expect(setWorkingMessage).not.toHaveBeenCalled();
 		onAgentStart({} as AgentStartEvent, ctx);
-		expect(setWorkingIndicator.mock.lastCall).toEqual([WORKING_INDICATOR]);
 		expect(setWorkingMessage.mock.lastCall).toEqual(["Working · 0s"]);
 		vi.advanceTimersByTime(1000);
 		expect(setWorkingMessage.mock.lastCall).toEqual(["Working · 1s"]);
@@ -44,13 +38,11 @@ describe("working-line handlers", () => {
 		onMessageUpdate({ assistantMessageEvent: { type: "text_start" } });
 		expect(setWorkingMessage.mock.lastCall).toEqual([""]);
 		onAgentEnd({} as AgentEndEvent, ctx);
-		expect(setWorkingIndicator.mock.lastCall).toEqual([WORKING_INDICATOR]);
 		expect(setWorkingMessage.mock.lastCall).toEqual([""]);
 	});
 
 	it("clears quietly on session shutdown", () => {
 		onSessionShutdown({} as SessionShutdownEvent, ctx);
-		expect(setWorkingIndicator.mock.lastCall).toEqual([WORKING_INDICATOR]);
 		expect(setWorkingMessage.mock.lastCall).toEqual([""]);
 	});
 });
