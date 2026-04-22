@@ -1,0 +1,25 @@
+claude-hooks-bridge … Claude Code hooks (`.claude/settings.json`)를 pi extension lifecycle로 브리지
+
+목적
+  Claude Code에서 쓰던 hook 설정을 pi에서도 최대한 비슷하게 재사용한다.
+
+주요 기능
+  `.claude/settings.json`의 hooks 로드
+  SessionStart → `session_start`
+  UserPromptSubmit → `before_agent_start`
+  PreToolUse → `tool_call`
+  PostToolUse → `tool_result`
+  Stop → `agent_end`
+  matcher 기반 tool 이름 매칭
+  pi tool 이름을 Claude canonical 이름으로 변환 (`bash` → `Bash` 등)
+  hook JSON 출력의 `permissionDecision` / exit code 2 차단 처리
+  Stop hook용 transcript 파일 생성
+
+제한 사항
+  `permissionDecision: "ask"` 는 pi의 confirm dialog로 브리지된다.
+  UI가 없는 환경에서는 ask를 표시할 수 없으므로 차단한다.
+  Claude Code 문서에 없는 bridge 전용 설정 필드는 지원하지 않는다.
+
+사용법
+  프로젝트 루트에 `.claude/settings.json`을 두고 hooks를 정의한다.
+  이 extension은 01_EXTENSIONS 아래에서 자동 로드된다.

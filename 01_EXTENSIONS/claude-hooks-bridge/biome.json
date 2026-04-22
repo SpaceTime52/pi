@@ -1,0 +1,4 @@
+{
+  "formatter": { "indentStyle": "tab" },
+  "linter": { "enabled": true, "rules": { "recommended": true } }
+}

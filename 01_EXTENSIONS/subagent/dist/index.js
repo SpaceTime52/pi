@@ -2112,10 +2112,88 @@ ${modelList}`;
 }
 
 // node_modules/@jeonghyeon.net/pi-subagents/dist/notification-delivery.js
+init_agent_widget();
 var SUBAGENT_NOTIFICATION_OPTIONS = {
   deliverAs: "followUp",
   triggerTurn: false
 };
+function isErrorStatus(status) {
+  return status === "error" || status === "aborted";
+}
+function isWarningStatus(status) {
+  return status === "stopped" || status === "steered";
+}
+function getNotifyLevel(all) {
+  if (all.some((d) => isErrorStatus(d.status)))
+    return "error";
+  if (all.some((d) => isWarningStatus(d.status)))
+    return "warning";
+  return "info";
+}
+function getStatusText(status) {
+  if (status === "error")
+    return "failed";
+  if (status === "aborted")
+    return "aborted";
+  if (status === "stopped")
+    return "stopped";
+  if (status === "steered")
+    return "completed (turn limit)";
+  return "completed";
+}
+function getPreviewLine(resultPreview) {
+  return resultPreview.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
+}
+function formatStats(d) {
+  const parts = [];
+  if (d.turnCount > 0)
+    parts.push(formatTurns(d.turnCount, d.maxTurns));
+  if (d.toolUses > 0)
+    parts.push(`${d.toolUses} tool use${d.toolUses === 1 ? "" : "s"}`);
+  if (d.totalTokens > 0)
+    parts.push(formatTokens(d.totalTokens));
+  if (d.durationMs > 0)
+    parts.push(formatMs(d.durationMs));
+  return parts.join(" \xB7 ");
+}
+function formatToastLine(d) {
+  let line = `\u2022 ${d.description} \u2014 ${getStatusText(d.status)}`;
+  const stats = formatStats(d);
+  if (stats)
+    line += ` (${stats})`;
+  const preview = getPreviewLine(d.resultPreview);
+  if (preview)
+    line += `
+  \u23BF ${preview}`;
+  return line;
+}
+function formatSubagentToast(details, maxItems = 5) {
+  const all = [details, ...details.others ?? []];
+  if (all.length === 1) {
+    return ["Background agent update", formatToastLine(all[0]).slice(2)].join("\n");
+  }
+  const lines = [`${all.length} background agent updates`];
+  const shown = all.slice(0, maxItems);
+  for (const item of shown)
+    lines.push(formatToastLine(item));
+  if (all.length > shown.length)
+    lines.push(`\u2022 +${all.length - shown.length} more`);
+  return lines.join("\n");
+}
+function deliverSubagentNotification(pi, ctx, payload) {
+  const all = [payload.details, ...payload.details.others ?? []];
+  if (ctx?.hasUI) {
+    ctx.ui.notify(formatSubagentToast(payload.details), getNotifyLevel(all));
+    return "ui";
+  }
+  pi.sendMessage({
+    customType: "subagent-notification",
+    content: payload.content,
+    display: true,
+    details: payload.details
+  }, SUBAGENT_NOTIFICATION_OPTIONS);
+  return "session";
+}
 
 // node_modules/@jeonghyeon.net/pi-subagents/dist/output-file.js
 import { appendFileSync, chmodSync, mkdirSync as mkdirSync2, writeFileSync } from "node:fs";
@@ -2378,12 +2456,10 @@ function dist_default(pi) {
     const notification = formatTaskNotification(record, 500);
     const footer = record.outputFile ? `
 Full transcript available at: ${record.outputFile}` : "";
-    pi.sendMessage({
-      customType: "subagent-notification",
+    deliverSubagentNotification(pi, currentCtx, {
       content: notification + footer,
-      display: true,
       details: buildNotificationDetails(record, 500, agentActivity.get(record.id))
-    }, SUBAGENT_NOTIFICATION_OPTIONS);
+    });
   }
   function sendIndividualNudge(record) {
     agentActivity.delete(record.id);
@@ -2410,16 +2486,14 @@ Full transcript available at: ${record.outputFile}` : "";
       if (rest.length > 0) {
         details.others = rest.map((r) => buildNotificationDetails(r, 300, agentActivity.get(r.id)));
       }
-      pi.sendMessage({
-        customType: "subagent-notification",
+      deliverSubagentNotification(pi, currentCtx, {
         content: `Background agent group completed: ${label}
 
 ${notifications}
 
 Use get_subagent_result for full output.`,
-        display: true,
         details
-      }, SUBAGENT_NOTIFICATION_OPTIONS);
+      });
     });
     widget.update();
   }, 3e4);
@@ -2501,7 +2575,8 @@ Use get_subagent_result for full output.`,
     currentCtx = ctx;
     manager.clearCompleted();
   });
-  pi.on("session_switch", () => {
+  pi.on("session_switch", async (_event, ctx) => {
+    currentCtx = ctx;
     manager.clearCompleted();
   });
   const { unsubPing: unsubPingRpc, unsubSpawn: unsubSpawnRpc, unsubStop: unsubStopRpc } = registerRpcHandlers({
@@ -2562,6 +2637,7 @@ Use get_subagent_result for full output.`,
     }
   }
   pi.on("tool_execution_start", async (_event, ctx) => {
+    currentCtx = ctx;
     widget.setUICtx(ctx.ui);
     widget.onTurnStart();
   });
