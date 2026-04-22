@@ -1,4 +1,4 @@
-import { THEME_NAME } from "./theme.js";
+import { getPiMascot } from "./header-mascot.js";
 import type { HeaderContext, HeaderTheme } from "./header-types.js";
 import { getDisplayName, getEntryCount, getProjectName, isHomeDirectory, shortenMiddle, shortenPath } from "./header-utils.js";
 
@@ -11,7 +11,7 @@ export function buildLeftColumn(ctx: HeaderContext, theme: HeaderTheme) {
 		? theme.fg("warning", "Launched from your home directory. A project folder works best.")
 		: theme.fg("success", "Project directory detected and ready for work.");
 	return [
-		`${badge(theme, theme.fg("accent", " π agent "))} ${badge(theme, theme.fg("muted", ` ${THEME_NAME} `))}`,
+		...getPiMascot(theme),
 		theme.bold(`Welcome back ${getDisplayName()}!`),
 		formatDetail(theme, "Project", projectName),
 		formatDetail(theme, "Directory", shortenPath(ctx.cwd, 34)),
@@ -35,10 +35,6 @@ export function buildRightColumn(ctx: HeaderContext, theme: HeaderTheme) {
 		theme.bold(theme.fg("accent", "Workspace status")),
 		projectNote,
 	];
-}
-
-function badge(theme: HeaderTheme, content: string) {
-	return theme.bg("selectedBg", content);
 }
 
 function bullet(theme: HeaderTheme, text: string) {

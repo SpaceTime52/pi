@@ -305,15 +305,23 @@ import { truncateToWidth as truncateToWidth3, visibleWidth as visibleWidth4 } fr
 import { VERSION } from "@mariozechner/pi-coding-agent";
 import { visibleWidth as visibleWidth3 } from "@mariozechner/pi-tui";
 
-// src/theme.ts
-var THEME_NAME = "claude-code-dark";
-function applyClaudeTheme(ctx) {
-  const result = ctx.ui.setTheme(THEME_NAME);
-  return {
-    themeName: THEME_NAME,
-    success: result.success,
-    error: result.error
-  };
+// src/header-mascot.ts
+function getPiMascot(theme) {
+  const blue = (text) => theme.fg("accent", text);
+  const white = (text) => text;
+  const dark = (text) => theme.fg("dim", text);
+  const eye = `${white("\u2588")}${dark("\u258C")}`;
+  const bar = blue("\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588");
+  const legs = blue("\u2588\u2588") + "    " + blue("\u2588\u2588");
+  return [
+    "",
+    `     ${eye}  ${eye}`,
+    `  ${bar}`,
+    `     ${legs}`,
+    `     ${legs}`,
+    `     ${legs}`,
+    ""
+  ];
 }
 
 // src/header-utils.ts
@@ -358,7 +366,7 @@ function buildLeftColumn(ctx, theme) {
   const sessionLabel = entryCount === 0 ? "No recent activity yet" : `${entryCount} ${entryCount === 1 ? "entry" : "entries"} loaded in this session`;
   const workspaceLabel = isHomeDirectory(ctx.cwd) ? theme.fg("warning", "Launched from your home directory. A project folder works best.") : theme.fg("success", "Project directory detected and ready for work.");
   return [
-    `${badge(theme, theme.fg("accent", " \u03C0 agent "))} ${badge(theme, theme.fg("muted", ` ${THEME_NAME} `))}`,
+    ...getPiMascot(theme),
     theme.bold(`Welcome back ${getDisplayName()}!`),
     formatDetail(theme, "Project", projectName),
     formatDetail(theme, "Directory", shortenPath(ctx.cwd, 34)),
@@ -379,9 +387,6 @@ function buildRightColumn(ctx, theme) {
     theme.bold(theme.fg("accent", "Workspace status")),
     projectNote
   ];
-}
-function badge(theme, content) {
-  return theme.bg("selectedBg", content);
 }
 function bullet(theme, text) {
   return `${theme.fg("accent", "\u2022")} ${text}`;
@@ -445,11 +450,12 @@ function renderWideRows(theme, innerWidth, leftLines, rightLines) {
   const leftWidth = Math.max(24, Math.min(42, Math.floor((innerWidth - visibleWidth3(divider)) * 0.42)));
   const rightWidth = Math.max(24, innerWidth - visibleWidth3(divider) - leftWidth);
   const totalRows = Math.max(leftLines.length, rightLines.length);
-  return Array.from({ length: totalRows }, (_, index) => {
-    const left = fitText(leftLines[index] ?? "", leftWidth);
-    const right = fitText(rightLines[index], rightWidth);
-    return `${left}${divider}${right}`;
-  });
+  const paddedLeft = padLines(leftLines, totalRows);
+  const paddedRight = padLines(rightLines, totalRows);
+  return paddedLeft.map((line, index) => `${fitText(line, leftWidth)}${divider}${fitText(paddedRight[index], rightWidth)}`);
+}
+function padLines(lines, totalRows) {
+  return [...lines, ...Array.from({ length: Math.max(0, totalRows - lines.length) }, () => "")];
 }
 function renderStackedRows(theme, leftLines, rightLines) {
   return [...leftLines, "", theme.bold(theme.fg("accent", "Tips for getting started")), ...rightLines.slice(1)];
@@ -492,6 +498,17 @@ function createClaudeFooter(ctx) {
       return [truncateToWidth3(left + " ".repeat(gap) + right, width, "")];
     }
   });
+}
+
+// src/theme.ts
+var THEME_NAME = "claude-code-dark";
+function applyClaudeTheme(ctx) {
+  const result = ctx.ui.setTheme(THEME_NAME);
+  return {
+    themeName: THEME_NAME,
+    success: result.success,
+    error: result.error
+  };
 }
 
 // src/chrome.ts

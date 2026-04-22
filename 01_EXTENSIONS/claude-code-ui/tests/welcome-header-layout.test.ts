@@ -10,6 +10,8 @@ describe("createPiWelcomeHeader layout", () => {
 		header.invalidate();
 		const plain = header.render(120).join("\n");
 		expect(plain).toContain("Pi v");
+		expect(plain).toContain("██████████████");
+		expect(plain).not.toContain("claude-code-dark");
 		expect(plain).toContain("Welcome back JeongHyeon!");
 		expect(plain).toContain("Tips for getting started");
 		expect(plain).toContain("Project   pi");
@@ -22,6 +24,7 @@ describe("createPiWelcomeHeader layout", () => {
 		const lines = header.render(72);
 		const plain = lines.join("\n");
 		expect(lines.every((line) => visibleWidth(line) <= 72)).toBe(true);
+		expect(plain).toContain("██████████████");
 		expect(plain).toContain("Welcome back Pi User!");
 		expect(plain).toContain("No recent activity yet");
 		expect(plain).toContain("Launched from your home directory.");

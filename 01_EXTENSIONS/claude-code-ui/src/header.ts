@@ -32,11 +32,13 @@ function renderWideRows(theme: HeaderTheme, innerWidth: number, leftLines: strin
 	const leftWidth = Math.max(24, Math.min(42, Math.floor((innerWidth - visibleWidth(divider)) * 0.42)));
 	const rightWidth = Math.max(24, innerWidth - visibleWidth(divider) - leftWidth);
 	const totalRows = Math.max(leftLines.length, rightLines.length);
-	return Array.from({ length: totalRows }, (_, index) => {
-		const left = fitText(leftLines[index] ?? "", leftWidth);
-		const right = fitText(rightLines[index]!, rightWidth);
-		return `${left}${divider}${right}`;
-	});
+	const paddedLeft = padLines(leftLines, totalRows);
+	const paddedRight = padLines(rightLines, totalRows);
+	return paddedLeft.map((line, index) => `${fitText(line, leftWidth)}${divider}${fitText(paddedRight[index]!, rightWidth)}`);
+}
+
+function padLines(lines: string[], totalRows: number) {
+	return [...lines, ...Array.from({ length: Math.max(0, totalRows - lines.length) }, () => "")];
 }
 
 function renderStackedRows(theme: HeaderTheme, leftLines: string[], rightLines: string[]) {
