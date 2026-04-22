@@ -1,2 +1,28 @@
+이 디렉터리는 `https://github.com/addyosmani/agent-skills`의 skills/ 내용을 현재 레포 구조로 마이그레이션한 결과입니다.
 
-  현재 등록된 skill 없음.
+- source: addyosmani/agent-skills
+- license: MIT
+- migrated skills: 21
+
+등록된 skills:
+- api-and-interface-design
+- browser-testing-with-devtools
+- ci-cd-and-automation
+- code-review-and-quality
+- code-simplification
+- context-engineering
+- debugging-and-error-recovery
+- deprecation-and-migration
+- documentation-and-adrs
+- frontend-ui-engineering
+- git-workflow-and-versioning
+- idea-refine
+- incremental-implementation
+- performance-optimization
+- planning-and-task-breakdown
+- security-and-hardening
+- shipping-and-launch
+- source-driven-development
+- spec-driven-development
+- test-driven-development
+- using-agent-skills
