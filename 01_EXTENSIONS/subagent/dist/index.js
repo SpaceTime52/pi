@@ -316,9 +316,6 @@ function formatTokens(count) {
     return `${(count / 1e3).toFixed(1)}k tokens`;
   return `${count} token${count === 1 ? "" : "s"}`;
 }
-function formatTurns(turnCount, maxTurns) {
-  return maxTurns != null ? `turn ${turnCount}/${maxTurns}` : `turn ${turnCount}`;
-}
 function formatMs(ms) {
   return `${(ms / 1e3).toFixed(1)}s`;
 }
@@ -369,7 +366,7 @@ var init_agent_widget = __esm({
     init_spinner();
     init_spinner();
     MAX_WIDGET_LINES = 12;
-    ERROR_STATUSES = /* @__PURE__ */ new Set(["error", "aborted", "steered", "stopped"]);
+    ERROR_STATUSES = /* @__PURE__ */ new Set(["error", "stopped"]);
     TOOL_DISPLAY = {
       read: "reading",
       bash: "running command",
@@ -385,10 +382,10 @@ var init_agent_widget = __esm({
       uiCtx;
       widgetFrame = 0;
       widgetInterval;
-      /** Tracks how many turns each finished agent has survived. Key: agent ID, Value: turns since finished. */
-      finishedTurnAge = /* @__PURE__ */ new Map();
-      /** How many extra turns errors/aborted agents linger (completed agents clear after 1 turn). */
-      static ERROR_LINGER_TURNS = 2;
+      /** Tracks how many refresh cycles each finished agent has survived. Key: agent ID, Value: cycles since finished. */
+      finishedAge = /* @__PURE__ */ new Map();
+      /** How many extra cycles errored/stopped agents linger (completed agents clear after 1 cycle). */
+      static ERROR_LINGER_CYCLES = 2;
       /** Whether the widget callback is currently registered with the TUI. */
       widgetRegistered = false;
       /** Cached TUI reference from widget factory callback, used for requestRender(). */
@@ -409,12 +406,12 @@ var init_agent_widget = __esm({
         }
       }
       /**
-       * Called on each new turn (tool_execution_start).
+       * Called when the parent session becomes active again.
        * Ages finished agents and clears those that have lingered long enough.
        */
-      onTurnStart() {
-        for (const [id, age] of this.finishedTurnAge) {
-          this.finishedTurnAge.set(id, age + 1);
+      onActivity() {
+        for (const [id, age] of this.finishedAge) {
+          this.finishedAge.set(id, age + 1);
         }
         this.update();
       }
@@ -426,14 +423,14 @@ var init_agent_widget = __esm({
       }
       /** Check if a finished agent should still be shown in the widget. */
       shouldShowFinished(agentId, status) {
-        const age = this.finishedTurnAge.get(agentId) ?? 0;
-        const maxAge = ERROR_STATUSES.has(status) ? _AgentWidget.ERROR_LINGER_TURNS : 1;
+        const age = this.finishedAge.get(agentId) ?? 0;
+        const maxAge = ERROR_STATUSES.has(status) ? _AgentWidget.ERROR_LINGER_CYCLES : 1;
         return age < maxAge;
       }
       /** Record an agent as finished (call when agent completes). */
       markFinished(agentId) {
-        if (!this.finishedTurnAge.has(agentId)) {
-          this.finishedTurnAge.set(agentId, 0);
+        if (!this.finishedAge.has(agentId)) {
+          this.finishedAge.set(agentId, 0);
         }
       }
       /** Render a finished agent line. */
@@ -446,24 +443,15 @@ var init_agent_widget = __esm({
         if (a.status === "completed") {
           icon = theme.fg("success", "\u2713");
           statusText = "";
-        } else if (a.status === "steered") {
-          icon = theme.fg("warning", "\u2713");
-          statusText = theme.fg("warning", " (turn limit)");
         } else if (a.status === "stopped") {
           icon = theme.fg("dim", "\u25A0");
           statusText = theme.fg("dim", " stopped");
-        } else if (a.status === "error") {
+        } else {
           icon = theme.fg("error", "\u2717");
           const errMsg = a.error ? `: ${a.error.slice(0, 60)}` : "";
           statusText = theme.fg("error", ` error${errMsg}`);
-        } else {
-          icon = theme.fg("error", "\u2717");
-          statusText = theme.fg("warning", " aborted");
         }
         const parts = [];
-        const activity = this.agentActivity.get(a.id);
-        if (activity)
-          parts.push(formatTurns(activity.turnCount, activity.maxTurns));
         if (a.toolUses > 0)
           parts.push(`${a.toolUses} tool use${a.toolUses === 1 ? "" : "s"}`);
         parts.push(duration);
@@ -508,8 +496,6 @@ var init_agent_widget = __esm({
             }
           }
           const parts = [];
-          if (bg)
-            parts.push(formatTurns(bg.turnCount, bg.maxTurns));
           if (toolUses > 0)
             parts.push(`${toolUses} tool use${toolUses === 1 ? "" : "s"}`);
           if (tokenText)
@@ -608,9 +594,9 @@ var init_agent_widget = __esm({
             clearInterval(this.widgetInterval);
             this.widgetInterval = void 0;
           }
-          for (const [id] of this.finishedTurnAge) {
+          for (const [id] of this.finishedAge) {
             if (!allAgents.some((a) => a.id === id))
-              this.finishedTurnAge.delete(id);
+              this.finishedAge.delete(id);
           }
           return;
         }
@@ -1123,25 +1109,6 @@ function tryReadSkillFile(dir, name) {
 
 // node_modules/@jeonghyeon.net/pi-subagents/dist/agent-runner.js
 var EXCLUDED_TOOL_NAMES = ["Agent", "get_subagent_result", "steer_subagent"];
-var defaultMaxTurns;
-function normalizeMaxTurns(n) {
-  if (n == null || n === 0)
-    return void 0;
-  return Math.max(1, n);
-}
-function getDefaultMaxTurns() {
-  return defaultMaxTurns;
-}
-function setDefaultMaxTurns(n) {
-  defaultMaxTurns = normalizeMaxTurns(n);
-}
-var graceTurns = 5;
-function getGraceTurns() {
-  return graceTurns;
-}
-function setGraceTurns(n) {
-  graceTurns = Math.max(1, n);
-}
 function resolveDefaultModel(parentModel, registry, configModel) {
   if (configModel) {
     const slashIdx = configModel.indexOf("/");
@@ -1301,25 +1268,8 @@ async function runAgent(ctx, type, prompt, options) {
     }
   });
   options.onSessionCreated?.(session);
-  let turnCount = 0;
-  const maxTurns = normalizeMaxTurns(options.maxTurns ?? agentConfig?.maxTurns ?? defaultMaxTurns);
-  let softLimitReached = false;
-  let aborted = false;
   let currentMessageText = "";
   const unsubTurns = session.subscribe((event) => {
-    if (event.type === "turn_end") {
-      turnCount++;
-      options.onTurnEnd?.(turnCount);
-      if (maxTurns != null) {
-        if (!softLimitReached && turnCount >= maxTurns) {
-          softLimitReached = true;
-          session.steer("You have reached your turn limit. Wrap up immediately \u2014 provide your final answer now.");
-        } else if (softLimitReached && turnCount >= maxTurns + graceTurns) {
-          aborted = true;
-          session.abort();
-        }
-      }
-    }
     if (event.type === "message_start") {
       currentMessageText = "";
     }
@@ -1351,7 +1301,7 @@ async function runAgent(ctx, type, prompt, options) {
     cleanupAbort();
   }
   const responseText = collector.getText().trim() || getLastAssistantText(session);
-  return { responseText, session, aborted, steered: softLimitReached };
+  return { responseText, session };
 }
 async function resumeAgent(session, prompt, options = {}) {
   const collector = collectResponseText(session);
@@ -1578,7 +1528,6 @@ var AgentManager = class {
     const promise = runAgent(ctx, type, effectivePrompt, {
       pi,
       model: options.model,
-      maxTurns: options.maxTurns,
       isolated: options.isolated,
       inheritContext: options.inheritContext,
       thinkingLevel: options.thinkingLevel,
@@ -1589,7 +1538,6 @@ var AgentManager = class {
           record.toolUses++;
         options.onToolActivity?.(activity);
       },
-      onTurnEnd: options.onTurnEnd,
       onTextDelta: options.onTextDelta,
       onSessionCreated: (session) => {
         record.session = session;
@@ -1602,9 +1550,9 @@ var AgentManager = class {
         }
         options.onSessionCreated?.(session);
       }
-    }).then(({ responseText, session, aborted, steered }) => {
+    }).then(({ responseText, session }) => {
       if (record.status !== "stopped") {
-        record.status = aborted ? "aborted" : steered ? "steered" : "completed";
+        record.status = "completed";
       }
       record.result = responseText;
       record.session = session;
@@ -1893,7 +1841,6 @@ function loadFromDir(dir, agents2, source) {
       skills: inheritField(fm.skills ?? fm.inherit_skills),
       model: str(fm.model),
       thinking: str(fm.thinking),
-      maxTurns: nonNegativeInt(fm.max_turns),
       systemPrompt: body.trim(),
       promptMode: fm.prompt_mode === "append" ? "append" : "replace",
       inheritContext: fm.inherit_context != null ? fm.inherit_context === true : void 0,
@@ -1909,9 +1856,6 @@ function loadFromDir(dir, agents2, source) {
 }
 function str(val) {
   return typeof val === "string" ? val : void 0;
-}
-function nonNegativeInt(val) {
-  return typeof val === "number" && val >= 0 ? val : void 0;
 }
 function parseCsvField(val) {
   if (val === void 0 || val === null)
@@ -2052,7 +1996,6 @@ function resolveAgentInvocationConfig(agentConfig, params) {
     modelInput: agentConfig?.model ?? params.model,
     modelFromParams: agentConfig?.model == null && params.model != null,
     thinking: agentConfig?.thinking ?? params.thinking,
-    maxTurns: agentConfig?.maxTurns ?? params.max_turns,
     inheritContext: agentConfig?.inheritContext ?? params.inherit_context ?? false,
     runInBackground: agentConfig?.runInBackground ?? params.run_in_background ?? false,
     isolated: agentConfig?.isolated ?? params.isolated ?? false,
@@ -2113,86 +2056,8 @@ ${modelList}`;
 
 // node_modules/@jeonghyeon.net/pi-subagents/dist/notification-delivery.js
 init_agent_widget();
-var SUBAGENT_NOTIFICATION_OPTIONS = {
-  deliverAs: "followUp",
-  triggerTurn: false
-};
-function isErrorStatus(status) {
-  return status === "error" || status === "aborted";
-}
-function isWarningStatus(status) {
-  return status === "stopped" || status === "steered";
-}
-function getNotifyLevel(all) {
-  if (all.some((d) => isErrorStatus(d.status)))
-    return "error";
-  if (all.some((d) => isWarningStatus(d.status)))
-    return "warning";
-  return "info";
-}
-function getStatusText(status) {
-  if (status === "error")
-    return "failed";
-  if (status === "aborted")
-    return "aborted";
-  if (status === "stopped")
-    return "stopped";
-  if (status === "steered")
-    return "completed (turn limit)";
-  return "completed";
-}
-function getPreviewLine(resultPreview) {
-  return resultPreview.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
-}
-function formatStats(d) {
-  const parts = [];
-  if (d.turnCount > 0)
-    parts.push(formatTurns(d.turnCount, d.maxTurns));
-  if (d.toolUses > 0)
-    parts.push(`${d.toolUses} tool use${d.toolUses === 1 ? "" : "s"}`);
-  if (d.totalTokens > 0)
-    parts.push(formatTokens(d.totalTokens));
-  if (d.durationMs > 0)
-    parts.push(formatMs(d.durationMs));
-  return parts.join(" \xB7 ");
-}
-function formatToastLine(d) {
-  let line = `\u2022 ${d.description} \u2014 ${getStatusText(d.status)}`;
-  const stats = formatStats(d);
-  if (stats)
-    line += ` (${stats})`;
-  const preview = getPreviewLine(d.resultPreview);
-  if (preview)
-    line += `
-  \u23BF ${preview}`;
-  return line;
-}
-function formatSubagentToast(details, maxItems = 5) {
-  const all = [details, ...details.others ?? []];
-  if (all.length === 1) {
-    return ["Background agent update", formatToastLine(all[0]).slice(2)].join("\n");
-  }
-  const lines = [`${all.length} background agent updates`];
-  const shown = all.slice(0, maxItems);
-  for (const item of shown)
-    lines.push(formatToastLine(item));
-  if (all.length > shown.length)
-    lines.push(`\u2022 +${all.length - shown.length} more`);
-  return lines.join("\n");
-}
-function deliverSubagentNotification(pi, ctx, payload) {
-  const all = [payload.details, ...payload.details.others ?? []];
-  if (ctx?.hasUI) {
-    ctx.ui.notify(formatSubagentToast(payload.details), getNotifyLevel(all));
-    return "ui";
-  }
-  pi.sendMessage({
-    customType: "subagent-notification",
-    content: payload.content,
-    display: true,
-    details: payload.details
-  }, SUBAGENT_NOTIFICATION_OPTIONS);
-  return "session";
+function deliverSubagentNotification(_pi, _ctx, _payload) {
+  return "suppressed";
 }
 
 // node_modules/@jeonghyeon.net/pi-subagents/dist/output-file.js
@@ -2270,8 +2135,8 @@ function safeFormatTokens(session) {
     return "";
   }
 }
-function createActivityTracker(maxTurns, onStreamUpdate) {
-  const state = { activeTools: /* @__PURE__ */ new Map(), toolUses: 0, turnCount: 1, maxTurns, tokens: "", responseText: "", session: void 0 };
+function createActivityTracker(onStreamUpdate) {
+  const state = { activeTools: /* @__PURE__ */ new Map(), toolUses: 0, tokens: "", responseText: "", session: void 0 };
   const callbacks = {
     onToolActivity: (activity) => {
       if (activity.type === "start") {
@@ -2292,10 +2157,6 @@ function createActivityTracker(maxTurns, onStreamUpdate) {
       state.responseText = fullText;
       onStreamUpdate?.();
     },
-    onTurnEnd: (turnCount) => {
-      state.turnCount = turnCount;
-      onStreamUpdate?.();
-    },
     onSessionCreated: (session) => {
       state.session = session;
     }
@@ -2306,10 +2167,6 @@ function getStatusLabel(status, error) {
   switch (status) {
     case "error":
       return `Error: ${error ?? "unknown"}`;
-    case "aborted":
-      return "Aborted (max turns exceeded)";
-    case "steered":
-      return "Wrapped up (turn limit)";
     case "stopped":
       return "Stopped";
     default:
@@ -2318,10 +2175,6 @@ function getStatusLabel(status, error) {
 }
 function getStatusNote(status) {
   switch (status) {
-    case "aborted":
-      return " (aborted \u2014 max turns exceeded, output may be incomplete)";
-    case "steered":
-      return " (wrapped up \u2014 reached turn limit)";
     case "stopped":
       return " (stopped by user)";
     default:
@@ -2355,13 +2208,11 @@ function formatTaskNotification(record, resultMaxLen) {
     `</task-notification>`
   ].filter(Boolean).join("\n");
 }
-function buildDetails(base, record, activity, overrides) {
+function buildDetails(base, record, _activity, overrides) {
   return {
     ...base,
     toolUses: record.toolUses,
     tokens: safeFormatTokens(record.session),
-    turnCount: activity?.turnCount,
-    maxTurns: activity?.maxTurns,
     durationMs: (record.completedAt ?? Date.now()) - record.startedAt,
     status: record.status,
     agentId: record.id,
@@ -2369,7 +2220,7 @@ function buildDetails(base, record, activity, overrides) {
     ...overrides
   };
 }
-function buildNotificationDetails(record, resultMaxLen, activity) {
+function buildNotificationDetails(record, resultMaxLen, _activity) {
   let totalTokens = 0;
   try {
     if (record.session)
@@ -2381,8 +2232,6 @@ function buildNotificationDetails(record, resultMaxLen, activity) {
     description: record.description,
     status: record.status,
     toolUses: record.toolUses,
-    turnCount: activity?.turnCount ?? 0,
-    maxTurns: activity?.maxTurns,
     totalTokens,
     durationMs: record.completedAt ? record.completedAt - record.startedAt : 0,
     outputFile: record.outputFile,
@@ -2396,13 +2245,11 @@ function dist_default(pi) {
     if (!d)
       return void 0;
     function renderOne(d2) {
-      const isError = d2.status === "error" || d2.status === "stopped" || d2.status === "aborted";
+      const isError = d2.status === "error" || d2.status === "stopped";
       const icon = isError ? theme.fg("error", "\u2717") : theme.fg("success", "\u2713");
-      const statusText = isError ? d2.status : d2.status === "steered" ? "completed (steered)" : "completed";
+      const statusText = isError ? d2.status : "completed";
       let line = `${icon} ${theme.bold(d2.description)} ${theme.fg("dim", statusText)}`;
       const parts = [];
-      if (d2.turnCount > 0)
-        parts.push(formatTurns(d2.turnCount, d2.maxTurns));
       if (d2.toolUses > 0)
         parts.push(`${d2.toolUses} tool use${d2.toolUses === 1 ? "" : "s"}`);
       if (d2.totalTokens > 0)
@@ -2524,7 +2371,7 @@ Use get_subagent_result for full output.`,
     };
   }
   const manager = new AgentManager((record) => {
-    const isError = record.status === "error" || record.status === "stopped" || record.status === "aborted";
+    const isError = record.status === "error" || record.status === "stopped";
     const eventData = buildEventData(record);
     if (isError) {
       pi.events.emit("subagents:failed", eventData);
@@ -2639,7 +2486,7 @@ Use get_subagent_result for full output.`,
   pi.on("tool_execution_start", async (_event, ctx) => {
     currentCtx = ctx;
     widget.setUICtx(ctx.ui);
-    widget.onTurnStart();
+    widget.onActivity();
   });
   const buildTypeListText = () => {
     const defaultNames = getDefaultAgentNames();
@@ -2683,7 +2530,7 @@ Guidelines:
 - Use general-purpose for complex tasks that need file editing.
 - Provide clear, detailed prompts so the agent can work autonomously.
 - Agent results are returned as text \u2014 summarize them for the user.
-- Use run_in_background for work you don't need immediately. You will be notified when it completes.
+- Use run_in_background for work you don't need immediately. Use get_subagent_result to retrieve results later.
 - Use resume with an agent ID to continue a previous agent's work.
 - Use steer_subagent to send mid-run messages to a running background agent.
 - Use model to specify a different model (as "provider/modelId", or fuzzy e.g. "haiku", "sonnet").
@@ -2706,12 +2553,8 @@ Guidelines:
       thinking: Type.Optional(Type.String({
         description: "Thinking level: off, minimal, low, medium, high, xhigh. Overrides agent default."
       })),
-      max_turns: Type.Optional(Type.Number({
-        description: "Maximum number of agentic turns before stopping. Omit for unlimited (default).",
-        minimum: 1
-      })),
       run_in_background: Type.Optional(Type.Boolean({
-        description: "Set to true to run in background. Returns agent ID immediately. You will be notified on completion."
+        description: "Set to true to run in background. Returns agent ID immediately. Use get_subagent_result to retrieve results later."
       })),
       resume: Type.Optional(Type.String({
         description: "Optional agent ID to resume from. Continues from previous context."
@@ -2744,9 +2587,6 @@ Guidelines:
           parts.push(d.modelName);
         if (d.tags)
           parts.push(...d.tags);
-        if (d.turnCount != null && d.turnCount > 0) {
-          parts.push(formatTurns(d.turnCount, d.maxTurns));
-        }
         if (d.toolUses > 0)
           parts.push(`${d.toolUses} tool use${d.toolUses === 1 ? "" : "s"}`);
         if (d.tokens)
@@ -2763,10 +2603,9 @@ Guidelines:
       if (details.status === "background") {
         return new Text(theme.fg("dim", `  \u23BF  Running in background (ID: ${details.agentId})`), 0, 0);
       }
-      if (details.status === "completed" || details.status === "steered") {
+      if (details.status === "completed") {
         const duration = formatMs(details.durationMs);
-        const isSteered = details.status === "steered";
-        const icon = isSteered ? theme.fg("warning", "\u2713") : theme.fg("success", "\u2713");
+        const icon = theme.fg("success", "\u2713");
         const s2 = stats(details);
         let line2 = icon + (s2 ? " " + s2 : "");
         line2 += " " + theme.fg("dim", "\xB7") + " " + theme.fg("dim", duration);
@@ -2782,8 +2621,7 @@ Guidelines:
             }
           }
         } else {
-          const doneText = isSteered ? "Wrapped up (turn limit)" : "Done";
-          line2 += "\n" + theme.fg("dim", `  \u23BF  ${doneText}`);
+          line2 += "\n" + theme.fg("dim", "  \u23BF  Done");
         }
         return new Text(line2, 0, 0);
       }
@@ -2795,11 +2633,7 @@ Guidelines:
       }
       const s = stats(details);
       let line = theme.fg("error", "\u2717") + (s ? " " + s : "");
-      if (details.status === "error") {
-        line += "\n" + theme.fg("error", `  \u23BF  Error: ${details.error ?? "unknown"}`);
-      } else {
-        line += "\n" + theme.fg("warning", "  \u23BF  Aborted (max turns exceeded)");
-      }
+      line += "\n" + theme.fg("error", `  \u23BF  Error: ${details.error ?? "unknown"}`);
       return new Text(line, 0, 0);
     },
     // ---- Execute ----
@@ -2841,7 +2675,6 @@ Guidelines:
         agentTags.push("isolated");
       if (isolation === "worktree")
         agentTags.push("worktree");
-      const effectiveMaxTurns = normalizeMaxTurns(resolvedConfig.maxTurns ?? getDefaultMaxTurns());
       const detailBase = {
         displayName,
         description: params.description,
@@ -2864,7 +2697,7 @@ Guidelines:
         return textResult(record2.result?.trim() || record2.error?.trim() || "No output.", buildDetails(detailBase, record2));
       }
       if (runInBackground) {
-        const { state: bgState, callbacks: bgCallbacks } = createActivityTracker(effectiveMaxTurns);
+        const { state: bgState, callbacks: bgCallbacks } = createActivityTracker();
         let id;
         const origBgOnSession = bgCallbacks.onSessionCreated;
         bgCallbacks.onSessionCreated = (session) => {
@@ -2877,7 +2710,6 @@ Guidelines:
         id = manager.spawn(pi, ctx, subagentType, params.prompt, {
           description: params.description,
           model,
-          maxTurns: effectiveMaxTurns,
           isolated,
           inheritContext,
           thinkingLevel: thinking,
@@ -2917,7 +2749,6 @@ Description: ${params.description}
 ` + (record2?.outputFile ? `Output file: ${record2.outputFile}
 ` : "") + (isQueued ? `Position: queued (max ${manager.getMaxConcurrent()} concurrent)
 ` : "") + `
-You will be notified when this agent completes.
 Use get_subagent_result to retrieve full results, or steer_subagent to send it messages.
 Do not duplicate this agent's work.`, { ...detailBase, toolUses: 0, tokens: "", durationMs: 0, status: "background", agentId: id });
       }
@@ -2929,8 +2760,6 @@ Do not duplicate this agent's work.`, { ...detailBase, toolUses: 0, tokens: "", 
           ...detailBase,
           toolUses: fgState.toolUses,
           tokens: fgState.tokens,
-          turnCount: fgState.turnCount,
-          maxTurns: fgState.maxTurns,
           durationMs: Date.now() - startedAt,
           status: "running",
           activity: describeActivity(fgState.activeTools, fgState.responseText),
@@ -2941,7 +2770,7 @@ Do not duplicate this agent's work.`, { ...detailBase, toolUses: 0, tokens: "", 
           details: details2
         });
       };
-      const { state: fgState, callbacks: fgCallbacks } = createActivityTracker(effectiveMaxTurns, streamUpdate);
+      const { state: fgState, callbacks: fgCallbacks } = createActivityTracker(streamUpdate);
       const origOnSession = fgCallbacks.onSessionCreated;
       fgCallbacks.onSessionCreated = (session) => {
         origOnSession(session);
@@ -2962,7 +2791,6 @@ Do not duplicate this agent's work.`, { ...detailBase, toolUses: 0, tokens: "", 
       const record = await manager.spawnAndWait(pi, ctx, subagentType, params.prompt, {
         description: params.description,
         model,
-        maxTurns: effectiveMaxTurns,
         isolated,
         inheritContext,
         thinkingLevel: thinking,
@@ -3113,7 +2941,7 @@ ${conversation}`;
     const agents2 = manager.listAgents();
     if (agents2.length > 0) {
       const running = agents2.filter((a) => a.status === "running" || a.status === "queued").length;
-      const done = agents2.filter((a) => a.status === "completed" || a.status === "steered").length;
+      const done = agents2.filter((a) => a.status === "completed").length;
       options.push(`Running agents (${agents2.length}) \u2014 ${running} running, ${done} done`);
     }
     if (allNames.length > 0) {
@@ -3305,8 +3133,6 @@ ${conversation}`;
       fmFields.push(`model: ${cfg.model}`);
     if (cfg.thinking)
       fmFields.push(`thinking: ${cfg.thinking}`);
-    if (cfg.maxTurns)
-      fmFields.push(`max_turns: ${cfg.maxTurns}`);
     fmFields.push(`prompt_mode: ${cfg.promptMode}`);
     if (cfg.extensions === false)
       fmFields.push("extensions: false");
@@ -3432,7 +3258,6 @@ description: <one-line description shown in UI>
 tools: <comma-separated built-in tools: read, bash, edit, write, grep, find, ls. Use "none" for no tools. Omit for all tools>
 model: <optional model as "provider/modelId", e.g. "anthropic/claude-haiku-4-5-20251001". Omit to inherit parent model>
 thinking: <optional thinking level: off, minimal, low, medium, high, xhigh. Omit to inherit>
-max_turns: <optional max agentic turns. 0 or omit for unlimited (default)>
 prompt_mode: <"replace" (body IS the full system prompt) or "append" (body is appended to default prompt). Default: replace>
 extensions: <true (inherit all MCP/extension tools), false (none), or comma-separated names. Default: true>
 skills: <true (inherit all), false (none), or comma-separated skill names to preload into prompt. Default: true>
@@ -3458,8 +3283,7 @@ Guidelines for choosing settings:
 
 Write the file using the write tool. Only write the file, nothing else.`;
     const record = await manager.spawnAndWait(pi, ctx, "general-purpose", generatePrompt, {
-      description: `Generate ${name} agent`,
-      maxTurns: 5
+      description: `Generate ${name} agent`
     });
     if (record.status === "error") {
       ctx.ui.notify(`Generation failed: ${record.error}`, "warning");
@@ -3558,8 +3382,6 @@ ${systemPrompt}
   async function showSettings(ctx) {
     const choice = await ctx.ui.select("Settings", [
       `Max concurrency (current: ${manager.getMaxConcurrent()})`,
-      `Default max turns (current: ${getDefaultMaxTurns() ?? "unlimited"})`,
-      `Grace turns (current: ${getGraceTurns()})`,
       `Join mode (current: ${getDefaultJoinMode()})`
     ]);
     if (!choice)
@@ -3575,34 +3397,9 @@ ${systemPrompt}
           ctx.ui.notify("Must be a positive integer.", "warning");
         }
       }
-    } else if (choice.startsWith("Default max turns")) {
-      const val = await ctx.ui.input("Default max turns before wrap-up (0 = unlimited)", String(getDefaultMaxTurns() ?? 0));
-      if (val) {
-        const n = parseInt(val, 10);
-        if (n === 0) {
-          setDefaultMaxTurns(void 0);
-          ctx.ui.notify("Default max turns set to unlimited", "info");
-        } else if (n >= 1) {
-          setDefaultMaxTurns(n);
-          ctx.ui.notify(`Default max turns set to ${n}`, "info");
-        } else {
-          ctx.ui.notify("Must be 0 (unlimited) or a positive integer.", "warning");
-        }
-      }
-    } else if (choice.startsWith("Grace turns")) {
-      const val = await ctx.ui.input("Grace turns after wrap-up steer", String(getGraceTurns()));
-      if (val) {
-        const n = parseInt(val, 10);
-        if (n >= 1) {
-          setGraceTurns(n);
-          ctx.ui.notify(`Grace turns set to ${n}`, "info");
-        } else {
-          ctx.ui.notify("Must be a positive integer.", "warning");
-        }
-      }
     } else if (choice.startsWith("Join mode")) {
       const val = await ctx.ui.select("Default join mode for background agents", [
-        "smart \u2014 auto-group 2+ agents in same turn (default)",
+        "smart \u2014 auto-group 2+ agents in same request burst (default)",
         "async \u2014 always notify individually",
         "group \u2014 always group background agents"
       ]);
