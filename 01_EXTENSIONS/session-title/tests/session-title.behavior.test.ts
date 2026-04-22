@@ -20,6 +20,21 @@ describe("session-title behavior", () => {
 		expect(setTitle).toHaveBeenLastCalledWith("π - Add session title extension - pi-project");
 	});
 
+	it("replaces prompt-copy titles with a summarized title", async () => {
+		const prompt = "pi에서 ollama glm-5.1 쓰려면 어떻게 해야함";
+		vi.spyOn(generator, "generateSessionTitle").mockResolvedValue("Ollama GLM-5.1 사용 방법");
+		const api = createApiMock(prompt);
+		extension(api.api);
+		const beforeAgentStart = api.getHandler("before_agent_start");
+		if (!beforeAgentStart) throw new Error("missing before_agent_start handler");
+		const { ctx, setStatus, setTitle } = createContext({});
+		await beforeAgentStart({ prompt }, ctx);
+		await Promise.resolve();
+		expect(api.getSessionName()).toBe("Ollama GLM-5.1 사용 방법");
+		expect(setStatus).toHaveBeenCalledWith("session-title", "Ollama GLM-5.1 사용 방법");
+		expect(setTitle).toHaveBeenLastCalledWith("π - Ollama GLM-5.1 사용 방법 - pi-project");
+	});
+
 	it("skips naming when it should not run and keeps existing titles", async () => {
 		const spy = vi.spyOn(generator, "generateSessionTitle").mockResolvedValue("ignored");
 		const api = createApiMock("Existing title");

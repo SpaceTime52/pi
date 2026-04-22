@@ -167,11 +167,16 @@ function getSessionTitle(pi, ctx) {
     return void 0;
   }
 }
+function shouldReplaceSessionTitle(currentTitle, userPrompt) {
+  if (!currentTitle?.trim()) return true;
+  if (!userPrompt.trim()) return false;
+  return looksLikePromptCopy(currentTitle, userPrompt);
+}
 function shouldAutoNameSession(pi, ctx, userPrompt, namingInFlight) {
   if (namingInFlight) return false;
-  if (getSessionTitle(pi, ctx)) return false;
   if (!userPrompt.trim()) return false;
-  return !isSubagentSessionPath(extractSessionFilePath(ctx.sessionManager));
+  if (isSubagentSessionPath(extractSessionFilePath(ctx.sessionManager))) return false;
+  return shouldReplaceSessionTitle(getSessionTitle(pi, ctx), userPrompt);
 }
 
 // src/session-title-ui.ts
@@ -198,7 +203,7 @@ function registerSessionTitle(_pi) {
     namingInFlight = true;
     try {
       const sessionTitle = await generateSessionTitle(ctx, userPrompt);
-      if (sessionTitle && !ctx.sessionManager.getSessionName()) {
+      if (sessionTitle && shouldReplaceSessionTitle(getSessionTitle(_pi, ctx), userPrompt)) {
         _pi.setSessionName(sessionTitle);
       }
     } finally {

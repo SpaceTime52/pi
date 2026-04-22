@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { generateSessionTitle } from "./title-generator.js";
-import { shouldAutoNameSession } from "./session-title-state.js";
+import { getSessionTitle, shouldAutoNameSession, shouldReplaceSessionTitle } from "./session-title-state.js";
 import { clearSessionTitleUi, syncSessionTitleUi } from "./session-title-ui.js";
 import type { SessionTitleApi } from "./types.js";
 
@@ -15,7 +15,7 @@ export default function registerSessionTitle(_pi: SessionTitleApi) {
 		namingInFlight = true;
 		try {
 			const sessionTitle = await generateSessionTitle(ctx, userPrompt);
-			if (sessionTitle && !ctx.sessionManager.getSessionName()) {
+			if (sessionTitle && shouldReplaceSessionTitle(getSessionTitle(_pi, ctx), userPrompt)) {
 				_pi.setSessionName(sessionTitle);
 			}
 		} finally {
