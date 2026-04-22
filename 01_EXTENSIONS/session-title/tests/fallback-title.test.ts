@@ -11,10 +11,19 @@ describe("fallback title", () => {
 		expect(buildFallbackTitle("Please fix API timeout handling in diff-review command.")).toBe("API timeout handling in diff-review command");
 		expect(buildFallbackTitle("[docs](https://example.com) Please add a terminal title sync.")).toBe("terminal title sync");
 		expect(buildFallbackTitle("터미널 제목 extension 만들어줘")).toBe("터미널 제목 자동 설정 extension");
+		expect(buildFallbackTitle("pi에서 ollama glm-5.1 쓰려면 어떻게 해야함")).toBe("pi에서 ollama glm-5.1 사용 방법");
 	});
 
-	it("handles empty and short prompts", () => {
+	it("handles empty, question-style, and short prompts without copying them verbatim", () => {
 		expect(buildFallbackTitle("   ")).toBe("");
-		expect(buildFallbackTitle("go")).toBe("go");
+		expect(buildFallbackTitle("go")).toBe("go task");
+		expect(buildFallbackTitle("작업해줘")).toBe("");
+		expect(buildFallbackTitle("please")).toBe("new session");
+		expect(buildFallbackTitle("How do I use Ollama GLM-5.1 in pi?")).toBe("use Ollama GLM-5.1 in pi");
+		expect(buildFallbackTitle("ollama api 뭐야")).toBe("ollama api 관련 질문");
+		expect(buildFallbackTitle("what is ollama")).toBe("ollama question");
+		expect(buildFallbackTitle("뭐야")).toBe("새 세션");
+		expect(buildFallbackTitle("how to")).toBe("new session");
+		expect(buildFallbackTitle("에러")).toBe("에러 관련 작업");
 	});
 });

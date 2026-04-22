@@ -12,6 +12,7 @@ describe("title generator fallbacks", () => {
 		await expect(generateSessionTitle({}, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
 		await expect(generateSessionTitle({ model: { id: "model" } }, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
 		await expect(generateSessionTitle({ modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true }) } }, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
+		await expect(generateSessionTitle({}, "pi에서 ollama glm-5.1 쓰려면 어떻게 해야함")).resolves.toBe("pi에서 ollama glm-5.1 사용 방법");
 	});
 
 	it("falls back when auth lookup fails or the model call fails", async () => {

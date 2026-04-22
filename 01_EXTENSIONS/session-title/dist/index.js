@@ -86,6 +86,39 @@ function condenseActionPhrase(text) {
   const english = text.match(/^(add|fix|update|implement|create|make|write|refactor|remove|support|improve|enable|simplify|document|rename|move|review|debug|test|investigate|convert|build|ship)\s+(.+)/iu);
   return english?.[2]?.trim() || text;
 }
+function summarizeHowToPrompt(text) {
+  const trimmed = stripRequestFraming(text).replace(/[?？]+$/gu, "").trim();
+  if (!trimmed) return "";
+  const koreanRules = [
+    { pattern: /\s*(?:쓰려면|사용하려면)(?:\s*어떻게\s*(?:해야(?:함|해|하나|하나요|하냐|할까)?|함)|\s*방법)?\s*$/u, suffix: "\uC0AC\uC6A9 \uBC29\uBC95" },
+    { pattern: /\s*(?:설정하려면|설정은?)(?:\s*어떻게\s*(?:해야(?:함|해|하나|하나요|하냐|할까)?|함)|\s*방법)?\s*$/u, suffix: "\uC124\uC815 \uBC29\uBC95" },
+    { pattern: /\s*(?:설치하려면|깔려면)(?:\s*어떻게\s*(?:해야(?:함|해|하나|하나요|하냐|할까)?|함)|\s*방법)?\s*$/u, suffix: "\uC124\uCE58 \uBC29\uBC95" },
+    { pattern: /\s*(?:연결하려면)(?:\s*어떻게\s*(?:해야(?:함|해|하나|하나요|하냐|할까)?|함)|\s*방법)?\s*$/u, suffix: "\uC5F0\uACB0 \uBC29\uBC95" }
+  ];
+  for (const { pattern, suffix } of koreanRules) {
+    if (pattern.test(trimmed)) return normalizeTitle(trimmed.replace(pattern, ` ${suffix}`));
+  }
+  const englishRules = [
+    { pattern: /^(?:how (?:do|can) i\s+|how to\s+)(use\s+.+)$/iu, prefix: "" },
+    { pattern: /^(?:how (?:do|can) i\s+|how to\s+)(configure\s+.+)$/iu, prefix: "" },
+    { pattern: /^(?:how (?:do|can) i\s+|how to\s+)(install\s+.+)$/iu, prefix: "" },
+    { pattern: /^(?:how (?:do|can) i\s+|how to\s+)(connect\s+.+)$/iu, prefix: "" }
+  ];
+  for (const { pattern, prefix } of englishRules) {
+    const match = trimmed.match(pattern);
+    if (match?.[1]) return normalizeTitle(`${prefix}${match[1]}`.trim());
+  }
+  const genericQuestion = trimmed.replace(/\s*(?:어떻게\s*(?:해야(?:함|해|하나|하나요|하냐|할까)?|함)|방법|가능(?:함|해|한가|할까)?|되나|됨|돼|되냐|될까|뭐임|뭐야)\s*$/u, "").replace(/\s*(?:how (?:do|can) i|how to|what is|what's)\s+/iu, "").trim();
+  if (genericQuestion && genericQuestion !== trimmed) {
+    return normalizeTitle(/[가-힣]/u.test(trimmed) ? `${genericQuestion} \uAD00\uB828 \uC9C8\uBB38` : `${genericQuestion} question`);
+  }
+  return "";
+}
+function buildNonCopyTitle(text) {
+  const topic = stripRequestFraming(text).replace(/[?？]+$/gu, "").replace(/\s*(?:어떻게\s*(?:해야(?:함|해|하나|하나요|하냐|할까)?|함)|방법|가능(?:함|해|한가|할까)?|되나|됨|돼|되냐|될까|뭐임|뭐야)\s*$/u, "").replace(/\b(?:please|can you|could you|would you|help me|i need you to|how do i|how can i|how to|what is|what's)\b/giu, " ").replace(/\s+/gu, " ").trim();
+  if (!topic) return /[가-힣]/u.test(text) ? "\uC0C8 \uC138\uC158" : "new session";
+  return normalizeTitle(/[가-힣]/u.test(topic) ? `${topic} \uAD00\uB828 \uC791\uC5C5` : `${topic} task`);
+}
 function summarizeKnownTask(text) {
   const korean = /[가-힣]/u.test(text);
   const suffix = /\bextensions?\b/iu.test(text) || /extensions?에/u.test(text) ? " extension" : "";
@@ -110,9 +143,12 @@ function buildFallbackTitle(userPrompt) {
   if (!cleaned) return "";
   const summarized = summarizeKnownTask(cleaned);
   if (summarized) return normalizeTitle(summarized);
+  const questionSummary = summarizeHowToPrompt(cleaned);
+  if (questionSummary) return questionSummary;
   const parts = cleaned.split(/[\n\r]+|(?<=[.!?。！？])\s+/u).map((part) => stripRequestFraming(part)).filter(Boolean);
   const candidate = parts.find((part) => part.length >= 4) ?? stripRequestFraming(cleaned);
-  return normalizeTitle(condenseActionPhrase(candidate));
+  const normalized = normalizeTitle(condenseActionPhrase(candidate));
+  return looksLikePromptCopy(normalized, userPrompt) ? buildNonCopyTitle(cleaned) : normalized;
 }
 
 // src/title-generator.ts
