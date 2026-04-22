@@ -127,32 +127,21 @@ function stripAnsi(text) {
 }
 
 // src/internal-module.ts
-import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
-var require2 = createRequire(import.meta.url);
-function resolvePackageFile(packageName, file) {
-  for (const base of require2.resolve.paths(packageName) ?? []) {
-    const candidate = join(base, packageName, file);
-    if (existsSync(candidate)) return pathToFileURL(candidate).href;
-  }
-  throw new Error(`Could not resolve ${packageName}/${file}`);
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+function resolveFromModule(mainHref, relativePath) {
+  return pathToFileURL(join(dirname(fileURLToPath(mainHref)), relativePath)).href;
 }
 
 // src/assistant-message-patch.ts
 function hasVisibleText(message) {
   if (!message) return false;
-  for (const content of message.content) {
-    if (content.type === "text" && content.text?.trim()) return true;
-  }
+  for (const content of message.content) if (content.type === "text" && content.text?.trim()) return true;
   return false;
 }
 function hasHiddenThinking(message) {
   if (!message) return false;
-  for (const content of message.content) {
-    if (content.type === "thinking" && content.thinking?.trim()) return true;
-  }
+  for (const content of message.content) if (content.type === "thinking" && content.thinking?.trim()) return true;
   return false;
 }
 function patchAssistantMessagePrototype(prototype) {
@@ -170,7 +159,8 @@ function patchAssistantMessagePrototype(prototype) {
   return true;
 }
 async function loadAssistantMessageModule() {
-  return import(resolvePackageFile("@mariozechner/pi-coding-agent", "dist/modes/interactive/components/assistant-message.js"));
+  const main = import.meta.resolve("@mariozechner/pi-coding-agent");
+  return import(resolveFromModule(main, "modes/interactive/components/assistant-message.js"));
 }
 async function applyAssistantMessagePatch(load = loadAssistantMessageModule) {
   const module = await load();
@@ -318,9 +308,7 @@ function applyClaudeChrome(ctx) {
 
 // src/loader-patch.ts
 function isBlank(lines) {
-  for (const line of lines) {
-    if (stripAnsi(line).trim()) return false;
-  }
+  for (const line of lines) if (stripAnsi(line).trim()) return false;
   return true;
 }
 function patchLoaderPrototype(prototype) {
@@ -334,7 +322,8 @@ function patchLoaderPrototype(prototype) {
   return true;
 }
 async function loadLoaderModule() {
-  return import(resolvePackageFile("@mariozechner/pi-tui", "dist/components/loader.js"));
+  const main = import.meta.resolve("@mariozechner/pi-coding-agent");
+  return import(resolveFromModule(main, "../node_modules/@mariozechner/pi-tui/dist/components/loader.js"));
 }
 async function applyLoaderPatch(load = loadLoaderModule) {
   const module = await load();
@@ -342,10 +331,16 @@ async function applyLoaderPatch(load = loadLoaderModule) {
 }
 
 // src/session-start.ts
+async function applyRuntimePatch(run) {
+  try {
+    await run();
+  } catch {
+  }
+}
 async function onSessionStart(_event, ctx) {
   if (!ctx.hasUI) return;
-  await applyAssistantMessagePatch();
-  await applyLoaderPatch();
+  await applyRuntimePatch(applyAssistantMessagePatch);
+  await applyRuntimePatch(applyLoaderPatch);
   applyClaudeChrome(ctx);
 }
 

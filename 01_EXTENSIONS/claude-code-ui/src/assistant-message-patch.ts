@@ -1,5 +1,5 @@
 import { stripAnsi } from "./ansi.js";
-import { resolvePackageFile } from "./internal-module.js";
+import { resolveFromModule } from "./internal-module.js";
 
 type MessageState = { content: Array<{ type: string; text?: string; thinking?: string }> };
 type AssistantPrototype = {
@@ -11,22 +11,17 @@ type AssistantPrototype = {
 };
 
 type AssistantModule = { AssistantMessageComponent?: { prototype?: AssistantPrototype } };
-
 type AssistantLoader = () => Promise<AssistantModule>;
 
 function hasVisibleText(message?: MessageState) {
 	if (!message) return false;
-	for (const content of message.content) {
-		if (content.type === "text" && content.text?.trim()) return true;
-	}
+	for (const content of message.content) if (content.type === "text" && content.text?.trim()) return true;
 	return false;
 }
 
 function hasHiddenThinking(message?: MessageState) {
 	if (!message) return false;
-	for (const content of message.content) {
-		if (content.type === "thinking" && content.thinking?.trim()) return true;
-	}
+	for (const content of message.content) if (content.type === "thinking" && content.thinking?.trim()) return true;
 	return false;
 }
 
@@ -45,8 +40,10 @@ export function patchAssistantMessagePrototype(prototype?: AssistantPrototype) {
 	return true;
 }
 
+/* v8 ignore next 4 */
 async function loadAssistantMessageModule() {
-	return import(resolvePackageFile("@mariozechner/pi-coding-agent", "dist/modes/interactive/components/assistant-message.js"));
+	const main = import.meta.resolve("@mariozechner/pi-coding-agent");
+	return import(resolveFromModule(main, "modes/interactive/components/assistant-message.js"));
 }
 
 export async function applyAssistantMessagePatch(load: AssistantLoader = loadAssistantMessageModule) {

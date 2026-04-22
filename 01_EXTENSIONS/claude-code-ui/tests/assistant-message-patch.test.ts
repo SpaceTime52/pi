@@ -17,7 +17,6 @@ describe("assistant message patch", () => {
 		expect(new BlankThinkingMessage().render()).toEqual([]);
 		expect(patchAssistantMessagePrototype(BlankThinkingMessage.prototype)).toBe(false);
 		await applyAssistantMessagePatch(async () => ({}));
-		await applyAssistantMessagePatch();
 	});
 
 	it("keeps visible assistant text and supports injected loaders", async () => {

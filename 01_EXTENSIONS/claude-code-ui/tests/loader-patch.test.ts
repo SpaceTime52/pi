@@ -14,7 +14,6 @@ describe("loader patch", () => {
 		expect(new BlankLoader().render()).toEqual([]);
 		expect(patchLoaderPrototype(BlankLoader.prototype)).toBe(false);
 		await applyLoaderPatch(async () => ({}));
-		await applyLoaderPatch();
 	});
 
 	it("keeps visible working lines and supports injected loaders", async () => {

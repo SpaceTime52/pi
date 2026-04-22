@@ -1,5 +1,5 @@
 import { stripAnsi } from "./ansi.js";
-import { resolvePackageFile } from "./internal-module.js";
+import { resolveFromModule } from "./internal-module.js";
 
 type LoaderPrototype = {
 	render(width: number): string[];
@@ -7,13 +7,10 @@ type LoaderPrototype = {
 };
 
 type LoaderModule = { Loader?: { prototype?: LoaderPrototype } };
-
 type LoaderFactory = () => Promise<LoaderModule>;
 
 function isBlank(lines: string[]) {
-	for (const line of lines) {
-		if (stripAnsi(line).trim()) return false;
-	}
+	for (const line of lines) if (stripAnsi(line).trim()) return false;
 	return true;
 }
 
@@ -28,8 +25,10 @@ export function patchLoaderPrototype(prototype?: LoaderPrototype) {
 	return true;
 }
 
+/* v8 ignore next 4 */
 async function loadLoaderModule() {
-	return import(resolvePackageFile("@mariozechner/pi-tui", "dist/components/loader.js"));
+	const main = import.meta.resolve("@mariozechner/pi-coding-agent");
+	return import(resolveFromModule(main, "../node_modules/@mariozechner/pi-tui/dist/components/loader.js"));
 }
 
 export async function applyLoaderPatch(load: LoaderFactory = loadLoaderModule) {

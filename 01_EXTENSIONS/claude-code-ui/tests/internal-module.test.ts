@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { resolvePackageFile } from "../src/internal-module.ts";
+import { resolveFromModule } from "../src/internal-module.ts";
 
-describe("resolvePackageFile", () => {
-	it("finds installed package files", () => {
-		const file = resolvePackageFile("@mariozechner/pi-coding-agent", "package.json");
-		expect(file).toContain("@mariozechner/pi-coding-agent/package.json");
+describe("resolveFromModule", () => {
+	it("joins files under the resolved module directory", () => {
+		const file = resolveFromModule("file:///tmp/pkg/dist/index.js", "modes/interactive/components/assistant-message.js");
+		expect(file).toBe("file:///tmp/pkg/dist/modes/interactive/components/assistant-message.js");
 	});
 
-	it("throws when the package file cannot be found", () => {
-		expect(() => resolvePackageFile("@mariozechner/does-not-exist", "missing.js")).toThrow();
-		expect(() => resolvePackageFile("node:fs", "missing.js")).toThrow();
+	it("supports parent traversal for bundled nested dependencies", () => {
+		const file = resolveFromModule("file:///tmp/pkg/dist/index.js", "../node_modules/@mariozechner/pi-tui/dist/components/loader.js");
+		expect(file).toBe("file:///tmp/pkg/node_modules/@mariozechner/pi-tui/dist/components/loader.js");
 	});
 });
