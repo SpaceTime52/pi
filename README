@@ -13,7 +13,6 @@
 
   EXTENSIONS
     auto-session-title … 첫 사용자 메시지 기반 세션 제목 자동 생성
-    claude-code-bridge … Claude Code instruction/hook subset을 pi 이벤트로 브리지
     mcp … MCP 서버 통합 (proxy tool, lazy connection, metadata caching)
 
   SKILLS
