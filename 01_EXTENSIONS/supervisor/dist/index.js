@@ -84,13 +84,18 @@ import {
   SessionManager,
   SettingsManager
 } from "@mariozechner/pi-coding-agent";
-async function callModel(ctx, provider, modelId, systemPrompt, userPrompt, signal, onDelta) {
-  const model = ctx.modelRegistry.find(provider, modelId);
-  if (!model) return null;
-  const agentDir = getAgentDir();
-  const settingsManager = SettingsManager.create(ctx.cwd, agentDir);
-  const loader = new DefaultResourceLoader({
-    cwd: ctx.cwd,
+function requirePath(value, label) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Supervisor analysis requires ${label} to be a non-empty path string.`);
+  }
+  return value;
+}
+function createAnalysisRuntime(ctx, systemPrompt) {
+  const cwd = requirePath(ctx.cwd, "ctx.cwd");
+  const agentDir = requirePath(getAgentDir(), "agentDir");
+  const settingsManager = SettingsManager.create(cwd, agentDir);
+  const loaderOptions = {
+    cwd,
     agentDir,
     settingsManager,
     noExtensions: true,
@@ -98,17 +103,33 @@ async function callModel(ctx, provider, modelId, systemPrompt, userPrompt, signa
     noPromptTemplates: true,
     noThemes: true,
     systemPromptOverride: () => systemPrompt
-  });
+  };
+  const sessionOptions = {
+    cwd,
+    sessionManager: SessionManager.inMemory(cwd),
+    settingsManager,
+    tools: []
+  };
+  return {
+    cwd,
+    agentDir,
+    settingsManager,
+    loader: new DefaultResourceLoader(loaderOptions),
+    sessionOptions
+  };
+}
+async function callModel(ctx, provider, modelId, systemPrompt, userPrompt, signal, onDelta) {
+  const model = ctx.modelRegistry.find(provider, modelId);
+  if (!model) return null;
+  const runtime = createAnalysisRuntime(ctx, systemPrompt);
+  const loader = runtime.loader;
   await loader.reload();
   let session;
   try {
     const result = await createAgentSession({
-      cwd: ctx.cwd,
-      sessionManager: SessionManager.inMemory(ctx.cwd),
-      settingsManager,
+      ...runtime.sessionOptions,
       modelRegistry: ctx.modelRegistry,
       model,
-      tools: [],
       resourceLoader: loader
     });
     session = result.session;
