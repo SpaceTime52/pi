@@ -195,7 +195,11 @@ import { dirname, isAbsolute, join } from "node:path";
 var TASKS_DIR = join(homedir(), ".pi", "tasks");
 var LOCK_RETRY_MS = 50;
 var LOCK_MAX_RETRIES = 100;
+function ensureParentDir(path) {
+  mkdirSync(dirname(path), { recursive: true });
+}
 function acquireLock(lockPath) {
+  ensureParentDir(lockPath);
   for (let i = 0; i < LOCK_MAX_RETRIES; i++) {
     try {
       writeFileSync(lockPath, `${process.pid}`, { flag: "wx" });
@@ -270,6 +274,7 @@ var TaskStore = class {
   save() {
     if (!this.filePath)
       return;
+    ensureParentDir(this.filePath);
     const data = {
       nextId: this.nextId,
       tasks: Array.from(this.tasks.values())
