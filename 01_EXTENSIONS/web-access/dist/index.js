@@ -62828,12 +62828,12 @@ fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {
   }
 });
 
-// node_modules/pi-web-access/index.ts
+// node_modules/@jeonghyeon.net/pi-web-access/index.ts
 import { Box, Text as Text5, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { StringEnum, complete as complete2, getModel as getModel2 } from "@mariozechner/pi-ai";
 
-// node_modules/pi-web-access/extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/extract.ts
 var import_readability = __toESM(require_readability(), 1);
 
 // node_modules/linkedom/esm/shared/symbols.js
@@ -71540,7 +71540,7 @@ function Document4() {
 }
 setPrototypeOf(Document4, Document2).prototype = Document2.prototype;
 
-// node_modules/pi-web-access/extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/extract.ts
 var import_turndown = __toESM(require_turndown_cjs(), 1);
 
 // node_modules/yocto-queue/index.js
@@ -71682,7 +71682,7 @@ function validateConcurrency(concurrency) {
   }
 }
 
-// node_modules/pi-web-access/activity.ts
+// node_modules/@jeonghyeon.net/pi-web-access/activity.ts
 var ActivityMonitor = class {
   entries = [];
   maxEntries = 10;
@@ -71750,7 +71750,7 @@ var ActivityMonitor = class {
 };
 var activityMonitor = new ActivityMonitor();
 
-// node_modules/pi-web-access/rsc-extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/rsc-extract.ts
 function extractRSCContent(html) {
   if (!html.includes("self.__next_f.push")) {
     return null;
@@ -72156,7 +72156,7 @@ async function interopDefault(m) {
   return resolved.default || resolved;
 }
 
-// node_modules/pi-web-access/pdf-extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/pdf-extract.ts
 import { writeFile, mkdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { homedir } from "node:os";
@@ -72259,13 +72259,13 @@ function isPDF(url, contentType) {
   }
 }
 
-// node_modules/pi-web-access/github-extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/github-extract.ts
 import { existsSync, readFileSync, rmSync, statSync, readdirSync, openSync, readSync, closeSync, realpathSync } from "node:fs";
 import { execFile as execFile2 } from "node:child_process";
 import { homedir as homedir2 } from "node:os";
 import { extname, join as join2, resolve as resolvePath, sep as pathSep } from "node:path";
 
-// node_modules/pi-web-access/github-api.ts
+// node_modules/@jeonghyeon.net/pi-web-access/github-api.ts
 import { execFile } from "node:child_process";
 var MAX_TREE_ENTRIES = 200;
 var MAX_INLINE_FILE_CHARS = 1e5;
@@ -72431,7 +72431,7 @@ async function fetchViaApi(url, owner, repo, info, sizeNote) {
   };
 }
 
-// node_modules/pi-web-access/github-extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/github-extract.ts
 var CONFIG_PATH = join2(homedir2(), ".pi", "web-search.json");
 var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   ".png",
@@ -73011,18 +73011,18 @@ function clearCloneCache() {
   cachedConfig = null;
 }
 
-// node_modules/pi-web-access/youtube-extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/youtube-extract.ts
 import { execFileSync } from "node:child_process";
 import { existsSync as existsSync6, readFileSync as readFileSync5 } from "node:fs";
 import { homedir as homedir7 } from "node:os";
 import { join as join7 } from "node:path";
 
-// node_modules/pi-web-access/gemini-web.ts
+// node_modules/@jeonghyeon.net/pi-web-access/gemini-web.ts
 import { existsSync as existsSync3, readFileSync as readFileSync2 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join4, basename as basename2 } from "node:path";
 
-// node_modules/pi-web-access/chrome-cookies.ts
+// node_modules/@jeonghyeon.net/pi-web-access/chrome-cookies.ts
 import { execFile as execFile3 } from "node:child_process";
 import { pbkdf2Sync, createDecipheriv } from "node:crypto";
 import { copyFileSync, existsSync as existsSync2, mkdtempSync, rmSync as rmSync2 } from "node:fs";
@@ -73290,7 +73290,7 @@ function copySidecar(srcDb, targetDb, suffix) {
   }
 }
 
-// node_modules/pi-web-access/gemini-web.ts
+// node_modules/@jeonghyeon.net/pi-web-access/gemini-web.ts
 var GEMINI_APP_URL = "https://gemini.google.com/app";
 var GEMINI_STREAM_GENERATE_URL = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate";
 var GEMINI_UPLOAD_URL = "https://content-push.googleapis.com/upload";
@@ -73615,7 +73615,7 @@ function parseStreamGenerateResponse(rawText) {
   return { text, errorCode };
 }
 
-// node_modules/pi-web-access/gemini-api.ts
+// node_modules/@jeonghyeon.net/pi-web-access/gemini-api.ts
 import { existsSync as existsSync4, readFileSync as readFileSync3 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
 import { join as join5 } from "node:path";
@@ -73687,7 +73687,7 @@ async function queryGeminiApiWithVideo(prompt, videoUri, options = {}) {
   return text;
 }
 
-// node_modules/pi-web-access/perplexity.ts
+// node_modules/@jeonghyeon.net/pi-web-access/perplexity.ts
 import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
 import { homedir as homedir6 } from "node:os";
 import { join as join6 } from "node:path";
@@ -73832,7 +73832,7 @@ async function searchWithPerplexity(query2, options = {}) {
   return { answer, results };
 }
 
-// node_modules/pi-web-access/utils.ts
+// node_modules/@jeonghyeon.net/pi-web-access/utils.ts
 function formatSeconds(s) {
   const h = Math.floor(s / 3600);
   const m = Math.floor(s % 3600 / 60);
@@ -73870,7 +73870,7 @@ function mapFfmpegError(err) {
   return snippet ? `ffmpeg failed: ${snippet}` : "ffmpeg failed";
 }
 
-// node_modules/pi-web-access/youtube-extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/youtube-extract.ts
 var CONFIG_PATH5 = join7(homedir7(), ".pi", "web-search.json");
 var YOUTUBE_PROMPT = `Extract the complete content of this YouTube video. Include:
 1. Video title, channel name, and duration
@@ -74104,7 +74104,7 @@ ${answer}
   }
 }
 
-// node_modules/pi-web-access/gemini-url-context.ts
+// node_modules/@jeonghyeon.net/pi-web-access/gemini-url-context.ts
 var EXTRACTION_PROMPT = `Extract the complete readable content from this URL as clean markdown.
 Include the page title, all text content, code blocks, and tables.
 Do not summarize \u2014 extract the full content.
@@ -74190,7 +74190,7 @@ function extractTitleFromContent(text, url) {
   return extractHeadingTitle(text) ?? (new URL(url).pathname.split("/").pop() || url);
 }
 
-// node_modules/pi-web-access/video-extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/video-extract.ts
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { existsSync as existsSync7, readFileSync as readFileSync6, readdirSync as readdirSync2, statSync as statSync2 } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -74486,7 +74486,7 @@ function extractVideoTitle(text, filePath) {
   return extractHeadingTitle(text) ?? basename3(filePath, extname2(filePath));
 }
 
-// node_modules/pi-web-access/extract.ts
+// node_modules/@jeonghyeon.net/pi-web-access/extract.ts
 var DEFAULT_TIMEOUT_MS = 3e4;
 var CONCURRENT_LIMIT = 3;
 var NON_RECOVERABLE_ERRORS = ["Unsupported content type", "Response too large"];
@@ -74969,12 +74969,12 @@ async function fetchAllContent(urls, signal, options) {
   return Promise.all(urls.map((url) => fetchLimit(() => extractContent(url, signal, options))));
 }
 
-// node_modules/pi-web-access/gemini-search.ts
+// node_modules/@jeonghyeon.net/pi-web-access/gemini-search.ts
 import { existsSync as existsSync9, readFileSync as readFileSync8 } from "node:fs";
 import { homedir as homedir10 } from "node:os";
 import { join as join10 } from "node:path";
 
-// node_modules/pi-web-access/exa.ts
+// node_modules/@jeonghyeon.net/pi-web-access/exa.ts
 import { existsSync as existsSync8, mkdirSync, readFileSync as readFileSync7, writeFileSync } from "node:fs";
 import { homedir as homedir9 } from "node:os";
 import { join as join9 } from "node:path";
@@ -75379,7 +75379,7 @@ async function searchWithExa(query2, options = {}) {
   }
 }
 
-// node_modules/pi-web-access/gemini-search.ts
+// node_modules/@jeonghyeon.net/pi-web-access/gemini-search.ts
 var CONFIG_PATH8 = join10(homedir10(), ".pi", "web-search.json");
 var cachedSearchConfig = null;
 function getSearchConfig() {
@@ -75643,7 +75643,7 @@ async function resolveRedirect(proxyUrl, signal) {
   }
 }
 
-// node_modules/pi-web-access/code-search.ts
+// node_modules/@jeonghyeon.net/pi-web-access/code-search.ts
 async function executeCodeSearch(_toolCallId, params, signal) {
   const query2 = params.query.trim();
   if (!query2) {
@@ -75682,7 +75682,7 @@ async function executeCodeSearch(_toolCallId, params, signal) {
   }
 }
 
-// node_modules/pi-web-access/storage.ts
+// node_modules/@jeonghyeon.net/pi-web-access/storage.ts
 var CACHE_TTL_MS = 60 * 60 * 1e3;
 var storedResults = /* @__PURE__ */ new Map();
 function generateId() {
@@ -75726,10 +75726,10 @@ function restoreFromSession(ctx) {
   }
 }
 
-// node_modules/pi-web-access/curator-server.ts
+// node_modules/@jeonghyeon.net/pi-web-access/curator-server.ts
 import http from "node:http";
 
-// node_modules/pi-web-access/curator-page.ts
+// node_modules/@jeonghyeon.net/pi-web-access/curator-page.ts
 function safeInlineJSON(data) {
   return JSON.stringify(data).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 }
@@ -79064,7 +79064,7 @@ var SCRIPT = `(function() {
   }
 })();`;
 
-// node_modules/pi-web-access/curator-server.ts
+// node_modules/@jeonghyeon.net/pi-web-access/curator-server.ts
 var STALE_THRESHOLD_MS = 3e4;
 var WATCHDOG_INTERVAL_MS = 5e3;
 var MAX_BODY_SIZE = 64 * 1024;
@@ -79590,7 +79590,7 @@ data: ${JSON.stringify(data)}
   });
 }
 
-// node_modules/pi-web-access/summary-review.ts
+// node_modules/@jeonghyeon.net/pi-web-access/summary-review.ts
 import { complete, getModel } from "@mariozechner/pi-ai";
 var PREFERRED_SUMMARY_MODELS = [
   { provider: "anthropic", id: "claude-haiku-4-5" },
@@ -79803,7 +79803,7 @@ async function generateSummaryDraft(results, ctx, signal, modelOverride, feedbac
   };
 }
 
-// node_modules/pi-web-access/index.ts
+// node_modules/@jeonghyeon.net/pi-web-access/index.ts
 import { randomUUID } from "node:crypto";
 import { execFileSync as execFileSync3 } from "node:child_process";
 import { createRequire } from "node:module";

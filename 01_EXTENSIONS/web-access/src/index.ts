@@ -1,1 +1,1 @@
-export { default } from "pi-web-access/index";
+export { default } from "../node_modules/@jeonghyeon.net/pi-web-access/index";

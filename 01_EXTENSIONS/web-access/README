@@ -1,4 +1,4 @@
-web-access … `pi-web-access` 기반 웹 검색/콘텐츠 수집
+web-access … `@jeonghyeon.net/pi-web-access` 기반 웹 검색/콘텐츠 수집
 
 목적
   웹 검색, URL 본문 추출, PDF/YouTube/GitHub 콘텐츠 수집 같은 작업을 pi 안에서 바로 수행할 수 있게 한다.
