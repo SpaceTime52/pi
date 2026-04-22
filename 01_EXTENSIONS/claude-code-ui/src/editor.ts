@@ -1,36 +1,34 @@
 import { CustomEditor, type KeybindingsManager } from "@mariozechner/pi-coding-agent";
 import type { EditorTheme, TUI } from "@mariozechner/pi-tui";
 import { stripAnsi } from "./ansi.js";
-import { buildChromeRule, findBottomRuleIndex } from "./rules.js";
+import { buildPromptFrame, findBottomRuleIndex, frameBodyLine } from "./rules.js";
 
 export class ClaudeCodeEditor extends CustomEditor {
-	constructor(
-		tui: TUI,
-		theme: EditorTheme,
-		keybindings: KeybindingsManager,
-		private readonly label: (text: string) => string,
-		private readonly hint: (text: string) => string,
-	) {
-		super(tui, theme, keybindings, { paddingX: 1 });
+	constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) {
+		super(tui, theme, keybindings, { paddingX: 2 });
 	}
 
 	override render(width: number) {
 		const lines = super.render(width);
 		if (lines.length === 0) return lines;
-		lines[0] = this.decorateTopBorder(lines[0]!, width);
+		const topFramed = this.isTopRule(lines[0]!);
 		const bottomIndex = findBottomRuleIndex(lines);
-		if (bottomIndex >= 0) lines[bottomIndex] = this.decorateBottomBorder(lines[bottomIndex]!, width);
+		const bottomFramed = bottomIndex >= 0 && this.isBottomRule(lines[bottomIndex]!);
+		if (topFramed) lines[0] = buildPromptFrame(width, "", "┌", "┐", this.borderColor);
+		if (topFramed && bottomFramed) {
+			for (let i = 1; i < bottomIndex; i++) lines[i] = frameBodyLine(lines[i]!, this.borderColor);
+		}
+		if (bottomFramed) lines[bottomIndex] = buildPromptFrame(width, "", "└", "┘", this.borderColor);
 		return lines;
 	}
 
-	private decorateTopBorder(existing: string, width: number) {
-		if (!/^─+$/.test(stripAnsi(existing))) return existing;
-		return buildChromeRule(width, this.label("prompt"), this.borderColor);
+	private isTopRule(line: string) {
+		const raw = stripAnsi(line);
+		return /^─+$/.test(raw) || /^─── ↑ \d+ more /.test(raw);
 	}
 
-	private decorateBottomBorder(existing: string, width: number) {
-		if (!/^─+$/.test(stripAnsi(existing))) return existing;
-		const label = this.label("enter send") + this.hint("  ·  shift+enter newline");
-		return buildChromeRule(width, label, this.borderColor);
+	private isBottomRule(line: string) {
+		const raw = stripAnsi(line);
+		return /^─+$/.test(raw) || /^─── ↓ \d+ more /.test(raw);
 	}
 }

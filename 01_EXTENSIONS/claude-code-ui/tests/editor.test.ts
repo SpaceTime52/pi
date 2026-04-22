@@ -21,23 +21,25 @@ describe("ClaudeCodeEditor", () => {
 			{} as TUI,
 			{} as EditorTheme,
 			{} as KeybindingsManager,
-			(text) => `<${text}>`,
-			(text) => `[${text}]`,
 		) as ClaudeCodeEditor & { lines: string[] };
 	});
 
-	it("decorates the top and bottom borders", () => {
+	it("decorates the top, body and bottom borders", () => {
 		const lines = editor.render(32);
-		expect(lines[0]).toContain("prompt");
-		expect(lines[2]).toContain("enter send");
+		expect(lines[0]).toContain("┌");
+		expect(lines[1]).toContain("│");
+		expect(lines[2]).toContain("└");
 	});
 
-	it("keeps non-rule lines unchanged and handles empty renders", () => {
+	it("keeps unrelated lines untouched and still frames scroll states", () => {
 		editor.lines = ["head", "body", "tail"];
 		expect(editor.render(24)).toEqual(["head", "body", "tail"]);
 		editor.lines = [];
 		expect(editor.render(24)).toEqual([]);
-		editor.lines = ["────", "body", "─── ↓ 3 more "];
-		expect(editor.render(24)[2]).toBe("─── ↓ 3 more ");
+		editor.lines = ["─── ↑ 2 more ", " body ", "─── ↓ 3 more "];
+		const lines = editor.render(24);
+		expect(lines[0]).toContain("┌");
+		expect(lines[1]).toContain("│");
+		expect(lines[2]).toContain("└");
 	});
 });

@@ -1,16 +1,32 @@
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { stripAnsi } from "./ansi.js";
 
-export function buildChromeRule(
-	width: number,
-	label: string,
-	borderColor: (text: string) => string,
-) {
+export function buildChromeRule(width: number, label: string, borderColor: (text: string) => string) {
 	const prefix = borderColor("──");
 	const labelPart = ` ${label} `;
 	const suffixWidth = Math.max(0, width - visibleWidth(prefix) - visibleWidth(labelPart));
-	const suffix = borderColor("─".repeat(suffixWidth));
-	return truncateToWidth(prefix + labelPart + suffix, width, "");
+	return truncateToWidth(prefix + labelPart + borderColor("─".repeat(suffixWidth)), width, "");
+}
+
+export function buildPromptFrame(
+	width: number,
+	label: string,
+	leftCorner: string,
+	rightCorner: string,
+	borderColor: (text: string) => string,
+) {
+	const left = borderColor(leftCorner);
+	const right = borderColor(rightCorner);
+	const insideWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right));
+	const labelPart = label ? ` ${label} ` : "";
+	const lead = insideWidth > 0 ? borderColor("─") : "";
+	const fillWidth = Math.max(0, insideWidth - visibleWidth(lead) - visibleWidth(labelPart));
+	return truncateToWidth(left + lead + labelPart + borderColor("─".repeat(fillWidth)) + right, width, "");
+}
+
+export function frameBodyLine(line: string, borderColor: (text: string) => string) {
+	if (line.length < 2) return borderColor("│") + borderColor("│");
+	return borderColor("│") + line.slice(1, -1) + borderColor("│");
 }
 
 export function findBottomRuleIndex(lines: string[]) {

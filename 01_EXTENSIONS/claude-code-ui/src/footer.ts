@@ -1,26 +1,22 @@
-import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { getProjectName } from "./header.js";
 
-function formatCompactNumber(value: number) {
-	if (value < 1000) return `${value}`;
-	if (value < 10000) return `${(value / 1000).toFixed(1)}k`;
-	return `${Math.round(value / 1000)}k`;
+function getContextTone(percent: number | null | undefined) {
+	if (percent == null) return "muted";
+	if (percent < 50) return "success";
+	if (percent < 75) return "accent";
+	if (percent < 90) return "warning";
+	return "error";
 }
 
-function getUsageTotals(ctx: ExtensionContext) {
-	let inputTokens = 0;
-	let outputTokens = 0;
-	let totalCost = 0;
-	for (const entry of ctx.sessionManager.getBranch()) {
-		if (entry.type !== "message" || entry.message.role !== "assistant") continue;
-		const message = entry.message as AssistantMessage;
-		inputTokens += message.usage.input;
-		outputTokens += message.usage.output;
-		totalCost += message.usage.cost.total;
-	}
-	return { inputTokens, outputTokens, totalCost };
+function renderContextBadge(theme: Theme, percent: number | null | undefined) {
+	const rounded = percent == null ? undefined : Math.max(0, Math.min(100, Math.round(percent)));
+	const filled = rounded == null ? 0 : Math.max(1, Math.min(5, Math.round(rounded / 20)));
+	const meter = rounded == null ? "·····" : `${"●".repeat(filled)}${"○".repeat(5 - filled)}`;
+	const tone = getContextTone(percent);
+	const text = rounded == null ? ` context -- ${meter} ` : ` context ${rounded}% ${meter} `;
+	return theme.bg("selectedBg", theme.fg(tone, text));
 }
 
 export function createClaudeFooter(ctx: ExtensionContext) {
@@ -32,19 +28,12 @@ export function createClaudeFooter(ctx: ExtensionContext) {
 		dispose: footerData.onBranchChange(() => tui.requestRender()),
 		invalidate() {},
 		render(width: number) {
-			const totals = getUsageTotals(ctx);
 			const branch = footerData.getGitBranch();
 			const usage = ctx.getContextUsage();
-			const contextText = usage?.percent == null ? "ctx --" : `ctx ${Math.round(usage.percent)}%`;
-			let left = `${theme.fg("accent", "✻")} ${theme.fg("text", projectName)}`;
-			if (branch) left += theme.fg("dim", ` · ${branch}`);
-			const rightParts = [
-				theme.fg("muted", ctx.model?.id ?? "no-model"),
-				theme.fg("dim", contextText),
-				theme.fg("dim", `↑${formatCompactNumber(totals.inputTokens)} ↓${formatCompactNumber(totals.outputTokens)}`),
-				theme.fg("dim", `$${totals.totalCost.toFixed(3)}`),
-			];
-			const right = rightParts.join(theme.fg("dim", " · "));
+			const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
+			const left = leftParts.filter(Boolean).join(theme.fg("dim", " · "));
+			const rightParts = [theme.fg("muted", ctx.model?.id ?? "no-model"), renderContextBadge(theme, usage?.percent)];
+			const right = rightParts.join("  ");
 			const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
 			return [truncateToWidth(left + " ".repeat(gap) + right, width, "")];
 		},

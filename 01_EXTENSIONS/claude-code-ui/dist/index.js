@@ -108,12 +108,18 @@ function stripAnsi(text) {
 
 // src/rules.ts
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-function buildChromeRule(width, label, borderColor) {
-  const prefix = borderColor("\u2500\u2500");
-  const labelPart = ` ${label} `;
-  const suffixWidth = Math.max(0, width - visibleWidth(prefix) - visibleWidth(labelPart));
-  const suffix = borderColor("\u2500".repeat(suffixWidth));
-  return truncateToWidth(prefix + labelPart + suffix, width, "");
+function buildPromptFrame(width, label, leftCorner, rightCorner, borderColor) {
+  const left = borderColor(leftCorner);
+  const right = borderColor(rightCorner);
+  const insideWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right));
+  const labelPart = label ? ` ${label} ` : "";
+  const lead = insideWidth > 0 ? borderColor("\u2500") : "";
+  const fillWidth = Math.max(0, insideWidth - visibleWidth(lead) - visibleWidth(labelPart));
+  return truncateToWidth(left + lead + labelPart + borderColor("\u2500".repeat(fillWidth)) + right, width, "");
+}
+function frameBodyLine(line, borderColor) {
+  if (line.length < 2) return borderColor("\u2502") + borderColor("\u2502");
+  return borderColor("\u2502") + line.slice(1, -1) + borderColor("\u2502");
 }
 function findBottomRuleIndex(lines) {
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -125,72 +131,56 @@ function findBottomRuleIndex(lines) {
 
 // src/editor.ts
 var ClaudeCodeEditor = class extends CustomEditor {
-  constructor(tui, theme, keybindings, label, hint) {
-    super(tui, theme, keybindings, { paddingX: 1 });
-    this.label = label;
-    this.hint = hint;
+  constructor(tui, theme, keybindings) {
+    super(tui, theme, keybindings, { paddingX: 2 });
   }
-  label;
-  hint;
   render(width) {
     const lines = super.render(width);
     if (lines.length === 0) return lines;
-    lines[0] = this.decorateTopBorder(lines[0], width);
+    const topFramed = this.isTopRule(lines[0]);
     const bottomIndex = findBottomRuleIndex(lines);
-    if (bottomIndex >= 0) lines[bottomIndex] = this.decorateBottomBorder(lines[bottomIndex], width);
+    const bottomFramed = bottomIndex >= 0 && this.isBottomRule(lines[bottomIndex]);
+    if (topFramed) lines[0] = buildPromptFrame(width, "", "\u250C", "\u2510", this.borderColor);
+    if (topFramed && bottomFramed) {
+      for (let i = 1; i < bottomIndex; i++) lines[i] = frameBodyLine(lines[i], this.borderColor);
+    }
+    if (bottomFramed) lines[bottomIndex] = buildPromptFrame(width, "", "\u2514", "\u2518", this.borderColor);
     return lines;
   }
-  decorateTopBorder(existing, width) {
-    if (!/^─+$/.test(stripAnsi(existing))) return existing;
-    return buildChromeRule(width, this.label("prompt"), this.borderColor);
+  isTopRule(line) {
+    const raw = stripAnsi(line);
+    return /^─+$/.test(raw) || /^─── ↑ \d+ more /.test(raw);
   }
-  decorateBottomBorder(existing, width) {
-    if (!/^─+$/.test(stripAnsi(existing))) return existing;
-    const label = this.label("enter send") + this.hint("  \xB7  shift+enter newline");
-    return buildChromeRule(width, label, this.borderColor);
+  isBottomRule(line) {
+    const raw = stripAnsi(line);
+    return /^─+$/.test(raw) || /^─── ↓ \d+ more /.test(raw);
   }
 };
 
 // src/footer.ts
-import { truncateToWidth as truncateToWidth3, visibleWidth as visibleWidth2 } from "@mariozechner/pi-tui";
+import { truncateToWidth as truncateToWidth2, visibleWidth as visibleWidth2 } from "@mariozechner/pi-tui";
 
 // src/header.ts
-import { truncateToWidth as truncateToWidth2 } from "@mariozechner/pi-tui";
 import * as path from "node:path";
 function getProjectName(ctx) {
   return path.basename(ctx.cwd) || ctx.cwd;
 }
-function createClaudeHeader(ctx) {
-  const projectName = getProjectName(ctx);
-  return (_tui, theme) => ({
-    invalidate() {
-    },
-    render(width) {
-      const line1 = `${theme.fg("accent", "\u273B")} ${theme.fg("text", theme.bold("pi"))}${theme.fg("dim", "  claude-code ui")}`;
-      const line2 = `${theme.fg("muted", projectName)}${theme.fg("dim", "  \xB7  claude-code-dark")}`;
-      return ["", truncateToWidth2(line1, width, ""), truncateToWidth2(line2, width, ""), ""];
-    }
-  });
-}
 
 // src/footer.ts
-function formatCompactNumber(value) {
-  if (value < 1e3) return `${value}`;
-  if (value < 1e4) return `${(value / 1e3).toFixed(1)}k`;
-  return `${Math.round(value / 1e3)}k`;
+function getContextTone(percent) {
+  if (percent == null) return "muted";
+  if (percent < 50) return "success";
+  if (percent < 75) return "accent";
+  if (percent < 90) return "warning";
+  return "error";
 }
-function getUsageTotals(ctx) {
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let totalCost = 0;
-  for (const entry of ctx.sessionManager.getBranch()) {
-    if (entry.type !== "message" || entry.message.role !== "assistant") continue;
-    const message = entry.message;
-    inputTokens += message.usage.input;
-    outputTokens += message.usage.output;
-    totalCost += message.usage.cost.total;
-  }
-  return { inputTokens, outputTokens, totalCost };
+function renderContextBadge(theme, percent) {
+  const rounded = percent == null ? void 0 : Math.max(0, Math.min(100, Math.round(percent)));
+  const filled = rounded == null ? 0 : Math.max(1, Math.min(5, Math.round(rounded / 20)));
+  const meter = rounded == null ? "\xB7\xB7\xB7\xB7\xB7" : `${"\u25CF".repeat(filled)}${"\u25CB".repeat(5 - filled)}`;
+  const tone = getContextTone(percent);
+  const text = rounded == null ? ` context -- ${meter} ` : ` context ${rounded}% ${meter} `;
+  return theme.bg("selectedBg", theme.fg(tone, text));
 }
 function createClaudeFooter(ctx) {
   const projectName = getProjectName(ctx);
@@ -199,21 +189,14 @@ function createClaudeFooter(ctx) {
     invalidate() {
     },
     render(width) {
-      const totals = getUsageTotals(ctx);
       const branch = footerData.getGitBranch();
       const usage = ctx.getContextUsage();
-      const contextText = usage?.percent == null ? "ctx --" : `ctx ${Math.round(usage.percent)}%`;
-      let left = `${theme.fg("accent", "\u273B")} ${theme.fg("text", projectName)}`;
-      if (branch) left += theme.fg("dim", ` \xB7 ${branch}`);
-      const rightParts = [
-        theme.fg("muted", ctx.model?.id ?? "no-model"),
-        theme.fg("dim", contextText),
-        theme.fg("dim", `\u2191${formatCompactNumber(totals.inputTokens)} \u2193${formatCompactNumber(totals.outputTokens)}`),
-        theme.fg("dim", `$${totals.totalCost.toFixed(3)}`)
-      ];
-      const right = rightParts.join(theme.fg("dim", " \xB7 "));
+      const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
+      const left = leftParts.filter(Boolean).join(theme.fg("dim", " \xB7 "));
+      const rightParts = [theme.fg("muted", ctx.model?.id ?? "no-model"), renderContextBadge(theme, usage?.percent)];
+      const right = rightParts.join("  ");
       const gap = Math.max(1, width - visibleWidth2(left) - visibleWidth2(right));
-      return [truncateToWidth3(left + " ".repeat(gap) + right, width, "")];
+      return [truncateToWidth2(left + " ".repeat(gap) + right, width, "")];
     }
   });
 }
@@ -246,20 +229,13 @@ function applyClaudeTheme(ctx) {
 // src/chrome.ts
 function applyClaudeChrome(ctx) {
   const themeResult = applyClaudeTheme(ctx);
-  ctx.ui.setHeader(createClaudeHeader(ctx));
+  ctx.ui.setHeader(void 0);
   ctx.ui.setFooter(createClaudeFooter(ctx));
-  ctx.ui.setEditorComponent(
-    (tui, theme, keybindings) => new ClaudeCodeEditor(
-      tui,
-      theme,
-      keybindings,
-      (text) => ctx.ui.theme.fg("accent", ctx.ui.theme.bold(text)),
-      (text) => ctx.ui.theme.fg("dim", text)
-    )
-  );
+  ctx.ui.setWidget("claude-code-ui-prompt", void 0);
+  ctx.ui.setEditorComponent((tui, theme, keybindings) => new ClaudeCodeEditor(tui, theme, keybindings));
   ctx.ui.setWorkingIndicator(WORKING_INDICATOR);
   ctx.ui.setHiddenThinkingLabel("thinking");
-  ctx.ui.setTitle(`pi \xB7 ${getProjectName(ctx)}`);
+  ctx.ui.setTitle(`Claude Code \xB7 ${getProjectName(ctx)}`);
   if (!themeResult.success) {
     ctx.ui.notify(
       `Claude UI applied, but theme switch failed: ${themeResult.error ?? "unknown error"}`,
@@ -274,6 +250,85 @@ async function onSessionStart(_event, ctx) {
   applyClaudeChrome(ctx);
 }
 
+// src/working-line-format.ts
+var PHRASES = ["Thinking", "Reasoning", "Planning", "Working"];
+function pickWorkingPhrase(random = Math.random) {
+  const index = Math.min(PHRASES.length - 1, Math.floor(random() * PHRASES.length));
+  return `${PHRASES[index] ?? "Working"}...`;
+}
+function formatElapsed(elapsedMs) {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1e3));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
+}
+function formatWorkingLine(parts) {
+  return parts.filter(Boolean).join(" \xB7 ");
+}
+
+// src/working-line.ts
+var activeCtx;
+var startedAt = 0;
+var phrase = "Thinking...";
+var suffix;
+var thinkingStartedAt;
+var thoughtDurationMs;
+var timer;
+function toolLabel(toolName) {
+  return { bash: "running bash", read: "reading file", write: "writing file", edit: "editing file" }[toolName] ?? `running ${toolName}`;
+}
+function thinkingLabel() {
+  if (thinkingStartedAt !== void 0) return "thinking";
+  if (thoughtDurationMs !== void 0) return `thought for ${Math.max(1, Math.round(thoughtDurationMs / 1e3))}s`;
+}
+function renderWorkingLine() {
+  activeCtx?.ui.setWorkingMessage(formatWorkingLine([phrase, suffix, formatElapsed(Date.now() - startedAt), thinkingLabel()]));
+}
+function resetWorkingLine(ctx) {
+  if (timer) clearInterval(timer);
+  timer = void 0;
+  startedAt = 0;
+  suffix = void 0;
+  thinkingStartedAt = void 0;
+  thoughtDurationMs = void 0;
+  (activeCtx ?? ctx)?.ui.setWorkingMessage();
+  activeCtx = void 0;
+}
+function onAgentStart(_event, ctx) {
+  if (!ctx.hasUI) return;
+  resetWorkingLine();
+  activeCtx = ctx;
+  startedAt = Date.now();
+  phrase = pickWorkingPhrase();
+  renderWorkingLine();
+  timer = setInterval(renderWorkingLine, 1e3);
+}
+function onToolExecutionStart(event) {
+  if (!activeCtx) return;
+  suffix = toolLabel(event.toolName);
+  renderWorkingLine();
+}
+function onToolExecutionEnd(_event) {
+  if (!activeCtx) return;
+  suffix = void 0;
+  renderWorkingLine();
+}
+function onMessageUpdate(event) {
+  if (!activeCtx) return;
+  if (event.assistantMessageEvent.type === "thinking_start") thinkingStartedAt = Date.now();
+  if (event.assistantMessageEvent.type === "thinking_end" && thinkingStartedAt !== void 0) {
+    thoughtDurationMs = Date.now() - thinkingStartedAt;
+    thinkingStartedAt = void 0;
+  }
+  renderWorkingLine();
+}
+function onAgentEnd(_event, ctx) {
+  resetWorkingLine(ctx);
+}
+function onSessionShutdown(_event, ctx) {
+  resetWorkingLine(ctx);
+}
+
 // src/write-tool.ts
 import { defineTool as defineTool4, createWriteToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Text as Text4 } from "@mariozechner/pi-tui";
@@ -282,8 +337,8 @@ function createClaudeWriteTool(cwd) {
   return defineTool4({
     ...base,
     renderCall(args, theme) {
-      const suffix = theme.fg("dim", ` \xB7 ${args.content.split("\n").length} lines`);
-      return new Text4(`${toolPrefix(theme, "Write")} ${theme.fg("muted", args.path)}${suffix}`, 0, 0);
+      const suffix2 = theme.fg("dim", ` \xB7 ${args.content.split("\n").length} lines`);
+      return new Text4(`${toolPrefix(theme, "Write")} ${theme.fg("muted", args.path)}${suffix2}`, 0, 0);
     },
     renderResult(result, { isPartial }, theme) {
       if (isPartial) return new Text4(theme.fg("warning", "writing\u2026"), 0, 0);
@@ -301,6 +356,12 @@ function index_default(_pi) {
   _pi.registerTool(createClaudeEditTool(process.cwd()));
   _pi.registerTool(createClaudeWriteTool(process.cwd()));
   _pi.on("session_start", onSessionStart);
+  _pi.on("agent_start", onAgentStart);
+  _pi.on("tool_execution_start", onToolExecutionStart);
+  _pi.on("tool_execution_end", onToolExecutionEnd);
+  _pi.on("message_update", onMessageUpdate);
+  _pi.on("agent_end", onAgentEnd);
+  _pi.on("session_shutdown", onSessionShutdown);
 }
 export {
   index_default as default

@@ -2,6 +2,7 @@ import type { Theme } from "@mariozechner/pi-coding-agent";
 
 export const theme = {
 	fg: (token: string, text: string) => `<${token}>${text}</${token}>`,
+	bg: (token: string, text: string) => `<bg:${token}>${text}</bg:${token}>`,
 	bold: (text: string) => `*${text}*`,
 } as Theme;
 

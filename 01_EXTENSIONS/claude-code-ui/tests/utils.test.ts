@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { colorizeRgb, stripAnsi } from "../src/ansi.ts";
 import { WORKING_INDICATOR } from "../src/indicator.ts";
-import { buildChromeRule, findBottomRuleIndex } from "../src/rules.ts";
+import { buildChromeRule, buildPromptFrame, findBottomRuleIndex, frameBodyLine } from "../src/rules.ts";
 import { summarizeTextPreview, toolPrefix } from "../src/tool-utils.ts";
 import { theme } from "./helpers.ts";
 
@@ -13,9 +13,13 @@ describe("claude-code-ui utils", () => {
 		expect(WORKING_INDICATOR.frames).toHaveLength(4);
 	});
 
-	it("builds chrome rules and finds rule rows", () => {
+	it("builds chrome rules, prompt frames and finds rule rows", () => {
 		const rule = buildChromeRule(24, "prompt", (text) => text);
 		expect(stripAnsi(rule)).toContain(" prompt ");
+		expect(stripAnsi(buildPromptFrame(24, "message", "╭", "╮", (text) => text))).toContain("╭─ message ");
+		expect(stripAnsi(buildPromptFrame(1, "", "╭", "╮", (text) => text))).toContain("╭");
+		expect(frameBodyLine(" body ", (text) => text)).toBe("│body│");
+		expect(frameBodyLine("x", (text) => text)).toBe("││");
 		expect(findBottomRuleIndex(["a", "─── ↓ 3 more ", "b"])).toBe(1);
 		expect(findBottomRuleIndex(["a", "b"])).toBe(-1);
 	});
