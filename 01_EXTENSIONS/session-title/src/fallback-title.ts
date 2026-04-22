@@ -12,6 +12,11 @@ function stripLogistics(text: string): string {
 	return text.replace(/(?:^|\s)(다 만들고\s*)?(커밋|푸시|commit|push|typecheck|test|build).*/iu, "").replace(/(?:^|\s)(extensions?에 만들면 됨|extensions?에 넣어줘).*/iu, "").trim();
 }
 
+function condenseActionPhrase(text: string): string {
+	const english = text.match(/^(add|fix|update|implement|create|make|write|refactor|remove|support|improve|enable|simplify|document|rename|move|review|debug|test|investigate|convert|build|ship)\s+(.+)/iu);
+	return english?.[2]?.trim() || text;
+}
+
 function summarizeKnownTask(text: string): string {
 	const korean = /[가-힣]/u.test(text);
 	const suffix = /\bextensions?\b/iu.test(text) || /extensions?에/u.test(text) ? " extension" : "";
@@ -39,5 +44,5 @@ export function buildFallbackTitle(userPrompt: string): string {
 	if (summarized) return normalizeTitle(summarized);
 	const parts = cleaned.split(/[\n\r]+|(?<=[.!?。！？])\s+/u).map((part) => stripRequestFraming(part)).filter(Boolean);
 	const candidate = parts.find((part) => part.length >= 4) ?? stripRequestFraming(cleaned);
-	return normalizeTitle(candidate);
+	return normalizeTitle(condenseActionPhrase(candidate));
 }

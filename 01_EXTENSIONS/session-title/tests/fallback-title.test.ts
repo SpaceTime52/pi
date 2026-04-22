@@ -8,6 +8,7 @@ describe("fallback title", () => {
 		expect(buildFallbackTitle("세션 이름 자동으로 설정해줘")).toBe("세션 제목 자동 설정");
 		expect(buildFallbackTitle("세션 제목 extension 만들어줘")).toBe("세션 제목 자동 설정 extension");
 		expect(buildFallbackTitle("Please add a session title extension.")).toBe("session title auto naming extension");
+		expect(buildFallbackTitle("Please fix API timeout handling in diff-review command.")).toBe("API timeout handling in diff-review command");
 		expect(buildFallbackTitle("[docs](https://example.com) Please add a terminal title sync.")).toBe("terminal title sync");
 		expect(buildFallbackTitle("터미널 제목 extension 만들어줘")).toBe("터미널 제목 자동 설정 extension");
 	});

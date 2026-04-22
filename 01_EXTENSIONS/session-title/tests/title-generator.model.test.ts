@@ -20,8 +20,10 @@ describe("title generator model path", () => {
 		completeSimple.mockResolvedValueOnce({ stopReason: "length", content: [{ type: "text", text: "Truncated" }] });
 		completeSimple.mockResolvedValueOnce({ stopReason: "stop", content: [{ type: "text", text: "" }] });
 		completeSimple.mockResolvedValueOnce({ stopReason: "stop", content: [{ type: "text", text: "Please add terminal title sync" }] });
+		completeSimple.mockResolvedValueOnce({ stopReason: "stop", content: [{ type: "text", text: "Fix API timeout handling in diff-review command" }] });
 		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
 		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
 		await expect(generateSessionTitle(ctx, "Please add terminal title sync.")).resolves.toBe("terminal title sync");
+		await expect(generateSessionTitle(ctx, "Please fix API timeout handling in diff-review command.")).resolves.toBe("API timeout handling in diff-review command");
 	});
 });

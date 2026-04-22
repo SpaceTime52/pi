@@ -54,6 +54,22 @@ export function normalizeTitle(rawTitle: string): string {
 }
 
 const REQUEST_NOISE_RE = /(please|can you|could you|would you|help me|i need you to|이거|참고해서|좀|혹시|작업해줘|구현해줘|만들어줘|해줘|해주세요|commit|push|커밋|푸시)/iu;
+const ACTION_LEAD_RE = /^(add|fix|update|implement|create|make|write|refactor|remove|support|improve|enable|simplify|document|rename|move|review|debug|test|investigate|build|convert|ship)\b/iu;
+
+function comparisonText(text: string): string {
+	return text.toLowerCase().replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gu, "$1").replace(/https?:\/\/\S+/gu, " ").replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/gu, " ").trim();
+}
+
+export function looksLikePromptCopy(title: string, userPrompt: string): boolean {
+	const normalizedTitle = comparisonText(normalizeTitle(title));
+	const normalizedPrompt = comparisonText(userPrompt);
+	if (!normalizedTitle || !normalizedPrompt) return false;
+	if (normalizedPrompt === normalizedTitle || normalizedPrompt.startsWith(normalizedTitle) || normalizedTitle.startsWith(normalizedPrompt)) return true;
+	const promptTokens = normalizedPrompt.split(" ");
+	const titleTokens = normalizedTitle.split(" ");
+	const overlap = titleTokens.filter((token) => promptTokens.includes(token)).length;
+	return titleTokens.length >= 3 && ACTION_LEAD_RE.test(normalizedTitle) && overlap / titleTokens.length >= 0.85;
+}
 
 export function isClearSummaryTitle(title: string): boolean {
 	const normalized = normalizeTitle(title);

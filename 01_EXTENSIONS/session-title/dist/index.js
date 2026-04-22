@@ -45,6 +45,20 @@ function normalizeTitle(rawTitle) {
   return clip(normalized.replace(/\s+/gu, " ").replace(/[.。!！?？:：;；,，\-–—\s]+$/gu, "").trim(), MAX_TITLE_CHARS);
 }
 var REQUEST_NOISE_RE = /(please|can you|could you|would you|help me|i need you to|이거|참고해서|좀|혹시|작업해줘|구현해줘|만들어줘|해줘|해주세요|commit|push|커밋|푸시)/iu;
+var ACTION_LEAD_RE = /^(add|fix|update|implement|create|make|write|refactor|remove|support|improve|enable|simplify|document|rename|move|review|debug|test|investigate|build|convert|ship)\b/iu;
+function comparisonText(text) {
+  return text.toLowerCase().replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gu, "$1").replace(/https?:\/\/\S+/gu, " ").replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/gu, " ").trim();
+}
+function looksLikePromptCopy(title, userPrompt) {
+  const normalizedTitle = comparisonText(normalizeTitle(title));
+  const normalizedPrompt = comparisonText(userPrompt);
+  if (!normalizedTitle || !normalizedPrompt) return false;
+  if (normalizedPrompt === normalizedTitle || normalizedPrompt.startsWith(normalizedTitle) || normalizedTitle.startsWith(normalizedPrompt)) return true;
+  const promptTokens = normalizedPrompt.split(" ");
+  const titleTokens = normalizedTitle.split(" ");
+  const overlap = titleTokens.filter((token) => promptTokens.includes(token)).length;
+  return titleTokens.length >= 3 && ACTION_LEAD_RE.test(normalizedTitle) && overlap / titleTokens.length >= 0.85;
+}
 function isClearSummaryTitle(title) {
   const normalized = normalizeTitle(title);
   return normalized.length > 0 && !REQUEST_NOISE_RE.test(normalized) && !/[?？]/u.test(normalized);
@@ -67,6 +81,10 @@ function stripRequestFraming(text) {
 }
 function stripLogistics(text) {
   return text.replace(/(?:^|\s)(다 만들고\s*)?(커밋|푸시|commit|push|typecheck|test|build).*/iu, "").replace(/(?:^|\s)(extensions?에 만들면 됨|extensions?에 넣어줘).*/iu, "").trim();
+}
+function condenseActionPhrase(text) {
+  const english = text.match(/^(add|fix|update|implement|create|make|write|refactor|remove|support|improve|enable|simplify|document|rename|move|review|debug|test|investigate|convert|build|ship)\s+(.+)/iu);
+  return english?.[2]?.trim() || text;
 }
 function summarizeKnownTask(text) {
   const korean = /[가-힣]/u.test(text);
@@ -94,7 +112,7 @@ function buildFallbackTitle(userPrompt) {
   if (summarized) return normalizeTitle(summarized);
   const parts = cleaned.split(/[\n\r]+|(?<=[.!?。！？])\s+/u).map((part) => stripRequestFraming(part)).filter(Boolean);
   const candidate = parts.find((part) => part.length >= 4) ?? stripRequestFraming(cleaned);
-  return normalizeTitle(candidate);
+  return normalizeTitle(condenseActionPhrase(candidate));
 }
 
 // src/title-generator.ts
@@ -113,7 +131,7 @@ async function generateSessionTitle(ctx, userPrompt) {
   clearTimeout(timeoutId);
   if (!result || result.stopReason !== "stop") return fallbackTitle;
   const generatedTitle = normalizeTitle(extractTextContent(result.content));
-  return isClearSummaryTitle(generatedTitle) ? generatedTitle : fallbackTitle;
+  return isClearSummaryTitle(generatedTitle) && !looksLikePromptCopy(generatedTitle, userPrompt) ? generatedTitle : fallbackTitle;
 }
 
 // src/session-path.ts

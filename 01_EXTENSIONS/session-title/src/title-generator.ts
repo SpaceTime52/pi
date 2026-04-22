@@ -5,6 +5,7 @@ import {
 	buildTitlePrompt,
 	extractTextContent,
 	isClearSummaryTitle,
+	looksLikePromptCopy,
 	normalizeTitle,
 } from "./title-format.js";
 
@@ -31,5 +32,5 @@ export async function generateSessionTitle(ctx: TitleGeneratorContext, userPromp
 	clearTimeout(timeoutId);
 	if (!result || result.stopReason !== "stop") return fallbackTitle;
 	const generatedTitle = normalizeTitle(extractTextContent(result.content));
-	return isClearSummaryTitle(generatedTitle) ? generatedTitle : fallbackTitle;
+	return isClearSummaryTitle(generatedTitle) && !looksLikePromptCopy(generatedTitle, userPrompt) ? generatedTitle : fallbackTitle;
 }
