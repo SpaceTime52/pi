@@ -526,6 +526,18 @@ function getUsagePercent(ctx, fallback = null) {
     return fallback;
   }
 }
+function getThinkingLevel(ctx, fallback = null) {
+  try {
+    const branch = ctx.sessionManager.getBranch();
+    for (let index = branch.length - 1; index >= 0; index--) {
+      const entry = branch[index];
+      if (entry?.type === "thinking_level_change") return entry.thinkingLevel;
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
 function renderContextBadge(theme, percent) {
   const value = clampPercent(percent);
   const label = `context ${value == null ? "--" : `${value}%`}`;
@@ -537,6 +549,7 @@ function renderContextBadge(theme, percent) {
 function createClaudeFooter(ctx) {
   const projectName = getProjectName(ctx);
   const modelId = getModelId(ctx);
+  const thinkingLevel = getThinkingLevel(ctx);
   const usagePercent = getUsagePercent(ctx);
   return (tui, theme, footerData) => ({
     dispose: footerData.onBranchChange(() => tui.requestRender()),
@@ -546,7 +559,10 @@ function createClaudeFooter(ctx) {
       const branch = footerData.getGitBranch();
       const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
       const left = leftParts.filter(Boolean).join(theme.fg("dim", " \xB7 "));
-      const rightParts = [theme.fg("muted", getModelId(ctx, modelId)), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
+      const model = theme.fg("muted", getModelId(ctx, modelId));
+      const effortLevel = getThinkingLevel(ctx, thinkingLevel);
+      const modelParts = [model, effortLevel ? theme.fg("dim", `effort ${effortLevel}`) : ""];
+      const rightParts = [modelParts.filter(Boolean).join(theme.fg("dim", " \xB7 ")), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
       const right = rightParts.join("  ");
       const gap = Math.max(1, width - visibleWidth4(left) - visibleWidth4(right));
       return [truncateToWidth3(left + " ".repeat(gap) + right, width, "")];

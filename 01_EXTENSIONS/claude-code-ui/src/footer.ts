@@ -34,6 +34,19 @@ function getUsagePercent(ctx: ExtensionContext, fallback: number | null = null) 
 	}
 }
 
+function getThinkingLevel(ctx: ExtensionContext, fallback: string | null = null) {
+	try {
+		const branch = ctx.sessionManager.getBranch();
+		for (let index = branch.length - 1; index >= 0; index--) {
+			const entry = branch[index];
+			if (entry?.type === "thinking_level_change") return entry.thinkingLevel;
+		}
+		return fallback;
+	} catch {
+		return fallback;
+	}
+}
+
 function renderContextBadge(theme: Theme, percent: number | null | undefined) {
 	const value = clampPercent(percent);
 	const label = `context ${value == null ? "--" : `${value}%`}`;
@@ -46,6 +59,7 @@ function renderContextBadge(theme: Theme, percent: number | null | undefined) {
 export function createClaudeFooter(ctx: ExtensionContext) {
 	const projectName = getProjectName(ctx);
 	const modelId = getModelId(ctx);
+	const thinkingLevel = getThinkingLevel(ctx);
 	const usagePercent = getUsagePercent(ctx);
 	return (tui: { requestRender(): void }, theme: Theme, footerData: {
 		onBranchChange(fn: () => void): () => void;
@@ -57,7 +71,10 @@ export function createClaudeFooter(ctx: ExtensionContext) {
 			const branch = footerData.getGitBranch();
 			const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
 			const left = leftParts.filter(Boolean).join(theme.fg("dim", " · "));
-			const rightParts = [theme.fg("muted", getModelId(ctx, modelId)), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
+			const model = theme.fg("muted", getModelId(ctx, modelId));
+			const effortLevel = getThinkingLevel(ctx, thinkingLevel);
+			const modelParts = [model, effortLevel ? theme.fg("dim", `effort ${effortLevel}`) : ""];
+			const rightParts = [modelParts.filter(Boolean).join(theme.fg("dim", " · ")), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
 			const right = rightParts.join("  ");
 			const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
 			return [truncateToWidth(left + " ".repeat(gap) + right, width, "")];

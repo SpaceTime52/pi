@@ -29,8 +29,11 @@ describe("theme, header and footer", () => {
 		expect(getProjectName({ cwd: "" } as ExtensionContext)).toBe("");
 	});
 
-	it("renders branch, model and a fill-style context badge", () => {
-		const entries = [{ type: "message", message: { role: "assistant", usage: { input: 5000, output: 12000, cost: { total: 1.234 } } } }];
+	it("renders branch, model, effort and a fill-style context badge", () => {
+		const entries = [
+			{ type: "thinking_level_change", thinkingLevel: "medium" },
+			{ type: "message", message: { role: "assistant", usage: { input: 5000, output: 12000, cost: { total: 1.234 } } } },
+		];
 		const ctx = createCtx(42, entries);
 		let onChange = () => {};
 		const footer = createClaudeFooter(ctx)({ requestRender: vi.fn() }, theme, { onBranchChange: (fn) => (onChange = fn, vi.fn()), getGitBranch: () => "main" });
@@ -39,6 +42,7 @@ describe("theme, header and footer", () => {
 		const text = render(footer, 220);
 		expect(plain(text)).toContain("main");
 		expect(plain(text)).toContain("sonnet");
+		expect(plain(text)).toContain("effort medium");
 		expect(plain(text)).toContain("context 42%");
 		expect(text).toContain("\u001b[48;2;215;119;87m");
 		expect(text).toContain("<bg:selectedBg>");
@@ -47,12 +51,13 @@ describe("theme, header and footer", () => {
 		expect(text).not.toContain("↑5.0k ↓12k");
 	});
 
-	it("renders fallback values when branch or model are missing", () => {
+	it("renders fallback values when branch or model are missing, and hides effort when unavailable", () => {
 		const entries = [{ type: "message", message: { role: "user" } }, { type: "message", message: { role: "assistant", usage: { input: 12, output: 900, cost: { total: 0.5 } } } }];
 		const ctx = createCtx(null, entries, "");
 		const footer = createClaudeFooter(ctx)({ requestRender: vi.fn() }, theme, { onBranchChange: () => vi.fn(), getGitBranch: () => null });
 		const text = render(footer, 220);
 		expect(plain(text)).toContain("no-model");
+		expect(plain(text)).not.toContain("effort");
 		expect(plain(text)).toContain("context --");
 		expect(text).not.toContain("\u001b[48;2;215;119;87m");
 		expect(text).not.toContain("·····");
