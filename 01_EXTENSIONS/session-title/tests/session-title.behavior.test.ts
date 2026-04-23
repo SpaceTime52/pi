@@ -6,7 +6,7 @@ import { createApiMock, createContext } from "./helpers.ts";
 describe("session-title behavior", () => {
 	beforeEach(() => vi.restoreAllMocks());
 
-	it("auto-names and syncs the ui", async () => {
+	it("auto-names and syncs the terminal title", async () => {
 		vi.spyOn(generator, "generateSessionTitle").mockResolvedValue("Add session title extension");
 		const api = createApiMock();
 		extension(api.api);
@@ -15,7 +15,7 @@ describe("session-title behavior", () => {
 		const { ctx, setStatus, setTitle } = createContext({});
 		await beforeAgentStart({ prompt: "Please add terminal title sync." }, ctx);
 		expect(api.getSessionName()).toBe("Add session title extension");
-		expect(setStatus).toHaveBeenCalledWith("session-title", "Add session title extension");
+		expect(setStatus).not.toHaveBeenCalled();
 		expect(setTitle).toHaveBeenLastCalledWith("π - Add session title extension - pi-project");
 	});
 
@@ -29,7 +29,7 @@ describe("session-title behavior", () => {
 		const { ctx, setStatus, setTitle } = createContext({});
 		await beforeAgentStart({ prompt }, ctx);
 		expect(api.getSessionName()).toBe("Ollama GLM-5.1 사용 방법");
-		expect(setStatus).toHaveBeenCalledWith("session-title", "Ollama GLM-5.1 사용 방법");
+		expect(setStatus).not.toHaveBeenCalled();
 		expect(setTitle).toHaveBeenLastCalledWith("π - Ollama GLM-5.1 사용 방법 - pi-project");
 	});
 

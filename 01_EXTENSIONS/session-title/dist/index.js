@@ -54,10 +54,8 @@ import { completeSimple } from "@mariozechner/pi-ai";
 
 // src/title-format.ts
 import * as path from "node:path";
-var TITLE_STATUS_KEY = "session-title";
 var MAX_PROMPT_CHARS = 800;
 var MAX_TITLE_CHARS = 48;
-var MAX_STATUS_CHARS = 72;
 var MAX_TERMINAL_TITLE_CHARS = 60;
 var TITLE_SYSTEM_PROMPT = [
   "You write short, explicit session titles for a coding task.",
@@ -124,9 +122,6 @@ function looksLikePromptCopy(title, userPrompt) {
 function isClearSummaryTitle(title) {
   const normalized = normalizeTitle(title);
   return normalized.length > 0 && !REQUEST_NOISE_RE.test(normalized) && !/[?？]/u.test(normalized);
-}
-function formatStatusTitle(title) {
-  return clip(title.replace(/\s+/gu, " ").trim(), MAX_STATUS_CHARS);
 }
 function formatTerminalTitle(title, cwd) {
   const projectName = path.basename(cwd) || "pi";
@@ -311,13 +306,10 @@ function shouldAutoNameSession(pi, ctx, userPrompt, namingInFlight) {
 // src/session-title-ui.ts
 function syncSessionTitleUi(pi, ctx) {
   if (!ctx.hasUI) return;
-  const sessionTitle = getSessionTitle(pi, ctx);
-  ctx.ui.setStatus(TITLE_STATUS_KEY, sessionTitle ? formatStatusTitle(sessionTitle) : void 0);
-  ctx.ui.setTitle(formatTerminalTitle(sessionTitle, ctx.cwd));
+  ctx.ui.setTitle(formatTerminalTitle(getSessionTitle(pi, ctx), ctx.cwd));
 }
 function clearSessionTitleUi(ctx) {
   if (!ctx.hasUI) return;
-  ctx.ui.setStatus(TITLE_STATUS_KEY, void 0);
   ctx.ui.setTitle(formatTerminalTitle(void 0, ctx.cwd));
 }
 

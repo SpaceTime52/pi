@@ -14,7 +14,8 @@ describe("session-title lifecycle", () => {
 		await sessionTree({}, ctx);
 		await agentEnd({}, ctx);
 		await sessionShutdown({}, ctx);
-		expect(setStatus).toHaveBeenCalledWith("session-title", "Release prep");
+		expect(setStatus).not.toHaveBeenCalled();
+		expect(setTitle).toHaveBeenCalledWith("π - Release prep - pi-project");
 		expect(setTitle).toHaveBeenLastCalledWith("π - pi-project");
 	});
 
@@ -28,7 +29,7 @@ describe("session-title lifecycle", () => {
 			throw new Error("boom");
 		};
 		await sessionShutdown({}, ctx);
-		expect(setStatus).toHaveBeenCalledWith("session-title", undefined);
+		expect(setStatus).not.toHaveBeenCalled();
 		expect(setTitle).toHaveBeenCalledWith("π - pi-project");
 	});
 
@@ -40,7 +41,7 @@ describe("session-title lifecycle", () => {
 		const { ctx, setStatus, setTitle } = createContext({});
 		ctx.sessionManager.getSessionFile = () => undefined;
 		await sessionShutdown({}, ctx);
-		expect(setStatus).toHaveBeenCalledWith("session-title", undefined);
+		expect(setStatus).not.toHaveBeenCalled();
 		expect(setTitle).toHaveBeenCalledWith("π - pi-project");
 	});
 });
