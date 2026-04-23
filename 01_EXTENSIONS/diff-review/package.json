@@ -5,7 +5,7 @@
     ]
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@mariozechner/* --external:@sinclair/*",
+    "build": "rm -rf dist && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@mariozechner/* --external:@sinclair/* && node inline-web.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage"
   },
