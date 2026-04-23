@@ -73,7 +73,7 @@ export function createClaudeFooter(ctx: ExtensionContext) {
 			const left = leftParts.filter(Boolean).join(theme.fg("dim", " · "));
 			const model = theme.fg("muted", getModelId(ctx, modelId));
 			const effortLevel = getThinkingLevel(ctx, thinkingLevel);
-			const modelParts = [model, effortLevel ? theme.fg("dim", `effort ${effortLevel}`) : ""];
+			const modelParts = [model, effortLevel ? theme.fg("dim", effortLevel) : ""];
 			const rightParts = [modelParts.filter(Boolean).join(theme.fg("dim", " · ")), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
 			const right = rightParts.join("  ");
 			const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
