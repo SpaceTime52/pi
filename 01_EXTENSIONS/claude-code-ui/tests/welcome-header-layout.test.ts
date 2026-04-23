@@ -42,4 +42,18 @@ describe("createPiWelcomeHeader layout", () => {
 		}
 		expect(header.render(1).join("\n")).toContain("╭");
 	});
+
+	it("keeps rendering after the original session context becomes stale", () => {
+		let stale = false;
+		const header = createPiWelcomeHeader({
+			get cwd() { if (stale) throw new Error("stale"); return "/tmp/demo"; },
+			get model() { if (stale) throw new Error("stale"); return { provider: "anthropic", id: "claude-sonnet-4-5" }; },
+			sessionManager: { getEntries: () => { if (stale) throw new Error("stale"); return [{}, {}]; } },
+		})({}, theme);
+		stale = true;
+		const plain = header.render(120).join("\n");
+		expect(plain).toContain("Project   demo");
+		expect(plain).toContain("Model     anthropic/claude-sonnet-4-5");
+		expect(plain).toContain("Session   2 entries loaded in this session");
+	});
 });

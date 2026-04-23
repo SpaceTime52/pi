@@ -18,6 +18,22 @@ function clampPercent(percent: number | null | undefined) {
 	return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
+function getModelId(ctx: ExtensionContext, fallback = "no-model") {
+	try {
+		return ctx.model?.id ?? "no-model";
+	} catch {
+		return fallback;
+	}
+}
+
+function getUsagePercent(ctx: ExtensionContext, fallback: number | null = null) {
+	try {
+		return ctx.getContextUsage()?.percent ?? null;
+	} catch {
+		return fallback;
+	}
+}
+
 function renderContextBadge(theme: Theme, percent: number | null | undefined) {
 	const value = clampPercent(percent);
 	const label = `context ${value == null ? "--" : `${value}%`}`;
@@ -29,6 +45,8 @@ function renderContextBadge(theme: Theme, percent: number | null | undefined) {
 
 export function createClaudeFooter(ctx: ExtensionContext) {
 	const projectName = getProjectName(ctx);
+	const modelId = getModelId(ctx);
+	const usagePercent = getUsagePercent(ctx);
 	return (tui: { requestRender(): void }, theme: Theme, footerData: {
 		onBranchChange(fn: () => void): () => void;
 		getGitBranch(): string | null;
@@ -37,10 +55,9 @@ export function createClaudeFooter(ctx: ExtensionContext) {
 		invalidate() {},
 		render(width: number) {
 			const branch = footerData.getGitBranch();
-			const usage = ctx.getContextUsage();
 			const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
 			const left = leftParts.filter(Boolean).join(theme.fg("dim", " · "));
-			const rightParts = [theme.fg("muted", ctx.model?.id ?? "no-model"), renderContextBadge(theme, usage?.percent)];
+			const rightParts = [theme.fg("muted", getModelId(ctx, modelId)), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
 			const right = rightParts.join("  ");
 			const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
 			return [truncateToWidth(left + " ".repeat(gap) + right, width, "")];

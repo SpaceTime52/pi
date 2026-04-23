@@ -327,22 +327,55 @@ function getPiMascot(theme) {
 // src/header-utils.ts
 import * as os from "node:os";
 import * as path from "node:path";
+function getCwd(ctx, fallback = "") {
+  try {
+    return ctx.cwd;
+  } catch {
+    return fallback;
+  }
+}
+function getModel(ctx, fallback = void 0) {
+  try {
+    return ctx.model;
+  } catch {
+    return fallback;
+  }
+}
+function createHeaderSnapshot(ctx) {
+  const cwd = getCwd(ctx);
+  const model = getModel(ctx);
+  const entryCount = getEntryCount(ctx);
+  return {
+    get cwd() {
+      return getCwd(ctx, cwd);
+    },
+    get model() {
+      return getModel(ctx, model);
+    },
+    sessionManager: { getEntries: () => Array.from({ length: getEntryCount(ctx, entryCount) }, () => null) }
+  };
+}
 function getProjectName(ctx) {
-  return path.basename(ctx.cwd) || ctx.cwd;
+  const cwd = getCwd(ctx);
+  return path.basename(cwd) || cwd;
 }
 function getDisplayName() {
   const raw = process.env.PI_DISPLAY_NAME ?? process.env.CLAUDE_CODE_USER ?? process.env.USER ?? process.env.LOGNAME ?? "there";
   return raw.trim().replace(/[._-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) || "there";
 }
-function isHomeDirectory(cwd) {
-  return path.resolve(cwd) === path.resolve(os.homedir());
-}
-function getEntryCount(ctx) {
+function getEntryCount(ctx, fallback = 0) {
   try {
     return ctx.sessionManager.getEntries().length;
   } catch {
-    return 0;
+    return fallback;
   }
+}
+function getModelLabel(ctx) {
+  const model = getModel(ctx);
+  return model ? `${model.provider}/${model.id}` : "no-model";
+}
+function isHomeDirectory(cwd) {
+  return path.resolve(cwd) === path.resolve(os.homedir());
 }
 function shortenPath(value, maxWidth) {
   const home = os.homedir();
@@ -360,23 +393,25 @@ function shortenMiddle(value, maxWidth) {
 
 // src/header-content.ts
 function buildLeftColumn(ctx, theme) {
+  const cwd = getCwd(ctx);
   const projectName = getProjectName(ctx);
-  const modelLabel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "no-model";
+  const modelLabel = getModelLabel(ctx);
   const entryCount = getEntryCount(ctx);
   const sessionLabel = entryCount === 0 ? "No recent activity yet" : `${entryCount} ${entryCount === 1 ? "entry" : "entries"} loaded in this session`;
-  const workspaceLabel = isHomeDirectory(ctx.cwd) ? theme.fg("warning", "Launched from your home directory. A project folder works best.") : theme.fg("success", "Project directory detected and ready for work.");
+  const workspaceLabel = isHomeDirectory(cwd) ? theme.fg("warning", "Launched from your home directory. A project folder works best.") : theme.fg("success", "Project directory detected and ready for work.");
   return [
     ...getPiMascot(theme),
     theme.bold(`Welcome back ${getDisplayName()}!`),
     formatDetail(theme, "Project", projectName),
-    formatDetail(theme, "Directory", shortenPath(ctx.cwd, 34)),
+    formatDetail(theme, "Directory", shortenPath(cwd, 34)),
     formatDetail(theme, "Model", shortenMiddle(modelLabel, 34)),
     formatDetail(theme, "Session", sessionLabel),
     workspaceLabel
   ];
 }
 function buildRightColumn(ctx, theme) {
-  const projectNote = isHomeDirectory(ctx.cwd) ? theme.fg("muted", "Tip: launch pi inside a repository for stronger file and git context.") : theme.fg("muted", "Workspace note: pi can now reason over the current repository immediately.");
+  const cwd = getCwd(ctx);
+  const projectNote = isHomeDirectory(cwd) ? theme.fg("muted", "Tip: launch pi inside a repository for stronger file and git context.") : theme.fg("muted", "Workspace note: pi can now reason over the current repository immediately.");
   return [
     theme.bold(theme.fg("accent", "Tips for getting started")),
     bullet(theme, "Ask pi to inspect the codebase before making edits."),
@@ -426,14 +461,15 @@ function fitText(text, width, ellipsis = "\u2026") {
 // src/header.ts
 var MIN_TWO_COLUMN_WIDTH = 96;
 function createPiWelcomeHeader(ctx) {
+  const snapshot = createHeaderSnapshot(ctx);
   return (_tui, theme) => ({
     invalidate() {
     },
     render(width) {
       const safeWidth = Math.max(1, width);
       const innerWidth = Math.max(1, safeWidth - 4);
-      const leftLines = buildLeftColumn(ctx, theme);
-      const rightLines = buildRightColumn(ctx, theme);
+      const leftLines = buildLeftColumn(snapshot, theme);
+      const rightLines = buildRightColumn(snapshot, theme);
       const lines = [renderTopBorder(theme, safeWidth, `Pi v${VERSION}`), renderFrameLine(theme, safeWidth, "")];
       const wide = safeWidth >= MIN_TWO_COLUMN_WIDTH;
       for (const row of wide ? renderWideRows(theme, innerWidth, leftLines, rightLines) : renderStackedRows(theme, leftLines, rightLines)) {
@@ -476,6 +512,20 @@ function clampPercent(percent) {
   if (percent == null) return null;
   return Math.max(0, Math.min(100, Math.round(percent)));
 }
+function getModelId(ctx, fallback = "no-model") {
+  try {
+    return ctx.model?.id ?? "no-model";
+  } catch {
+    return fallback;
+  }
+}
+function getUsagePercent(ctx, fallback = null) {
+  try {
+    return ctx.getContextUsage()?.percent ?? null;
+  } catch {
+    return fallback;
+  }
+}
 function renderContextBadge(theme, percent) {
   const value = clampPercent(percent);
   const label = `context ${value == null ? "--" : `${value}%`}`;
@@ -486,16 +536,17 @@ function renderContextBadge(theme, percent) {
 }
 function createClaudeFooter(ctx) {
   const projectName = getProjectName(ctx);
+  const modelId = getModelId(ctx);
+  const usagePercent = getUsagePercent(ctx);
   return (tui, theme, footerData) => ({
     dispose: footerData.onBranchChange(() => tui.requestRender()),
     invalidate() {
     },
     render(width) {
       const branch = footerData.getGitBranch();
-      const usage = ctx.getContextUsage();
       const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
       const left = leftParts.filter(Boolean).join(theme.fg("dim", " \xB7 "));
-      const rightParts = [theme.fg("muted", ctx.model?.id ?? "no-model"), renderContextBadge(theme, usage?.percent)];
+      const rightParts = [theme.fg("muted", getModelId(ctx, modelId)), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
       const right = rightParts.join("  ");
       const gap = Math.max(1, width - visibleWidth4(left) - visibleWidth4(right));
       return [truncateToWidth3(left + " ".repeat(gap) + right, width, "")];

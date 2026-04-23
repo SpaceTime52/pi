@@ -68,4 +68,20 @@ describe("theme, header and footer", () => {
 		expect(full).toContain("\u001b[48;2;215;119;87m");
 		expect(full).not.toContain("<bg:selectedBg>");
 	});
+
+	it("keeps rendering footer details after the extension context becomes stale", () => {
+		let stale = false;
+		const ctx = {
+			get cwd() { if (stale) throw new Error("stale"); return "/tmp/demo"; },
+			get model() { if (stale) throw new Error("stale"); return { id: "sonnet" }; },
+			getContextUsage: () => { if (stale) throw new Error("stale"); return { tokens: 0, contextWindow: 1, percent: 64 }; },
+			ui: { setTheme: vi.fn(() => ({ success: true })), theme },
+		} as ExtensionContext;
+		const footer = createClaudeFooter(ctx)({ requestRender: vi.fn() }, theme, { onBranchChange: () => vi.fn(), getGitBranch: () => "main" });
+		stale = true;
+		const text = render(footer, 220);
+		expect(plain(text)).toContain("demo");
+		expect(plain(text)).toContain("sonnet");
+		expect(plain(text)).toContain("context 64%");
+	});
 });

@@ -3,18 +3,20 @@ import { visibleWidth } from "@mariozechner/pi-tui";
 import { buildLeftColumn, buildRightColumn } from "./header-content.js";
 import { fitText, renderBottomBorder, renderFrameLine, renderTopBorder } from "./header-frame.js";
 import type { HeaderContext, HeaderTheme } from "./header-types.js";
+import { createHeaderSnapshot } from "./header-utils.js";
 export { getProjectName } from "./header-utils.js";
 
 const MIN_TWO_COLUMN_WIDTH = 96;
 
 export function createPiWelcomeHeader(ctx: HeaderContext) {
+	const snapshot = createHeaderSnapshot(ctx);
 	return (_tui: unknown, theme: HeaderTheme) => ({
 		invalidate() {},
 		render(width: number) {
 			const safeWidth = Math.max(1, width);
 			const innerWidth = Math.max(1, safeWidth - 4);
-			const leftLines = buildLeftColumn(ctx, theme);
-			const rightLines = buildRightColumn(ctx, theme);
+			const leftLines = buildLeftColumn(snapshot, theme);
+			const rightLines = buildRightColumn(snapshot, theme);
 			const lines = [renderTopBorder(theme, safeWidth, `Pi v${VERSION}`), renderFrameLine(theme, safeWidth, "")];
 			const wide = safeWidth >= MIN_TWO_COLUMN_WIDTH;
 			for (const row of wide ? renderWideRows(theme, innerWidth, leftLines, rightLines) : renderStackedRows(theme, leftLines, rightLines)) {
