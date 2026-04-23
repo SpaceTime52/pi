@@ -4,6 +4,13 @@ A native diff review extension for pi.
 
 It opens a dedicated review window for the current repository so you can inspect the branch diff, review individual commits, browse all changed files, and collect feedback before sending it back into the editor.
 
+![diff-review screenshot](https://raw.githubusercontent.com/Jonghakseo/pi-extension/main/packages/diff-review/assets/diff-review-screenshot.png)
+
+## Upstream source
+
+- referenced package: `https://github.com/Jonghakseo/pi-extension/tree/main/packages/diff-review`
+- upstream npm package: `@ryan_nookpi/pi-extension-diff-review`
+
 ## What it does
 
 - registers the `/diff-review` command
@@ -14,6 +21,7 @@ It opens a dedicated review window for the current repository so you can inspect
 
 ## Notes for this repo
 
-- implemented under `01_EXTENSIONS/diff-review`
-- adapted from the referenced original package while matching this repo's architecture rules
+- vendored under `01_EXTENSIONS/diff-review`
+- adapted from the upstream package while matching this repo's extension architecture rules
+- keeps the repo-standard `src/index.ts` -> `dist/index.js` entry flow required by `00_ARCHITECTURE/tests`
 - uses `glimpseui` from `devDependencies` because this repo disallows runtime `dependencies`
