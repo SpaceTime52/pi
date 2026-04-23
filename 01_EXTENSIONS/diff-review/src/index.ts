@@ -1,1 +1,1 @@
-export { default } from "./diff-review.js";
+export { default } from "@ryan_nookpi/pi-extension-diff-review";
