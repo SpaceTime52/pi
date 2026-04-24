@@ -29,8 +29,7 @@ describe("theme footer stale context", () => {
 		const footer = createClaudeFooter(ctx)({ requestRender: vi.fn() }, theme, { onBranchChange: () => vi.fn(), getGitBranch: () => "main" });
 		stale = true;
 		const text = render(footer, 220);
-		expect(plain(text)).toContain("demo");
-		expect(plain(text)).not.toContain("main");
+		expect(plain(text)).toContain("demo · main");
 		expect(plain(text)).toContain("sonnet");
 		expect(plain(text)).toContain("context 64%");
 	});

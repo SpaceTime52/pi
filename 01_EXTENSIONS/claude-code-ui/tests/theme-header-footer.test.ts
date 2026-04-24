@@ -29,14 +29,20 @@ describe("theme, header and footer", () => {
 		expect(getProjectName({ cwd: "" } as ExtensionContext)).toBe("");
 	});
 
-	it("renders a clean footer with model, thinking level and a fill-style context badge", () => {
+	it("renders branch, model, thinking level and a fill-style context badge", () => {
 		const entries = [{ type: "thinking_level_change", thinkingLevel: "medium" }, { type: "message", message: { role: "assistant", usage: { input: 5000, output: 12000, cost: { total: 1.234 } } } }];
 		const ctx = createCtx(42, entries);
-		const footer = createClaudeFooter(ctx)({ requestRender: vi.fn() }, theme, { onBranchChange: () => vi.fn(), getGitBranch: () => "main" });
+		const requestRender = vi.fn();
+		let onChange = () => {};
+		const disposeBranchListener = vi.fn();
+		const footer = createClaudeFooter(ctx)({ requestRender }, theme, { onBranchChange: (fn) => ((onChange = fn), disposeBranchListener), getGitBranch: () => "main" });
 		footer.invalidate();
+		onChange();
 		footer.dispose();
 		const text = render(footer, 220);
-		expect(plain(text)).not.toContain("main");
+		expect(requestRender).toHaveBeenCalledTimes(1);
+		expect(disposeBranchListener).toHaveBeenCalledTimes(1);
+		expect(plain(text)).toContain("demo · main");
 		expect(plain(text)).toContain("sonnet");
 		expect(plain(text)).toContain("medium");
 		expect(plain(text)).not.toContain("effort");
@@ -55,6 +61,7 @@ describe("theme, header and footer", () => {
 		const text = render(footer, 220);
 		expect(plain(text)).toContain("no-model");
 		expect(plain(text)).not.toContain("main");
+		expect(plain(text)).not.toContain("demo ·");
 		expect(plain(text)).not.toContain("effort");
 		expect(plain(text)).toContain("context --");
 		expect(text).not.toContain("\u001b[48;2;215;119;87m");
