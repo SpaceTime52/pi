@@ -314,28 +314,15 @@ function clearSessionTitleUi(ctx) {
 }
 
 // src/session-title.ts
-function getSessionKey(ctx) {
-  try {
-    return ctx.sessionManager.getSessionFile() ?? ctx.cwd;
-  } catch {
-    return ctx.cwd;
-  }
-}
 function registerSessionTitle(_pi) {
   let namingInFlight = false;
-  const autoTitleBySession = /* @__PURE__ */ new Map();
-  const maybeUpdateTitle = async (ctx, input, shouldRun, shouldApply) => {
-    if (!shouldRun) {
-      syncSessionTitleUi(_pi, ctx);
-      return;
-    }
+  const maybeUpdateTitle = async (ctx, input, shouldApply) => {
     namingInFlight = true;
     try {
       const sessionTitle = await generateSessionTitle(ctx, input);
       const currentTitle = getSessionTitle(_pi, ctx);
       if (sessionTitle && sessionTitle !== currentTitle && shouldApply(currentTitle)) {
         _pi.setSessionName(sessionTitle);
-        autoTitleBySession.set(getSessionKey(ctx), sessionTitle);
       }
     } finally {
       namingInFlight = false;
@@ -343,31 +330,22 @@ function registerSessionTitle(_pi) {
     }
   };
   const maybeAutoNameFromPrompt = async (userPrompt, ctx) => {
-    if (!shouldAutoNameSession(_pi, ctx, userPrompt, namingInFlight)) {
+    const context = extractSessionTitleContext(ctx.sessionManager, getSessionTitle(_pi, ctx), userPrompt);
+    const firstPrompt = context.firstUserPrompt || userPrompt;
+    if (!shouldAutoNameSession(_pi, ctx, firstPrompt, namingInFlight)) {
       syncSessionTitleUi(_pi, ctx);
       return;
     }
-    const context = extractSessionTitleContext(ctx.sessionManager, getSessionTitle(_pi, ctx), userPrompt);
-    await maybeUpdateTitle(ctx, context, true, (currentTitle) => shouldReplaceSessionTitle(currentTitle, userPrompt));
+    await maybeUpdateTitle(ctx, firstPrompt, (currentTitle) => shouldReplaceSessionTitle(currentTitle, firstPrompt));
   };
-  const maybeRefreshTitleFromContext = async (ctx) => {
-    const currentTitle = getSessionTitle(_pi, ctx);
-    const context = extractSessionTitleContext(ctx.sessionManager, currentTitle);
-    const sessionKey = getSessionKey(ctx);
-    const latestAutoTitle = autoTitleBySession.get(sessionKey);
-    const promptForReplacement = context.recentUserPrompts.at(-1) ?? "";
-    const canRefresh = (title) => !!latestAutoTitle && latestAutoTitle === title || shouldReplaceSessionTitle(title, promptForReplacement);
-    const shouldRun = !namingInFlight && canRefresh(currentTitle);
-    await maybeUpdateTitle(ctx, context, shouldRun, canRefresh);
+  const runTitleUpdateInBackground = (ctx, task) => {
+    void task.catch(() => syncSessionTitleUi(_pi, ctx));
   };
   _pi.on("session_start", (_event, ctx) => syncSessionTitleUi(_pi, ctx));
-  _pi.on("before_agent_start", (event, ctx) => maybeAutoNameFromPrompt(event.prompt, ctx));
+  _pi.on("before_agent_start", (event, ctx) => runTitleUpdateInBackground(ctx, maybeAutoNameFromPrompt(event.prompt, ctx)));
   _pi.on("session_tree", (_event, ctx) => syncSessionTitleUi(_pi, ctx));
-  _pi.on("agent_end", (_event, ctx) => maybeRefreshTitleFromContext(ctx));
-  _pi.on("session_shutdown", (_event, ctx) => {
-    autoTitleBySession.delete(getSessionKey(ctx));
-    clearSessionTitleUi(ctx);
-  });
+  _pi.on("agent_end", (_event, ctx) => syncSessionTitleUi(_pi, ctx));
+  _pi.on("session_shutdown", (_event, ctx) => clearSessionTitleUi(ctx));
 }
 export {
   registerSessionTitle as default
