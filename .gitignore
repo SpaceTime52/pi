@@ -1,0 +1,5 @@
+.pi/*.bak.*
+.pi/tasks/
+node_modules/
+dist/
+coverage/
