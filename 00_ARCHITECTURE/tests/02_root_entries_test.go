@@ -7,7 +7,9 @@ import (
 
 var rootAllowed = map[string]bool{
 	".git":             true,
+	".gitignore":       true,
 	".mise.toml":       true,
+	".pi":              true,
 	"00_ARCHITECTURE":  true,
 	"01_EXTENSIONS":    true,
 	"02_SKILLS":        true,

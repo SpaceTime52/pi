@@ -1,0 +1,125 @@
+{
+  "mcpServers": {
+    "sentry": {
+      "command": "npx",
+      "args": ["-y", "@sentry/mcp-server@latest"],
+      "env": {
+        "SENTRY_ACCESS_TOKEN": "${SENTRY_ACCESS_TOKEN}"
+      }
+    },
+
+    "mcp-atlassian": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "CONFLUENCE_URL",
+        "-e", "CONFLUENCE_USERNAME",
+        "-e", "CONFLUENCE_API_TOKEN",
+        "-e", "JIRA_URL",
+        "-e", "JIRA_USERNAME",
+        "-e", "JIRA_API_TOKEN",
+        "ghcr.io/sooperset/mcp-atlassian:latest"
+      ],
+      "env": {
+        "CONFLUENCE_URL": "https://creatrip.atlassian.net/wiki",
+        "CONFLUENCE_USERNAME": "bohyeon.kim@creatrip.com",
+        "CONFLUENCE_API_TOKEN": "${ATLASSIAN_API_TOKEN}",
+        "JIRA_URL": "https://creatrip.atlassian.net",
+        "JIRA_USERNAME": "bohyeon.kim@creatrip.com",
+        "JIRA_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
+      }
+    },
+
+    "github-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+
+    "figma": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "figma-developer-mcp",
+        "--figma-api-key=${FIGMA_API_KEY}",
+        "--stdio"
+      ]
+    },
+
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["-y", "n8n-mcp"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true"
+      }
+    },
+
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    },
+
+    "notion": {
+      "command": "npx",
+      "args": ["-y", "@notionhq/notion-mcp-server"],
+      "env": {
+        "OPENAPI_MCP_HEADERS": "{\"Authorization\": \"Bearer ${NOTION_TOKEN}\", \"Notion-Version\": \"2022-06-28\"}"
+      }
+    },
+
+    "creatrip-internal": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://ai.creatrip.com/api/mcp/sse",
+        "--header",
+        "X-MCP-Api-Key:${CREATRIP_INTERNAL_MCP_API_KEY}"
+      ]
+    },
+
+    "bigquery": {
+      "command": "node",
+      "args": [
+        "/Users/bohyeon/Desktop/creatrip/05.study/mcp/mcp-bigquery-server/dist/index.js",
+        "--project-id", "creatrip",
+        "--location", "asia-northeast3",
+        "--key-file", "/Users/bohyeon/Desktop/creatrip/05.study/mcp/mcp-bigquery-server/creatrip-bigquery-key.json"
+      ]
+    },
+
+    "apollo-studio": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-e", "APOLLO_STUDIO_KEY",
+        "-e", "APOLLO_GRAPH_ID",
+        "-e", "APOLLO_VARIANT_NAME",
+        "apollo-studio-mcp"
+      ],
+      "env": {
+        "APOLLO_STUDIO_KEY": "${APOLLO_STUDIO_KEY}",
+        "APOLLO_GRAPH_ID": "${APOLLO_GRAPH_ID}",
+        "APOLLO_VARIANT_NAME": "${APOLLO_VARIANT_NAME}"
+      }
+    }
+  }
+}

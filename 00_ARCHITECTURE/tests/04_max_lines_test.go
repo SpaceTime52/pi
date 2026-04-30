@@ -18,7 +18,7 @@ func TestAllFiles_MaxLines(t *testing.T) {
 		rel, _ := filepath.Rel(root, path)
 		dir := filepath.Base(rel)
 		if info.IsDir() {
-			if rel == ".git" || rel == "docs" || dir == "node_modules" || dir == "coverage" || dir == "dist" {
+			if rel == ".git" || rel == ".pi" || rel == "docs" || dir == "node_modules" || dir == "coverage" || dir == "dist" {
 				return filepath.SkipDir
 			}
 			return nil
