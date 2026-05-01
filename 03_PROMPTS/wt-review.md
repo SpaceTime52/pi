@@ -15,7 +15,7 @@ argument-hint: "<PR-번호>"
 4. `bash .pi/bin/pi-wt review $@` 로 워크트리 생성
 5. 사용자 의도를 확인:
    - **리뷰만**: PR diff(`gh pr diff $@`)를 같이 로드해 분석 시작
-   - **수정 작업**: `bash .pi/bin/pi-wt open pr-$@` 안내 후 새 pi 세션에서 진행 권장
+   - **수정 작업**: `pi-wt-here pr-$@` 안내 (새 Ghostty 윈도우 `Cmd+N` 후 그 셸에서 실행)
    - **둘 다 이 세션에서**: 워크트리로 cd하고 그대로 진행
 
 리뷰 시 우선 살필 것:

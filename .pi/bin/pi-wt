@@ -127,17 +127,6 @@ cmd_cd() {
     printf '%s\n' "$p"
 }
 
-cmd_open() {
-    local name="${1:-}"
-    [[ -n "$name" ]] || die "usage: pi-wt open <name> [--bg]"
-    shift
-    local bg=0
-    [[ "${1:-}" == "--bg" ]] && bg=1
-    local p; p="$(worktree_path "$name")"
-    [[ -d "$p" ]] || die "no such worktree: $name"
-    "$SCRIPT_DIR/pi-wt-launcher" "$p" "$bg"
-}
-
 cmd_rm() {
     local name="${1:-}" force=0
     [[ -n "$name" ]] || die "usage: pi-wt rm <name> [--force]"
@@ -195,9 +184,13 @@ pi-wt — PR-단위 git worktree 매니저
   pi-wt review <PR-number>   # 기존 PR을 워크트리로 체크아웃
   pi-wt list [repo]          # 워크트리 목록
   pi-wt cd <name>            # 워크트리 경로 출력
-  pi-wt open <name> [--bg]   # 새 터미널에 pi 띄우기 (--bg는 tmux 백그라운드)
   pi-wt rm <name> [--force]  # 워크트리 제거
   pi-wt prune                # 머지/클로즈된 PR의 워크트리 자동 정리
+
+shell 함수 (cd + pi 원샷) — 추천 설치:
+  ~/.zshrc 에 다음 한 줄 추가:
+    source ~/.pi/agent/git/github.com/SpaceTime52/pi/.pi/shell/pi-wt.zsh
+  이후: pi-wt-here <name>
 
 환경변수:
   PI_WT_ROOT                 # 워크트리 루트 (기본: \$HOME/pi/workspaces)
@@ -209,9 +202,10 @@ case "${1:-}" in
     review) shift; cmd_review "$@" ;;
     list)   shift; cmd_list "$@" ;;
     cd)     shift; cmd_cd "$@" ;;
-    open)   shift; cmd_open "$@" ;;
     rm)     shift; cmd_rm "$@" ;;
     prune)  shift; cmd_prune "$@" ;;
+    open)
+        die "'pi-wt open'은 제거됨 (Ghostty spawn 신뢰성 문제). 대신 'pi-wt-here <name>' 사용 — .pi/shell/pi-wt.zsh source 필요" ;;
     -h|--help|help|"") usage ;;
     *) usage; exit 1 ;;
 esac
