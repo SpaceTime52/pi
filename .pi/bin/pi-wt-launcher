@@ -21,9 +21,15 @@ if [[ "$BG" == "1" ]]; then
 fi
 
 # Foreground: spawn new terminal window
+# Note: Ghostty's `-e <cmd>` runs without a shell, so --working-directory may not
+# apply. We wrap with bash that explicitly cd's before exec'ing pi.
+spawn_ghostty() {
+    open -na Ghostty.app --args -e bash -lc "cd '$PATH_TO_OPEN' && exec pi"
+}
+
 case "${TERM_PROGRAM:-}" in
     "ghostty")
-        open -na Ghostty.app --args --working-directory="$PATH_TO_OPEN" -e pi
+        spawn_ghostty
         ;;
     "iTerm.app")
         osascript <<EOF
@@ -45,7 +51,7 @@ EOF
         ;;
     *)
         if [[ -d "/Applications/Ghostty.app" ]]; then
-            open -na Ghostty.app --args --working-directory="$PATH_TO_OPEN" -e pi
+            spawn_ghostty
         else
             echo "지원하지 않는 터미널: ${TERM_PROGRAM:-unknown}" >&2
             echo "수동: cd '$PATH_TO_OPEN' && pi" >&2
