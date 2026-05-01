@@ -27,7 +27,24 @@ pi-wt-here() {
     fi
     local p
     p="$(pi-wt cd "$1")" || return 1
-    cd "$p" && pi
+    cd "$p" || return 1
+    _pi_wt_repo_banner
+    pi
+}
+
+# .pi/worktree.json 메타 읽어 상단 배너 표시 — 어느 repo·브랜치 워크트리인지
+_pi_wt_repo_banner() {
+    [[ -f .pi/worktree.json ]] || return 0
+    local repo branch wt
+    repo=$(/usr/bin/python3 -c 'import json,os; d=json.load(open(".pi/worktree.json")); print(os.path.basename(d["mainRepo"]))' 2>/dev/null)
+    branch=$(/usr/bin/python3 -c 'import json; d=json.load(open(".pi/worktree.json")); print(d["branch"])' 2>/dev/null)
+    wt=$(basename "$PWD")
+    [[ -z "$repo" ]] && return 0
+    print -P "\n%F{cyan}┌─── working on ───%f"
+    print -P "%F{cyan}│%f repo:     %B${repo}%b"
+    print -P "%F{cyan}│%f branch:   %F{yellow}${branch}%f"
+    print -P "%F{cyan}│%f worktree: ${wt}"
+    print -P "%F{cyan}└───%f\n"
 }
 
 # zsh 자동완성: 현재 repo의 워크트리 이름 후보 제공
