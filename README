@@ -27,6 +27,7 @@
     api-and-interface-design … 안정적인 API와 인터페이스 설계를 돕습니다
     browser-testing-with-devtools … 실제 브라우저에서 테스트합니다
     ci-cd-and-automation … CI/CD 파이프라인 구성을 자동화합니다
+    cli-toolbox … 설치된 CLI 도구를 발견·활용합니다
     code-review-and-quality … 여러 관점에서 코드 리뷰를 수행합니다
     code-simplification … 코드의 가독성과 명확성을 높이도록 단순화합니다
     context-engineering … 에이전트 컨텍스트 구성을 최적화합니다
