@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+# pi-wt — PR-단위 git worktree 매니저 (pi 통합)
+set -euo pipefail
+
+WORKSPACES_ROOT="${PI_WT_ROOT:-$HOME/pi/workspaces}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+log() { printf '%s\n' "$*" >&2; }
+die() { log "error: $*"; exit 1; }
+
+resolve_main_repo() {
+    local common_dir
+    common_dir="$(git rev-parse --git-common-dir 2>/dev/null)" || die "not inside a git repository"
+    [[ "$common_dir" = /* ]] || common_dir="$(cd "$common_dir" && pwd)"
+    cd "$(dirname "$common_dir")" && pwd
+}
+
+repo_name() { basename "$(resolve_main_repo)"; }
+
+sanitize_name() {
+    local s="$1"
+    s="${s//\//-}"
+    s="$(printf '%s' "$s" | sed 's/[^a-zA-Z0-9._-]/-/g')"
+    s="${s##-}"; s="${s%%-}"
+    printf '%s' "$s"
+}
+
+worktree_path() {
+    local name="$1"
+    printf '%s/%s/%s' "$WORKSPACES_ROOT" "$(repo_name)" "$name"
+}
+
+bootstrap_worktree() {
+    local wt_path="$1" branch="$2" main_repo="$3" pr_number="${4:-}"
+    local base_branch
+    base_branch="$(git -C "$main_repo" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null \
+        | sed 's@^refs/remotes/origin/@@')" || base_branch="main"
+    mkdir -p "$wt_path/.pi"
+    cat > "$wt_path/.pi/worktree.json" <<EOF
+{
+  "branch": "$branch",
+  "prNumber": ${pr_number:-null},
+  "baseBranch": "$base_branch",
+  "mainRepo": "$main_repo",
+  "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+}
+
+cmd_new() {
+    local branch="${1:-}"
+    [[ -n "$branch" ]] || die "usage: pi-wt new <branch>"
+    local main_repo wt_name wt_path
+    main_repo="$(resolve_main_repo)"
+    wt_name="$(sanitize_name "$branch")"
+    wt_path="$(worktree_path "$wt_name")"
+    [[ ! -d "$wt_path" ]] || die "worktree already exists: $wt_path"
+    mkdir -p "$(dirname "$wt_path")"
+    if git -C "$main_repo" rev-parse --verify "$branch" >/dev/null 2>&1; then
+        git -C "$main_repo" worktree add "$wt_path" "$branch"
+    else
+        local base="origin/HEAD"
+        git -C "$main_repo" rev-parse --verify "$base" >/dev/null 2>&1 || base="HEAD"
+        git -C "$main_repo" worktree add -b "$branch" "$wt_path" "$base"
+    fi
+    bootstrap_worktree "$wt_path" "$branch" "$main_repo"
+    log "✓ created: $wt_path"
+    log ""
+    log "next:"
+    log "  $(basename "$0") open $wt_name      # 새 터미널에 pi 띄우기"
+    log "  cd '$wt_path' && pi                 # 직접 이동"
+}
+
+cmd_review() {
+    local pr="${1:-}"
+    [[ -n "$pr" ]] || die "usage: pi-wt review <PR-number>"
+    [[ "$pr" =~ ^[0-9]+$ ]] || die "PR number must be numeric"
+    command -v gh >/dev/null || die "gh CLI required"
+    local main_repo wt_name wt_path pr_branch
+    main_repo="$(resolve_main_repo)"
+    wt_name="pr-$pr"
+    wt_path="$(worktree_path "$wt_name")"
+    [[ ! -d "$wt_path" ]] || die "worktree already exists: $wt_path"
+    mkdir -p "$(dirname "$wt_path")"
+    pr_branch="$(gh -R "$main_repo" pr view "$pr" --json headRefName -q .headRefName)" \
+        || die "failed to fetch PR #$pr"
+    git -C "$main_repo" fetch origin "$pr_branch:$pr_branch" 2>/dev/null || \
+        git -C "$main_repo" fetch origin "pull/$pr/head:$pr_branch"
+    git -C "$main_repo" worktree add "$wt_path" "$pr_branch"
+    bootstrap_worktree "$wt_path" "$pr_branch" "$main_repo" "$pr"
+    log "✓ created: $wt_path (PR #$pr → $pr_branch)"
+    log ""
+    log "next: $(basename "$0") open $wt_name"
+}
+
+cmd_list() {
+    local repo="${1:-}"
+    [[ -n "$repo" ]] || repo="$(repo_name 2>/dev/null || echo)"
+    if [[ -z "$repo" ]]; then
+        log "all repos:"
+        ls -1 "$WORKSPACES_ROOT" 2>/dev/null || log "(none)"
+        return 0
+    fi
+    local repo_dir="$WORKSPACES_ROOT/$repo"
+    [[ -d "$repo_dir" ]] || die "no worktrees for repo: $repo"
+    printf '%-32s %-40s %s\n' "name" "branch" "PR"
+    printf '%-32s %-40s %s\n' "----" "------" "--"
+    for wt in "$repo_dir"/*/; do
+        [[ -d "$wt" ]] || continue
+        local name branch pr meta="$wt.pi/worktree.json"
+        name="$(basename "$wt")"
+        branch=""; pr=""
+        if [[ -f "$meta" ]]; then
+            branch="$(grep -o '"branch":[^,}]*' "$meta" | head -1 | cut -d'"' -f4)"
+            pr="$(grep -o '"prNumber":[^,}]*' "$meta" | head -1 | sed 's/.*: *//')"
+            [[ "$pr" == "null" ]] && pr=""
+        fi
+        printf '%-32s %-40s %s\n' "$name" "$branch" "$pr"
+    done
+}
+
+cmd_cd() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "usage: pi-wt cd <name>"
+    local p; p="$(worktree_path "$name")"
+    [[ -d "$p" ]] || die "no such worktree: $name"
+    printf '%s\n' "$p"
+}
+
+cmd_open() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "usage: pi-wt open <name> [--bg]"
+    shift
+    local bg=0
+    [[ "${1:-}" == "--bg" ]] && bg=1
+    local p; p="$(worktree_path "$name")"
+    [[ -d "$p" ]] || die "no such worktree: $name"
+    "$SCRIPT_DIR/pi-wt-launcher" "$p" "$bg"
+}
+
+cmd_rm() {
+    local name="${1:-}" force=0
+    [[ -n "$name" ]] || die "usage: pi-wt rm <name> [--force]"
+    [[ "${2:-}" == "--force" ]] && force=1
+    local main_repo p
+    main_repo="$(resolve_main_repo)"
+    p="$(worktree_path "$name")"
+    [[ -d "$p" ]] || die "no such worktree: $name"
+    if [[ "$force" -eq 0 ]]; then
+        # Block on modified tracked files (not on untracked bootstrap artifacts)
+        if ! git -C "$p" diff --quiet HEAD 2>/dev/null; then
+            die "modified tracked files in $p (commit, stash, or use --force)"
+        fi
+        # Block on unpushed commits if upstream is configured
+        local unpushed
+        unpushed="$(git -C "$p" rev-list '@{u}..' 2>/dev/null | wc -l | tr -d ' ')" || unpushed=0
+        if [[ -n "$unpushed" && "$unpushed" != "0" ]]; then
+            die "$unpushed unpushed commit(s) in $p (push or use --force)"
+        fi
+    fi
+    git -C "$main_repo" worktree remove --force "$p"
+    log "✓ removed: $p"
+}
+
+cmd_prune() {
+    command -v gh >/dev/null || die "gh CLI required"
+    local main_repo; main_repo="$(resolve_main_repo)"
+    local repo_dir="$WORKSPACES_ROOT/$(repo_name)"
+    [[ -d "$repo_dir" ]] || { log "nothing to prune"; return 0; }
+    local removed=0
+    for wt in "$repo_dir"/*/; do
+        [[ -d "$wt" ]] || continue
+        local meta="$wt.pi/worktree.json"
+        [[ -f "$meta" ]] || continue
+        local pr state name
+        pr="$(grep -o '"prNumber":[^,}]*' "$meta" | head -1 | sed 's/.*: *//')"
+        [[ -n "$pr" && "$pr" != "null" ]] || continue
+        state="$(gh -R "$main_repo" pr view "$pr" --json state -q .state 2>/dev/null || echo)"
+        if [[ "$state" == "MERGED" || "$state" == "CLOSED" ]]; then
+            name="$(basename "$wt")"
+            log "pruning $name (PR #$pr is $state)"
+            git -C "$main_repo" worktree remove "$wt" 2>&1 || log "  manual: rm -rf '$wt'"
+            removed=$((removed+1))
+        fi
+    done
+    log "✓ pruned $removed worktree(s)"
+}
+
+usage() {
+    cat <<EOF
+pi-wt — PR-단위 git worktree 매니저
+
+사용법:
+  pi-wt new <branch>         # 새 워크트리 + (필요시) 새 브랜치
+  pi-wt review <PR-number>   # 기존 PR을 워크트리로 체크아웃
+  pi-wt list [repo]          # 워크트리 목록
+  pi-wt cd <name>            # 워크트리 경로 출력
+  pi-wt open <name> [--bg]   # 새 터미널에 pi 띄우기 (--bg는 tmux 백그라운드)
+  pi-wt rm <name> [--force]  # 워크트리 제거
+  pi-wt prune                # 머지/클로즈된 PR의 워크트리 자동 정리
+
+환경변수:
+  PI_WT_ROOT                 # 워크트리 루트 (기본: \$HOME/pi/workspaces)
+EOF
+}
+
+case "${1:-}" in
+    new)    shift; cmd_new "$@" ;;
+    review) shift; cmd_review "$@" ;;
+    list)   shift; cmd_list "$@" ;;
+    cd)     shift; cmd_cd "$@" ;;
+    open)   shift; cmd_open "$@" ;;
+    rm)     shift; cmd_rm "$@" ;;
+    prune)  shift; cmd_prune "$@" ;;
+    -h|--help|help|"") usage ;;
+    *) usage; exit 1 ;;
+esac

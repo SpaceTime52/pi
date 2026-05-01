@@ -48,6 +48,8 @@
 
   PROMPTS
     fix-bug … 버그를 재현·분석·수정하고 검증까지 주도
+    wt-new … PR용 새 워크트리 생성
+    wt-review … 기존 PR을 워크트리로 체크아웃
 
   THEMES
     claude-code-dark … Claude Code dark theme token 매핑
