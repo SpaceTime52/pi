@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# pi-wt-launcher — 새 터미널에 cd <path>; pi 실행
+set -euo pipefail
+
+PATH_TO_OPEN="${1:?usage: pi-wt-launcher <path> [bg=0|1]}"
+BG="${2:-0}"
+
+[[ -d "$PATH_TO_OPEN" ]] || { echo "no such dir: $PATH_TO_OPEN" >&2; exit 1; }
+
+if [[ "$BG" == "1" ]]; then
+    command -v tmux >/dev/null || { echo "tmux not installed" >&2; exit 1; }
+    sname="pi-$(basename "$PATH_TO_OPEN")"
+    if tmux has-session -t "$sname" 2>/dev/null; then
+        echo "tmux session exists: $sname (attach: tmux a -t $sname)"
+        exit 0
+    fi
+    tmux new-session -d -s "$sname" -c "$PATH_TO_OPEN" "pi"
+    echo "✓ tmux session started: $sname"
+    echo "  attach: tmux a -t $sname"
+    exit 0
+fi
+
+# Foreground: spawn new terminal window
+case "${TERM_PROGRAM:-}" in
+    "ghostty")
+        open -na Ghostty.app --args --working-directory="$PATH_TO_OPEN" -e pi
+        ;;
+    "iTerm.app")
+        osascript <<EOF
+tell application "iTerm"
+    create window with default profile
+    tell current session of current window
+        write text "cd '$PATH_TO_OPEN' && pi"
+    end tell
+end tell
+EOF
+        ;;
+    "Apple_Terminal")
+        osascript <<EOF
+tell application "Terminal"
+    do script "cd '$PATH_TO_OPEN' && pi"
+    activate
+end tell
+EOF
+        ;;
+    *)
+        if [[ -d "/Applications/Ghostty.app" ]]; then
+            open -na Ghostty.app --args --working-directory="$PATH_TO_OPEN" -e pi
+        else
+            echo "지원하지 않는 터미널: ${TERM_PROGRAM:-unknown}" >&2
+            echo "수동: cd '$PATH_TO_OPEN' && pi" >&2
+            exit 1
+        fi
+        ;;
+esac
+
+echo "✓ opened: $PATH_TO_OPEN"
