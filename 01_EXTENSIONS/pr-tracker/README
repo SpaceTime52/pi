@@ -1,0 +1,25 @@
+
+  pr-tracker
+
+  pi 세션에서 생성하거나 추적한 GitHub Pull Request 상태를 터미널 위젯으로 보여준다.
+
+  REQUIREMENTS
+    gh CLI 설치 및 로그인
+    GitHub 저장소 checkout 안에서 pi 실행
+
+  COMMANDS
+    /pr                 추적 중인 PR 표시. 없으면 현재 브랜치 PR을 찾아 추적
+    /pr refresh         GitHub에서 상태 갱신
+    /pr track <ref>     PR 번호/URL/브랜치를 수동 추적
+    /pr open            브라우저에서 PR 열기
+    /pr merge [flags]   확인 후 gh pr merge 실행. flags 없으면 merge 방식 선택
+    /pr untrack         현재 세션의 PR 추적 해제
+    /pr help            도움말
+
+  AUTO TRACKING
+    에이전트가 bash 도구로 `gh pr create`를 실행하고 출력에 PR URL이 있으면 자동 추적한다.
+
+  DISPLAY
+    #63 Ready to merge · Title
+      Checks ✓ 3/3 · Review approved · Changes 1 · branch → main
+      /pr refresh · /pr open · /pr merge · /pr untrack
