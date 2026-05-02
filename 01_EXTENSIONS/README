@@ -8,6 +8,7 @@
     claude-hooks-bridge
     diff-review
     mcp
+    pr-tracker
     session-title
     spinner
     subagent

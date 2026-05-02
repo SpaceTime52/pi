@@ -16,6 +16,7 @@
     claude-hooks-bridge … `.claude/settings.json` hooks를 pi lifecycle event로 브리지
     diff-review … 현재 저장소 변경사항을 네이티브 리뷰 창으로 검토하고 코멘트 수집
     mcp … MCP 서버 통합 (proxy tool, lazy connection, metadata caching)
+    pr-tracker … 세션에서 생성/추적한 GitHub PR 상태 위젯과 merge/open 명령
     session-title … 첫 요청을 바탕으로 명료한 세션 이름/터미널 제목 자동 설정
     spinner … Claude Code source 기반 working spinner
     subagent … `@jeonghyeon.net/pi-subagents` 기반 subagent 실행/관리

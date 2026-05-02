@@ -2,4 +2,6 @@
 .pi/tasks/
 node_modules/
 dist/
+!01_EXTENSIONS/*/dist/
+!01_EXTENSIONS/*/dist/**
 coverage/
