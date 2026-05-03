@@ -37,24 +37,35 @@
     documentation-and-adrs … 의사결정과 문서를 기록합니다
     frontend-ui-engineering … 프로덕션 품질의 UI를 만듭니다
     git-workflow-and-versioning … Git 워크플로와 버전 관리를 체계화합니다
+    grill-me … 구현 전 요구사항을 집요하게 질문해 정렬합니다
+    grill-with-docs … 기존 문서·도메인 언어와 맞춰 요구사항을 정렬합니다
     idea-refine … 아이디어를 반복적으로 다듬습니다
+    improve-codebase-architecture … deep module 중심의 구조 개선 후보를 찾습니다
     incremental-implementation … 변경을 점진적으로 구현합니다
     performance-optimization … 애플리케이션 성능을 최적화합니다
     planning-and-task-breakdown … 작업을 순서대로 나눕니다
+    ralph-loop … Pi Task DAG를 Ralph-style AFK 루프로 실행합니다
     security-and-hardening … 코드 보안과 하드닝을 강화합니다
     shipping-and-launch … 프로덕션 출시를 준비합니다
     source-driven-development … 모든 구현 결정을 공식 문서에 근거해 진행합니다
     spec-driven-development … 코딩 전에 명세를 작성합니다
     test-driven-development … 테스트로 개발을 이끕니다
+    to-prd … 정렬된 대화 맥락을 PRD로 합성합니다
+    to-tasks … PRD·계획을 Pi Task DAG로 변환합니다
     using-agent-skills … 에이전트 스킬을 찾고 활용합니다
+    zoom-out … 낯선 코드 영역을 상위 구조로 설명합니다
 
   PROMPTS
+    ai-feature … Grill → PRD → Task DAG로 기능 작업 준비
     fix-bug … 버그를 재현·분석·수정하고 검증까지 주도
+    ralph … 현재 Task DAG에서 AFK task를 Ralph loop로 실행
     wt-new … PR용 새 워크트리 생성
     wt-review … 기존 PR을 워크트리로 체크아웃
+    zoom-out … 낯선 코드 영역의 상위 구조 요약
 
   THEMES
     claude-code-dark … Claude Code dark theme token 매핑
 
   LINKS
+    ai-engineering-loop  docs/README
     pi-coding-agent  https://github.com/badlogic/pi-mono
