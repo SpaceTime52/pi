@@ -1,78 +1,7 @@
+import type { PullRequestStatus } from "./pr-types.js";
+
 export const EXTENSION_ID = "pr-tracker";
-
-export const PR_VIEW_FIELDS = [
-	"additions",
-	"baseRefName",
-	"changedFiles",
-	"deletions",
-	"headRefName",
-	"isDraft",
-	"mergeStateStatus",
-	"mergeable",
-	"number",
-	"reviewDecision",
-	"state",
-	"statusCheckRollup",
-	"title",
-	"url",
-] as const;
-
-export type CheckState = "none" | "passing" | "pending" | "failing" | "unknown";
-
-export interface CheckSummary {
-	state: CheckState;
-	total: number;
-	passed: number;
-	pending: number;
-	failed: number;
-}
-
-export type ReviewState = "approved" | "changes_requested" | "required" | "none" | "unknown";
-
-export interface ReviewSummary {
-	state: ReviewState;
-	label: string;
-	decision?: string;
-}
-
-export type ReadinessState =
-	| "ready"
-	| "draft"
-	| "closed"
-	| "merged"
-	| "checks_pending"
-	| "checks_failing"
-	| "changes_requested"
-	| "review_required"
-	| "conflicts"
-	| "blocked"
-	| "behind"
-	| "unknown";
-
-export interface ReadinessSummary {
-	state: ReadinessState;
-	label: string;
-}
-
-export interface PullRequestStatus {
-	number: number;
-	url?: string;
-	title?: string;
-	state?: string;
-	isDraft?: boolean;
-	mergeable?: string;
-	mergeStateStatus?: string;
-	reviewDecision?: string;
-	changedFiles?: number;
-	additions?: number;
-	deletions?: number;
-	headRefName?: string;
-	baseRefName?: string;
-	checks: CheckSummary;
-	review: ReviewSummary;
-	readiness: ReadinessSummary;
-	updatedAt: string;
-}
+export const PR_VIEW_FIELDS = ["additions", "baseRefName", "changedFiles", "deletions", "headRefName", "isDraft", "mergeStateStatus", "mergeable", "number", "reviewDecision", "state", "statusCheckRollup", "title", "url"];
 
 export interface TrackerState {
 	pr?: PullRequestStatus;
@@ -101,3 +30,42 @@ export type ExecFn = (
 	args: string[],
 	options?: { cwd?: string; signal?: AbortSignal; timeout?: number },
 ) => Promise<ExecResult>;
+
+export interface TrackerUi {
+	notify(message: string, level?: "info" | "warning" | "error"): void;
+	setWidget(id: string, lines: string[] | undefined): void;
+	setStatus(id: string, status: string | undefined): void;
+	select(title: string, options: string[]): Promise<string | undefined>;
+	confirm(title: string, message: string): Promise<boolean>;
+}
+
+export interface TrackerContext {
+	cwd: string;
+	hasUI: boolean;
+	ui: TrackerUi;
+	signal?: AbortSignal;
+	sessionManager: { getBranch(): unknown[] };
+}
+
+export interface ToolResultLike {
+	toolName: string;
+	isError?: boolean;
+	input?: unknown;
+	content?: unknown;
+}
+
+export interface PrCommandOptions {
+	description: string;
+	getArgumentCompletions(prefix: string): { value: string; label: string }[];
+	handler(args: string, ctx: TrackerContext): Promise<void> | void;
+}
+
+export interface PrTrackerPi {
+	exec: ExecFn;
+	appendEntry(id: string, data: TrackerEntryData): void;
+	on(eventName: "session_start", handler: (event: unknown, ctx: TrackerContext) => Promise<void> | void): void;
+	on(eventName: "tool_result", handler: (event: ToolResultLike, ctx: TrackerContext) => Promise<void> | void): void;
+	registerCommand(name: string, options: PrCommandOptions): void;
+}
+
+export type { CheckSummary, PullRequestStatus, ReadinessSummary, ReviewSummary } from "./pr-types.js";

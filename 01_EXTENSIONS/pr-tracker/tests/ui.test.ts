@@ -1,6 +1,5 @@
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { EXTENSION_ID, type TrackerState } from "../src/types.ts";
+import { EXTENSION_ID, type TrackerContext, type TrackerState } from "../src/types.ts";
 import { formatNotification, formatStatus, renderWidgetLines, syncTrackerUi } from "../src/ui.ts";
 
 const state: TrackerState = {
@@ -20,6 +19,15 @@ const state: TrackerState = {
 	},
 };
 
+function createContext(hasUI: boolean): TrackerContext {
+	return {
+		cwd: "/repo",
+		hasUI,
+		ui: { notify: vi.fn(), setWidget: vi.fn(), setStatus: vi.fn(), select: vi.fn(), confirm: vi.fn() },
+		sessionManager: { getBranch: () => [] },
+	};
+}
+
 describe("ui", () => {
 	it("renders compact PR widget lines", () => {
 		expect(renderWidgetLines(state)).toEqual([
@@ -32,21 +40,18 @@ describe("ui", () => {
 	});
 
 	it("syncs and clears pi UI widgets", () => {
-		const setWidget = vi.fn();
-		const setStatus = vi.fn();
-		const ctx = { hasUI: true, ui: { setWidget, setStatus } } as unknown as ExtensionContext;
+		const ctx = createContext(true);
 		syncTrackerUi(ctx, state);
-		expect(setWidget).toHaveBeenCalledWith(EXTENSION_ID, renderWidgetLines(state));
-		expect(setStatus).toHaveBeenCalledWith(EXTENSION_ID, "PR #63 Ready to merge");
-
+		expect(ctx.ui.setWidget).toHaveBeenCalledWith(EXTENSION_ID, renderWidgetLines(state));
+		expect(ctx.ui.setStatus).toHaveBeenCalledWith(EXTENSION_ID, "PR #63 Ready to merge");
 		syncTrackerUi(ctx, {});
-		expect(setWidget).toHaveBeenLastCalledWith(EXTENSION_ID, undefined);
-		expect(setStatus).toHaveBeenLastCalledWith(EXTENSION_ID, undefined);
+		expect(ctx.ui.setWidget).toHaveBeenLastCalledWith(EXTENSION_ID, undefined);
+		expect(ctx.ui.setStatus).toHaveBeenLastCalledWith(EXTENSION_ID, undefined);
 	});
 
 	it("does nothing without UI", () => {
-		const setWidget = vi.fn();
-		syncTrackerUi({ hasUI: false, ui: { setWidget } } as unknown as ExtensionContext, state);
-		expect(setWidget).not.toHaveBeenCalled();
+		const ctx = createContext(false);
+		syncTrackerUi(ctx, state);
+		expect(ctx.ui.setWidget).not.toHaveBeenCalled();
 	});
 });

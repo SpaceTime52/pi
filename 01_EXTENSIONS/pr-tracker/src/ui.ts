@@ -1,5 +1,4 @@
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { EXTENSION_ID, type CheckSummary, type PullRequestStatus, type TrackerState } from "./types.js";
+import { EXTENSION_ID, type CheckSummary, type PullRequestStatus, type TrackerContext, type TrackerState } from "./types.js";
 
 function truncate(text: string, maxLength: number): string {
 	return text.length <= maxLength ? text : `${text.slice(0, Math.max(0, maxLength - 1))}…`;
@@ -43,7 +42,7 @@ export function formatNotification(state: TrackerState): string {
 	return `#${pr.number} ${pr.readiness.label}\n${formatPullRequestDetails(pr)}${pr.url ? `\n${pr.url}` : ""}`;
 }
 
-export function syncTrackerUi(ctx: Pick<ExtensionContext, "hasUI" | "ui">, state: TrackerState): void {
+export function syncTrackerUi(ctx: Pick<TrackerContext, "hasUI" | "ui">, state: TrackerState): void {
 	if (!ctx.hasUI) return;
 	ctx.ui.setWidget(EXTENSION_ID, renderWidgetLines(state));
 	ctx.ui.setStatus(EXTENSION_ID, formatStatus(state));
