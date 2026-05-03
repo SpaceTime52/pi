@@ -864,6 +864,13 @@ var init_conversation_viewer = __esm({
   }
 });
 
+// src/package-agents.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync5, mkdirSync as mkdirSync4, readdirSync as readdirSync2, readFileSync as readFileSync4, writeFileSync as writeFileSync2 } from "node:fs";
+import { homedir as homedir5 } from "node:os";
+import { dirname, join as join7 } from "node:path";
+import { fileURLToPath } from "node:url";
+
 // node_modules/@jeonghyeon.net/pi-subagents/dist/index.js
 import { existsSync as existsSync4, mkdirSync as mkdirSync3, readFileSync as readFileSync3, unlinkSync } from "node:fs";
 import { homedir as homedir4 } from "node:os";
@@ -3080,8 +3087,8 @@ ${conversation}`;
       const content = readFileSync3(file.path, "utf-8");
       const edited = await ctx.ui.editor(`Edit ${name}`, content);
       if (edited !== void 0 && edited !== content) {
-        const { writeFileSync: writeFileSync2 } = await import("node:fs");
-        writeFileSync2(file.path, edited, "utf-8");
+        const { writeFileSync: writeFileSync3 } = await import("node:fs");
+        writeFileSync3(file.path, edited, "utf-8");
         reloadCustomAgents();
         ctx.ui.notify(`Updated ${file.path}`, "info");
       }
@@ -3160,8 +3167,8 @@ ${fmFields.join("\n")}
 
 ${cfg.systemPrompt}
 `;
-    const { writeFileSync: writeFileSync2 } = await import("node:fs");
-    writeFileSync2(targetPath, content, "utf-8");
+    const { writeFileSync: writeFileSync3 } = await import("node:fs");
+    writeFileSync3(targetPath, content, "utf-8");
     reloadCustomAgents();
     ctx.ui.notify(`Ejected ${name} to ${targetPath}`, "info");
   }
@@ -3174,8 +3181,8 @@ ${cfg.systemPrompt}
         return;
       }
       const updated = content.replace(/^---\n/, "---\nenabled: false\n");
-      const { writeFileSync: writeFileSync3 } = await import("node:fs");
-      writeFileSync3(file.path, updated, "utf-8");
+      const { writeFileSync: writeFileSync4 } = await import("node:fs");
+      writeFileSync4(file.path, updated, "utf-8");
       reloadCustomAgents();
       ctx.ui.notify(`Disabled ${name} (${file.path})`, "info");
       return;
@@ -3189,8 +3196,8 @@ ${cfg.systemPrompt}
     const targetDir = location.startsWith("Project") ? projectAgentsDir() : personalAgentsDir();
     mkdirSync3(targetDir, { recursive: true });
     const targetPath = join6(targetDir, `${name}.md`);
-    const { writeFileSync: writeFileSync2 } = await import("node:fs");
-    writeFileSync2(targetPath, "---\nenabled: false\n---\n", "utf-8");
+    const { writeFileSync: writeFileSync3 } = await import("node:fs");
+    writeFileSync3(targetPath, "---\nenabled: false\n---\n", "utf-8");
     reloadCustomAgents();
     ctx.ui.notify(`Disabled ${name} (${targetPath})`, "info");
   }
@@ -3200,13 +3207,13 @@ ${cfg.systemPrompt}
       return;
     const content = readFileSync3(file.path, "utf-8");
     const updated = content.replace(/^(---\n)enabled: false\n/, "$1");
-    const { writeFileSync: writeFileSync2 } = await import("node:fs");
+    const { writeFileSync: writeFileSync3 } = await import("node:fs");
     if (updated.trim() === "---\n---" || updated.trim() === "---\n---\n") {
       unlinkSync(file.path);
       reloadCustomAgents();
       ctx.ui.notify(`Enabled ${name} (removed ${file.path})`, "info");
     } else {
-      writeFileSync2(file.path, updated, "utf-8");
+      writeFileSync3(file.path, updated, "utf-8");
       reloadCustomAgents();
       ctx.ui.notify(`Enabled ${name} (${file.path})`, "info");
     }
@@ -3374,8 +3381,8 @@ ${systemPrompt}
       if (!overwrite)
         return;
     }
-    const { writeFileSync: writeFileSync2 } = await import("node:fs");
-    writeFileSync2(targetPath, content, "utf-8");
+    const { writeFileSync: writeFileSync3 } = await import("node:fs");
+    writeFileSync3(targetPath, content, "utf-8");
     reloadCustomAgents();
     ctx.ui.notify(`Created ${targetPath}`, "info");
   }
@@ -3417,6 +3424,52 @@ ${systemPrompt}
     }
   });
 }
+
+// src/package-agents.ts
+var MARKER = "# managed-by: jeonghyeon-pi-package-subagents";
+function packagedAgentDir() {
+  return join7(dirname(fileURLToPath(import.meta.url)), "..", "agents");
+}
+function defaultAgentTargetDir() {
+  return process.env.PI_SUBAGENT_PRESET_TARGET_DIR ?? join7(homedir5(), ".pi", "agent", "agents");
+}
+function hashText(text) {
+  return createHash("sha256").update(text).digest("hex");
+}
+function withMarker(source) {
+  const marker = `${MARKER}
+# source-sha256: ${hashText(source)}`;
+  const trimmed = source.trimStart();
+  if (trimmed.startsWith("---\n")) return trimmed.replace("---\n", `---
+${marker}
+`);
+  return `${marker}
+${trimmed}`;
+}
+function shouldWrite(targetPath, next) {
+  if (!existsSync5(targetPath)) return true;
+  const current = readFileSync4(targetPath, "utf8");
+  if (current === next) return false;
+  return current.includes(MARKER);
+}
+function installPackagedAgents(sourceDir = packagedAgentDir(), targetDir = defaultAgentTargetDir()) {
+  if (!existsSync5(sourceDir)) return [];
+  mkdirSync4(targetDir, { recursive: true });
+  const installed = [];
+  for (const file of readdirSync2(sourceDir).filter((name) => name.endsWith(".md")).sort()) {
+    const sourcePath = join7(sourceDir, file);
+    const targetPath = join7(targetDir, file);
+    const next = withMarker(readFileSync4(sourcePath, "utf8"));
+    if (!shouldWrite(targetPath, next)) continue;
+    writeFileSync2(targetPath, next, "utf8");
+    installed.push(file);
+  }
+  return installed;
+}
+function package_agents_default(pi) {
+  installPackagedAgents();
+  return dist_default(pi);
+}
 export {
-  dist_default as default
+  package_agents_default as default
 };

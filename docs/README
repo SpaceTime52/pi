@@ -1,0 +1,62 @@
+# AI Engineering Loop for Pi
+
+이 패키지는 Matt Pocock식 AI coding workflow를 Pi의 `skills`, `tasks`, `subagent`, `supervisor` 조합으로 옮긴다.
+
+## Core Flow
+
+```text
+Idea / brief
+  → grill-with-docs
+  → to-prd
+  → to-tasks
+  → ralph-loop
+  → fresh-reviewer / diff-review
+  → human QA / PR
+```
+
+## Human-in-the-loop Phases
+
+- `grill-me` / `grill-with-docs`: 요구사항과 도메인 언어 정렬.
+- `to-prd`: 목적지 문서 작성.
+- `to-tasks`: vertical slice task DAG 설계와 승인.
+- UI taste, product judgment, rollout, production writes는 사람 승인 필요.
+
+## AFK Phases
+
+- `TaskExecute`는 `agentType: afk-implementer` task를 실행한다.
+- `afk-implementer`는 worktree isolation, TDD, 검증 중심으로 task 하나만 수행한다.
+- `ralph-loop`는 unblocked AFK task를 반복 실행하고 blocker/HITL만 남으면 멈춘다.
+
+## Package Agent Presets
+
+Source of truth:
+
+```text
+01_EXTENSIONS/subagent/agents/*.md
+```
+
+Runtime discovery:
+
+현재 upstream `@jeonghyeon.net/pi-subagents`는 `.pi/agents`와 `~/.pi/agent/agents`만 읽는다. 그래서 wrapper가 시작 시 package preset을 `~/.pi/agent/agents`로 managed copy 한다. 사용자 파일은 marker가 없으면 덮어쓰지 않는다.
+
+Included presets:
+
+- `grill-master`: 요구사항 alignment interviewer.
+- `vertical-slicer`: PRD/spec을 task DAG로 분해.
+- `afk-implementer`: task 하나를 worktree isolation에서 구현.
+- `fresh-reviewer`: fresh-context read-only 리뷰.
+- `domain-linguist`: `CONTEXT.md`와 ADR 후보 관리.
+- `architecture-deepener`: deep module 후보 탐색.
+- `ralph-operator`: 다음 AFK batch 추천.
+
+## Convenience Prompts
+
+- `/ai-feature`: Grill → PRD → Task DAG 준비.
+- `/ralph`: 현재 Task DAG에서 AFK task 실행.
+- `/zoom-out`: 낯선 코드 영역의 상위 구조 요약.
+
+## Safety Defaults
+
+- Production write, deploy, merge, force-push는 자동화하지 않는다.
+- PRD/task는 transient artifact로 취급하고, durable knowledge만 `CONTEXT.md`/ADR에 남긴다.
+- Full automation보다 fresh-context review와 human QA를 우선한다.

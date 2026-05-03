@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasMergeMethod, parsePrCommand } from "../src/commands.ts";
+import { hasMergeMethod, helpText, mergeHelpText, parsePrCommand } from "../src/commands.ts";
 
 describe("commands", () => {
 	it("parses slash command arguments", () => {
@@ -16,5 +16,10 @@ describe("commands", () => {
 		expect(hasMergeMethod(["--delete-branch"])).toBe(false);
 		expect(hasMergeMethod(["--squash", "--delete-branch"])).toBe(true);
 		expect(hasMergeMethod(["-m"])).toBe(true);
+	});
+
+	it("renders help text", () => {
+		expect(mergeHelpText()).toContain("/pr merge --merge");
+		expect(helpText()).toContain("/pr refresh");
 	});
 });

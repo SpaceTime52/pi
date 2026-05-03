@@ -8,7 +8,26 @@ subagent … `@jeonghyeon.net/pi-subagents` 기반 subagent 실행/관리
   실행 중 subagent steer, 완료 후 결과 조회, 재개
   Explore, Plan 같은 전용 agent type 사용
   프로젝트별 custom agent 정의 가능
+  패키지에 포함된 agent preset을 runtime에 자동 등록
+
+패키지 agent preset
+  이 패키지는 01_EXTENSIONS/subagent/agents/*.md 를 source of truth로 둔다.
+  현재 upstream subagent extension은 .pi/agents 와 ~/.pi/agent/agents 만 탐색하므로,
+  wrapper가 시작 시 preset을 ~/.pi/agent/agents 로 managed copy 한다.
+  같은 이름의 사용자 파일이 이미 있고 managed marker가 없으면 덮어쓰지 않는다.
+  프로젝트별 .pi/agents/<name>.md 는 언제나 이 preset을 override 할 수 있다.
+
+포함 preset
+  afk-implementer … task 하나를 worktree isolation에서 TDD/검증까지 수행
+  fresh-reviewer … fresh context에서 diff/branch를 읽기 전용 리뷰
+  domain-linguist … CONTEXT.md, 용어집, ADR 후보 관리
+  architecture-deepener … shallow module과 deep-module refactor 후보 탐색
+  vertical-slicer … PRD/spec을 tracer-bullet task DAG로 분해
+  grill-master … 구현 전 요구사항 alignment grilling 수행
+  ralph-operator … Task DAG에서 다음 AFK 실행 batch 추천
 
 사용 예
   큰 작업을 여러 하위 작업으로 나눠 동시에 처리할 때
   읽기 전용 탐색 agent와 구현 agent를 분리하고 싶을 때
+  Agent({ subagent_type: "fresh-reviewer", prompt: "Review current diff", description: "Review diff" })
+  TaskCreate(..., agentType: "afk-implementer") 후 TaskExecute로 AFK 구현할 때

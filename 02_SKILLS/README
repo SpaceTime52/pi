@@ -1,13 +1,15 @@
-이 디렉터리는 `https://github.com/addyosmani/agent-skills`의 skills/ 내용을 현재 레포 구조로 마이그레이션한 결과입니다.
+이 디렉터리는 범용 agent workflow skill을 현재 Pi 패키지 구조로 제공한다.
 
-- source: addyosmani/agent-skills
-- license: MIT
-- migrated skills: 21
+- base source: addyosmani/agent-skills
+- 추가 source: Matt Pocock AI coding workflow에서 차용한 grill / PRD / vertical slice / Ralph loop 패턴
+- license: MIT-compatible sources only
+- registered skills: 29
 
 등록된 skills:
 - api-and-interface-design
 - browser-testing-with-devtools
 - ci-cd-and-automation
+- cli-toolbox
 - code-review-and-quality
 - code-simplification
 - context-engineering
@@ -16,13 +18,20 @@
 - documentation-and-adrs
 - frontend-ui-engineering
 - git-workflow-and-versioning
+- grill-me
+- grill-with-docs
 - idea-refine
+- improve-codebase-architecture
 - incremental-implementation
 - performance-optimization
 - planning-and-task-breakdown
+- ralph-loop
 - security-and-hardening
 - shipping-and-launch
 - source-driven-development
 - spec-driven-development
 - test-driven-development
+- to-prd
+- to-tasks
 - using-agent-skills
+- zoom-out

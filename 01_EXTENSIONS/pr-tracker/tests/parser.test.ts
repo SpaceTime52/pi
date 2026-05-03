@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractPullRequestRef, extractTextContent, isPullRequestCreationCommand, splitArgs } from "../src/parser.ts";
+import { extractPullRequestRef, extractTextContent, isPullRequestCreationCommand, isPullRequestViewCommand, splitArgs } from "../src/parser.ts";
 
 describe("parser", () => {
 	it("extracts GitHub pull request URLs", () => {
@@ -12,28 +12,27 @@ describe("parser", () => {
 	it("extracts textual PR numbers", () => {
 		expect(extractPullRequestRef("Created pull request #12")?.ref).toBe("12");
 		expect(extractPullRequestRef("PR #7 is ready")?.number).toBe(7);
+		expect(extractPullRequestRef("nothing here")).toBeUndefined();
 	});
 
-	it("detects gh pr create commands", () => {
+	it("detects gh pr commands", () => {
 		expect(isPullRequestCreationCommand("gh pr create --fill")).toBe(true);
 		expect(isPullRequestCreationCommand("git status && gh pr create")).toBe(true);
 		expect(isPullRequestCreationCommand("gh pr view 1")).toBe(false);
+		expect(isPullRequestViewCommand("gh pr view 1")).toBe(true);
+		expect(isPullRequestViewCommand("gh pr create")).toBe(false);
 	});
 
 	it("extracts text blocks from tool content", () => {
-		expect(extractTextContent([{ type: "text", text: "one" }, { type: "image", data: "x" }, { type: "text", text: "two" }])).toBe(
+		expect(extractTextContent("plain")).toBe("plain");
+		expect(extractTextContent({})).toBe("");
+		expect(extractTextContent([undefined, { type: "text", text: "one" }, { type: "image", data: "x" }, { type: "text", text: "two" }])).toBe(
 			"one\ntwo",
 		);
 	});
 
 	it("splits quoted command arguments", () => {
-		expect(splitArgs('merge --squash --subject "ship it" --body a\\ b')).toEqual([
-			"merge",
-			"--squash",
-			"--subject",
-			"ship it",
-			"--body",
-			"a b",
-		]);
+		expect(splitArgs("track 'feature branch' dangling\\")).toEqual(["track", "feature branch", "dangling\\"]);
+		expect(splitArgs('merge --squash --subject "ship it" --body a\\ b')).toEqual(["merge", "--squash", "--subject", "ship it", "--body", "a b"]);
 	});
 });

@@ -94,28 +94,7 @@ function helpText() {
   ].join("\n");
 }
 
-// src/types.ts
-var EXTENSION_ID = "pr-tracker";
-var PR_VIEW_FIELDS = [
-  "additions",
-  "baseRefName",
-  "changedFiles",
-  "deletions",
-  "headRefName",
-  "isDraft",
-  "mergeStateStatus",
-  "mergeable",
-  "number",
-  "reviewDecision",
-  "state",
-  "statusCheckRollup",
-  "title",
-  "url"
-];
-
-// src/github.ts
-var GH_TIMEOUT_MS = 15e3;
-var GH_MERGE_TIMEOUT_MS = 12e4;
+// src/github-fields.ts
 function asString(value) {
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
@@ -128,13 +107,13 @@ function asBoolean(value) {
 function field(record, key) {
   return record && typeof record === "object" ? record[key] : void 0;
 }
+
+// src/github-checks.ts
 function normalizeCheckItem(item) {
   const conclusion = asString(field(item, "conclusion"))?.toUpperCase();
   const status = asString(field(item, "status"))?.toUpperCase();
   const state = asString(field(item, "state"))?.toUpperCase();
-  if (["FAILURE", "FAILED", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"].includes(conclusion ?? "")) {
-    return "failed";
-  }
+  if (["FAILURE", "FAILED", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"].includes(conclusion ?? "")) return "failed";
   if (["SUCCESS", "SKIPPED", "NEUTRAL"].includes(conclusion ?? "")) return "passed";
   if (["FAILURE", "FAILED", "ERROR"].includes(state ?? "")) return "failed";
   if (state === "SUCCESS") return "passed";
@@ -144,9 +123,7 @@ function normalizeCheckItem(item) {
   return "unknown";
 }
 function summarizeChecks(rollup) {
-  if (!Array.isArray(rollup) || rollup.length === 0) {
-    return { state: "none", total: 0, passed: 0, pending: 0, failed: 0 };
-  }
+  if (!Array.isArray(rollup) || rollup.length === 0) return { state: "none", total: 0, passed: 0, pending: 0, failed: 0 };
   let passed = 0;
   let pending = 0;
   let failed = 0;
@@ -186,6 +163,8 @@ function summarizeReview(decision) {
       return { state: "unknown", label: `Review ${normalized.toLowerCase()}`, decision: normalized };
   }
 }
+
+// src/github-readiness.ts
 function determineReadiness(raw, checks, review) {
   const state = asString(field(raw, "state"))?.toUpperCase();
   const mergeable = asString(field(raw, "mergeable"))?.toUpperCase();
@@ -204,6 +183,14 @@ function determineReadiness(raw, checks, review) {
   if (checks.state === "unknown" || mergeable === "UNKNOWN" || mergeStateStatus === "UNKNOWN") return { state: "unknown", label: "Open" };
   return { state: "ready", label: "Ready to merge" };
 }
+
+// src/types.ts
+var EXTENSION_ID = "pr-tracker";
+var PR_VIEW_FIELDS = ["additions", "baseRefName", "changedFiles", "deletions", "headRefName", "isDraft", "mergeStateStatus", "mergeable", "number", "reviewDecision", "state", "statusCheckRollup", "title", "url"];
+
+// src/github.ts
+var GH_TIMEOUT_MS = 15e3;
+var GH_MERGE_TIMEOUT_MS = 12e4;
 function normalizePullRequestStatus(raw, now = () => (/* @__PURE__ */ new Date()).toISOString()) {
   const number = asNumber(field(raw, "number"));
   if (number === void 0) throw new Error("GitHub response did not include a PR number");
@@ -234,18 +221,21 @@ function assertSuccess(result, action) {
   const message = result.stderr || result.stdout || `${action} failed with exit code ${result.code}`;
   throw new Error(message.trim());
 }
+function parseGhJson(stdout) {
+  try {
+    return normalizePullRequestStatus(JSON.parse(stdout ?? ""));
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error(`Could not parse gh pr view JSON: ${error.message}`);
+    throw error;
+  }
+}
 async function fetchPullRequestStatus(exec, cwd, ref, signal) {
   const args = ["pr", "view"];
   if (ref) args.push(ref);
   args.push("--json", PR_VIEW_FIELDS.join(","));
   const result = await exec("gh", args, { cwd, signal, timeout: GH_TIMEOUT_MS });
   assertSuccess(result, "gh pr view");
-  try {
-    return normalizePullRequestStatus(JSON.parse(result.stdout ?? ""));
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new Error(`Could not parse gh pr view JSON: ${error.message}`);
-    throw error;
-  }
+  return parseGhJson(result.stdout);
 }
 async function openPullRequest(exec, cwd, ref, signal) {
   const result = await exec("gh", ["pr", "view", ref, "--web"], { cwd, signal, timeout: GH_TIMEOUT_MS });
@@ -344,7 +334,7 @@ function syncTrackerUi(ctx, state) {
   ctx.ui.setStatus(EXTENSION_ID, formatStatus(state));
 }
 
-// src/index.ts
+// src/runtime-helpers.ts
 var MERGE_METHODS = ["--merge", "--squash", "--rebase", "--auto"];
 function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
@@ -355,7 +345,88 @@ function notify(ctx, message, level = "info") {
 function getTrackedRef(state) {
   return state.trackedRef ?? state.pr?.url ?? (state.pr ? String(state.pr.number) : void 0);
 }
-function index_default(pi) {
+function commandFromInput(input) {
+  const command = field(input, "command");
+  return typeof command === "string" ? command : "";
+}
+
+// src/pr-actions.ts
+async function handleOpen(ctx, deps) {
+  const state = deps.getState();
+  const ref = getTrackedRef(state);
+  if (!ref) return notify(ctx, "No tracked PR. Use /pr track <number|url|branch> first.", "warning");
+  try {
+    await openPullRequest(deps.exec, ctx.cwd, ref, ctx.signal);
+    notify(ctx, `Opened PR ${state.pr ? `#${state.pr.number}` : ref}.`, "info");
+  } catch (error) {
+    notify(ctx, `Could not open PR: ${messageOf(error)}`, "error");
+  }
+}
+async function resolveMergeArgs(ctx, args) {
+  if (args.length > 0) {
+    if (!hasMergeMethod(args)) notify(ctx, mergeHelpText(), "warning");
+    return hasMergeMethod(args) ? args : void 0;
+  }
+  if (!ctx.hasUI) {
+    notify(ctx, mergeHelpText(), "warning");
+    return void 0;
+  }
+  const method = await ctx.ui.select("Merge method", MERGE_METHODS);
+  return method ? [method] : void 0;
+}
+async function handleMerge(ctx, args, deps) {
+  const state = deps.getState();
+  const ref = getTrackedRef(state);
+  if (!ref || !state.pr) return notify(ctx, "No tracked PR. Use /pr track <number|url|branch> first.", "warning");
+  const mergeArgs = await resolveMergeArgs(ctx, args);
+  if (!mergeArgs || !ctx.hasUI) return;
+  const ok = await ctx.ui.confirm(`Merge PR #${state.pr.number}?`, `${state.pr.readiness.label}
+
+Command: gh pr merge ${ref} ${mergeArgs.join(" ")}`);
+  if (!ok) return;
+  try {
+    await mergePullRequest(deps.exec, ctx.cwd, ref, mergeArgs, ctx.signal);
+    notify(ctx, `Merged PR #${state.pr.number}.`, "info");
+    await deps.refreshTracked(ctx, ref, state.source, { notify: false });
+  } catch (error) {
+    notify(ctx, `Merge failed: ${messageOf(error)}`, "error");
+  }
+}
+function createPrCommandHandler(deps) {
+  return async function handlePrCommand(args, ctx) {
+    const parsed = parsePrCommand(args);
+    switch (parsed.command) {
+      case "help":
+        return notify(ctx, helpText(), "info");
+      case "show": {
+        const state = deps.getState();
+        if (state.pr) return notify(ctx, formatNotification(state), "info");
+        await deps.refreshTracked(ctx, void 0, "current branch", { notify: true });
+        return;
+      }
+      case "refresh":
+        await deps.refreshTracked(ctx, parsed.args[0] ?? getTrackedRef(deps.getState()), deps.getState().source, { notify: true });
+        return;
+      case "track":
+        await deps.refreshTracked(ctx, parsed.args[0], "manual", { notify: true });
+        return;
+      case "open":
+        await handleOpen(ctx, deps);
+        return;
+      case "merge":
+        await handleMerge(ctx, parsed.args, deps);
+        return;
+      case "untrack":
+        deps.setState(createEmptyState(), ctx);
+        notify(ctx, "PR tracking cleared for this session.", "info");
+        return;
+    }
+  };
+}
+
+// src/runtime.ts
+var COMMANDS = ["show", "refresh", "track", "open", "merge", "untrack", "help"];
+function registerPrTracker(pi) {
   let state = createEmptyState();
   const exec = (command, args, options) => pi.exec(command, args, options);
   function persist(nextState) {
@@ -380,90 +451,9 @@ function index_default(pi) {
   }
   async function handleToolResult(event, ctx) {
     if (event.toolName !== "bash" || event.isError) return;
-    const command = typeof event.input === "object" && event.input ? String(event.input.command ?? "") : "";
-    if (!isPullRequestCreationCommand(command)) return;
-    const output = extractTextContent(event.content);
-    const ref = extractPullRequestRef(output)?.ref;
+    if (!isPullRequestCreationCommand(commandFromInput(event.input))) return;
+    const ref = extractPullRequestRef(extractTextContent(event.content))?.ref;
     await refreshTracked(ctx, ref, "gh pr create", { notify: true });
-  }
-  async function handlePrCommand(args, ctx) {
-    const parsed = parsePrCommand(args);
-    switch (parsed.command) {
-      case "help":
-        notify(ctx, helpText(), "info");
-        return;
-      case "show":
-        if (state.pr) {
-          notify(ctx, formatNotification(state), "info");
-          return;
-        }
-        await refreshTracked(ctx, void 0, "current branch", { notify: true });
-        return;
-      case "refresh": {
-        const ref = parsed.args[0] ?? getTrackedRef(state);
-        await refreshTracked(ctx, ref, state.source, { notify: true });
-        return;
-      }
-      case "track": {
-        const ref = parsed.args[0];
-        await refreshTracked(ctx, ref, "manual", { notify: true });
-        return;
-      }
-      case "open": {
-        const ref = getTrackedRef(state);
-        if (!ref) {
-          notify(ctx, "No tracked PR. Use /pr track <number|url|branch> first.", "warning");
-          return;
-        }
-        try {
-          await openPullRequest(exec, ctx.cwd, ref, ctx.signal);
-          notify(ctx, `Opened PR ${state.pr ? `#${state.pr.number}` : ref}.`, "info");
-        } catch (error) {
-          notify(ctx, `Could not open PR: ${messageOf(error)}`, "error");
-        }
-        return;
-      }
-      case "merge": {
-        const ref = getTrackedRef(state);
-        if (!ref || !state.pr) {
-          notify(ctx, "No tracked PR. Use /pr track <number|url|branch> first.", "warning");
-          return;
-        }
-        let mergeArgs = parsed.args;
-        if (mergeArgs.length === 0) {
-          if (!ctx.hasUI) {
-            notify(ctx, mergeHelpText(), "warning");
-            return;
-          }
-          const method = await ctx.ui.select("Merge method", MERGE_METHODS);
-          if (!method) return;
-          mergeArgs = [method];
-        } else if (!hasMergeMethod(mergeArgs)) {
-          notify(ctx, mergeHelpText(), "warning");
-          return;
-        }
-        if (!ctx.hasUI) return;
-        const ok = await ctx.ui.confirm(
-          `Merge PR #${state.pr.number}?`,
-          `${state.pr.readiness.label}
-
-Command: gh pr merge ${ref} ${mergeArgs.join(" ")}`
-        );
-        if (!ok) return;
-        try {
-          await mergePullRequest(exec, ctx.cwd, ref, mergeArgs, ctx.signal);
-          notify(ctx, `Merged PR #${state.pr.number}.`, "info");
-          await refreshTracked(ctx, ref, state.source, { notify: false });
-        } catch (error) {
-          notify(ctx, `Merge failed: ${messageOf(error)}`, "error");
-        }
-        return;
-      }
-      case "untrack":
-        setState(createEmptyState(), ctx);
-        notify(ctx, "PR tracking cleared for this session.", "info");
-        return;
-    }
   }
   pi.on("session_start", async (_event, ctx) => {
     state = reconstructState(ctx.sessionManager.getBranch());
@@ -474,13 +464,10 @@ Command: gh pr merge ${ref} ${mergeArgs.join(" ")}`
   pi.on("tool_result", handleToolResult);
   pi.registerCommand("pr", {
     description: "Track and manage the pull request associated with this pi session",
-    getArgumentCompletions(prefix) {
-      const commands = ["show", "refresh", "track", "open", "merge", "untrack", "help"];
-      return commands.filter((command) => command.startsWith(prefix)).map((command) => ({ value: command, label: command }));
-    },
-    handler: handlePrCommand
+    getArgumentCompletions: (prefix) => COMMANDS.filter((command) => command.startsWith(prefix)).map((command) => ({ value: command, label: command })),
+    handler: createPrCommandHandler({ exec, getState: () => state, setState, refreshTracked })
   });
 }
 export {
-  index_default as default
+  registerPrTracker as default
 };
