@@ -5,8 +5,69 @@ set -euo pipefail
 WORKSPACES_ROOT="${PI_WT_ROOT:-$HOME/pi/workspaces}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# City pool — kept verbatim in sync with pi-conductor src-tauri/src/lib.rs CITIES.
+PI_WT_CITIES=(
+    algiers amman asuncion atlanta baghdad banjul barcelona
+    beirut berlin bogota bordeaux boston brisbane cancun
+    columbus daegu dallas dar-es-salaam davao douala
+    florence hyderabad istanbul jakarta kabul kingston
+    lagos lima lisbon madrid manila marrakech medellin
+    melbourne memphis milan montreal moscow nairobi
+    naples oslo paris perth porto prague quito
+    rabat reykjavik rome santiago seoul sofia tokyo
+    toronto valencia vienna warsaw zurich
+)
+
 log() { printf '%s\n' "$*" >&2; }
 die() { log "error: $*"; exit 1; }
+
+# Single-quote wrap a string for safe inclusion in a shell command line.
+shell_quote() {
+    local s=${1-}
+    s=${s//\'/\'\\\'\'}
+    printf "'%s'" "$s"
+}
+
+# Pick a fresh "<city>-vN" slug that does not collide under $WORKSPACES_ROOT/<repo>/.
+#   $1: repo basename
+# Honors test hooks PI_WT_CITY_POOL (space-separated) and PI_WT_CITY_START (integer).
+next_city_name() {
+    local repo=$1
+    local repo_dir="$WORKSPACES_ROOT/$repo"
+    local cities=()
+    if [[ -n "${PI_WT_CITY_POOL:-}" ]]; then
+        # shellcheck disable=SC2206
+        cities=(${PI_WT_CITY_POOL})
+    else
+        cities=("${PI_WT_CITIES[@]}")
+    fi
+    local pool_size=${#cities[@]}
+    [[ $pool_size -gt 0 ]] || die "city pool is empty"
+    local existing_list=""
+    if [[ -d "$repo_dir" ]]; then
+        existing_list=$(ls -1 "$repo_dir" 2>/dev/null || true)
+    fi
+    local start
+    if [[ -n "${PI_WT_CITY_START:-}" ]]; then
+        start=$(( PI_WT_CITY_START % pool_size ))
+    else
+        start=$(python3 -c 'import time;print(int(time.time()*1e9))' 2>/dev/null \
+            || date +%s)
+        start=$(( start % pool_size ))
+    fi
+    local offset city v name
+    for (( offset=0; offset<pool_size; offset++ )); do
+        city=${cities[(( (start + offset) % pool_size ))]}
+        for (( v=1; v<1000; v++ )); do
+            name="${city}-v${v}"
+            if ! printf '%s\n' "$existing_list" | grep -Fxq "$name"; then
+                printf '%s' "$name"
+                return 0
+            fi
+        done
+    done
+    return 1
+}
 
 resolve_main_repo() {
     local common_dir
@@ -175,12 +236,68 @@ cmd_prune() {
     log "✓ pruned $removed worktree(s)"
 }
 
+cmd_spawn() {
+    local repo_arg=${1:-}
+    if [[ -n "$repo_arg" ]]; then
+        [[ -d "$repo_arg" ]] || die "not a directory: $repo_arg"
+        cd "$repo_arg" || die "cannot cd into: $repo_arg"
+    fi
+    command -v git >/dev/null || die "git not found"
+    command -v open >/dev/null || die "open(1) not found (macOS only)"
+    [[ -d "/Applications/Ghostty.app" ]] || die "Ghostty.app not installed"
+
+    local main_repo repo
+    main_repo=$(resolve_main_repo)
+    repo=$(basename "$main_repo")
+
+    local slug
+    slug=$(next_city_name "$repo") || die "no available city name"
+
+    cmd_new "$slug" >&2
+
+    local wt_path
+    wt_path=$(worktree_path "$slug")
+    [[ -d "$wt_path" ]] || die "worktree path missing after create: $wt_path"
+
+    local quoted_path
+    quoted_path=$(shell_quote "$wt_path")
+
+    local banner
+    banner=$(cat <<'BANNER_EOF'
+ if [[ -f .pi/worktree.json ]]; then
+   _repo=$(/usr/bin/python3 -c 'import json; d=json.load(open(".pi/worktree.json")); import os; print(os.path.basename(d["mainRepo"]))' 2>/dev/null)
+   _branch=$(/usr/bin/python3 -c 'import json; d=json.load(open(".pi/worktree.json")); print(d["branch"])' 2>/dev/null)
+   _wt=$(basename "$PWD")
+   if [[ -n "$_repo" ]]; then
+     printf '\n\033[1;36m┌─── working on ───\033[0m\n'
+     printf '\033[1;36m│\033[0m repo:     \033[1m%s\033[0m\n' "$_repo"
+     printf '\033[1;36m│\033[0m branch:   \033[33m%s\033[0m\n' "$_branch"
+     printf '\033[1;36m│\033[0m worktree: %s\n' "$_wt"
+     printf '\033[1;36m└───\033[0m\n\n'
+   fi
+ fi
+BANNER_EOF
+)
+
+    local inline_cmd
+    inline_cmd="[[ -f ~/.zshrc ]] && source ~/.zshrc 2>/dev/null; cd ${quoted_path} || { echo \"[cd 실패]\"; exec zsh -i; }; ${banner}; pi; echo \"\\n[pi 종료. 이 셸은 동일 워크트리에서 계속 사용 가능]\"; exec zsh -i"
+
+    open -na Ghostty.app --args -e /bin/zsh -c "$inline_cmd" \
+        || die "failed to spawn Ghostty"
+    osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1 || \
+        log "warn: Ghostty activate failed (Accessibility 권한 필요할 수 있음)"
+
+    printf 'slug=%s\n' "$slug"
+    printf 'path=%s\n' "$wt_path"
+}
+
 usage() {
     cat <<EOF
 pi-wt — PR-단위 git worktree 매니저
 
 사용법:
   pi-wt new <branch>         # 새 워크트리 + (필요시) 새 브랜치
+  pi-wt spawn [repo-path]    # 도시 슬러그 할당 + 새 Ghostty 윈도우에서 pi 시작
   pi-wt review <PR-number>   # 기존 PR을 워크트리로 체크아웃
   pi-wt list [repo]          # 워크트리 목록
   pi-wt cd <name>            # 워크트리 경로 출력
@@ -199,6 +316,7 @@ EOF
 
 case "${1:-}" in
     new)    shift; cmd_new "$@" ;;
+    spawn)  shift; cmd_spawn "$@" ;;
     review) shift; cmd_review "$@" ;;
     list)   shift; cmd_list "$@" ;;
     cd)     shift; cmd_cd "$@" ;;
