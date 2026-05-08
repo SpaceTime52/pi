@@ -59,7 +59,7 @@ next_city_name() {
         city=${cities[(( (start + offset) % pool_size ))]}
         for (( v=1; v<1000; v++ )); do
             name="${city}-v${v}"
-            if ! printf '%s\n' "$existing_list" | grep -Fxq "$name"; then
+            if ! grep -Fxq "$name" <<< "$existing_list"; then
                 printf '%s' "$name"
                 return 0
             fi
