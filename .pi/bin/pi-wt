@@ -3,7 +3,6 @@
 set -euo pipefail
 
 WORKSPACES_ROOT="${PI_WT_ROOT:-$HOME/pi/workspaces}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # City pool — kept verbatim in sync with pi-conductor src-tauri/src/lib.rs CITIES.
 PI_WT_CITIES=(
@@ -215,7 +214,8 @@ cmd_rm() {
 cmd_prune() {
     command -v gh >/dev/null || die "gh CLI required"
     local main_repo; main_repo="$(resolve_main_repo)"
-    local repo_dir="$WORKSPACES_ROOT/$(repo_name)"
+    local repo_dir
+    repo_dir="$WORKSPACES_ROOT/$(repo_name)"
     [[ -d "$repo_dir" ]] || { log "nothing to prune"; return 0; }
     local removed=0
     for wt in "$repo_dir"/*/; do
