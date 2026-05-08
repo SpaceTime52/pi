@@ -3,7 +3,7 @@
 - base source: addyosmani/agent-skills
 - 추가 source: Matt Pocock AI coding workflow에서 차용한 grill / PRD / vertical slice / Ralph loop 패턴
 - license: MIT-compatible sources only
-- registered skills: 29
+- registered skills: 30
 
 등록된 skills:
 - api-and-interface-design
@@ -34,4 +34,5 @@
 - to-prd
 - to-tasks
 - using-agent-skills
+- worktree-spawn
 - zoom-out

@@ -53,6 +53,7 @@
     to-prd … 정렬된 대화 맥락을 PRD로 합성합니다
     to-tasks … PRD·계획을 Pi Task DAG로 변환합니다
     using-agent-skills … 에이전트 스킬을 찾고 활용합니다
+    worktree-spawn … 자연어 워크트리/pi 세션 요청을 pi-wt spawn으로 라우팅합니다
     zoom-out … 낯선 코드 영역을 상위 구조로 설명합니다
 
   PROMPTS
