@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getProjectName, shortenMiddle } from "../src/header-utils.ts";
+import { getCwdTail, getProjectName, shortenMiddle } from "../src/header-utils.ts";
 import { makeContext } from "./header-test-helpers.ts";
 
 const originalDisplayName = process.env.PI_DISPLAY_NAME;
@@ -21,6 +21,14 @@ afterEach(() => {
 describe("header utils", () => {
 	it("extracts the project name from cwd", () => {
 		expect(getProjectName(makeContext({ cwd: "/tmp/demo-project" }))).toBe("demo-project");
+	});
+
+	it("returns the last cwd segments for repo-aware footers", () => {
+		const ctx = makeContext({ cwd: "/Users/me/Desktop/creatrip/01.WAS/pi" });
+		expect(getCwdTail(ctx)).toBe("creatrip/01.WAS/pi");
+		expect(getCwdTail(ctx, 2)).toBe("01.WAS/pi");
+		expect(getCwdTail(makeContext({ cwd: "/" }))).toBe("/");
+		expect(getCwdTail(makeContext({ cwd: "" }))).toBe("");
 	});
 
 	it("shortens long text safely for tiny widths", () => {

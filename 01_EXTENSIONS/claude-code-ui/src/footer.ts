@@ -1,7 +1,7 @@
 import type { ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { colorizeBgRgb } from "./ansi.js";
-import { getProjectName } from "./header.js";
+import { getCwdTail } from "./header-utils.js";
 
 const FILL_BG: [number, number, number] = [215, 119, 87];
 
@@ -56,8 +56,16 @@ function renderContextBadge(theme: Theme, percent: number | null | undefined) {
 	return [paintBase(theme, "muted", " "), paintFill(theme, label.slice(0, fill)), paintBase(theme, "muted", label.slice(fill)), paintBase(theme, "muted", " ")].join("");
 }
 
+function composeFooterLine(left: string, right: string, width: number) {
+	const rightWidth = visibleWidth(right);
+	const availableLeft = Math.max(1, width - rightWidth - 1);
+	const fittedLeft = truncateToWidth(left, availableLeft, "…");
+	const gap = Math.max(1, width - visibleWidth(fittedLeft) - rightWidth);
+	return truncateToWidth(fittedLeft + " ".repeat(gap) + right, width, "");
+}
+
 export function createClaudeFooter(ctx: ExtensionContext) {
-	const projectName = getProjectName(ctx);
+	const cwdTail = getCwdTail(ctx);
 	const modelId = getModelId(ctx);
 	const thinkingLevel = getThinkingLevel(ctx);
 	const usagePercent = getUsagePercent(ctx);
@@ -69,15 +77,19 @@ export function createClaudeFooter(ctx: ExtensionContext) {
 		invalidate() {},
 		render(width: number) {
 			const branch = footerData.getGitBranch();
-			const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
+			const leftParts = [
+				theme.fg("text", getCwdTail(ctx) || cwdTail),
+				branch ? theme.fg("dim", branch) : "",
+			];
 			const left = leftParts.filter(Boolean).join(theme.fg("dim", " · "));
 			const model = theme.fg("muted", getModelId(ctx, modelId));
 			const effortLevel = getThinkingLevel(ctx, thinkingLevel);
 			const modelParts = [model, effortLevel ? theme.fg("dim", effortLevel) : ""];
-			const rightParts = [modelParts.filter(Boolean).join(theme.fg("dim", " · ")), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
-			const right = rightParts.join("  ");
-			const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
-			return [truncateToWidth(left + " ".repeat(gap) + right, width, "")];
+			const rightParts = [
+				modelParts.filter(Boolean).join(theme.fg("dim", " · ")),
+				renderContextBadge(theme, getUsagePercent(ctx, usagePercent)),
+			];
+			return [composeFooterLine(left, rightParts.join("  "), width)];
 		},
 	});
 }

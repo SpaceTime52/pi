@@ -19,8 +19,13 @@ describe("ui edge cases", () => {
 		if (!state.pr) throw new Error("missing test PR");
 		state.pr.title = "x".repeat(100);
 		state.lastError = "refresh failed because the network is offline";
-		expect(renderWidgetLines(state)?.[0]).toContain("…");
-		expect(renderWidgetLines(state)?.[2]).toContain("Last refresh failed");
+		const lines = renderWidgetLines(state) ?? [];
+		expect(lines[0]).toContain("…");
+		expect(lines).toContain(`  ${state.pr.url}`);
+		expect(lines.some((line) => line.includes("Last refresh failed"))).toBe(true);
+		expect(
+			renderWidgetLines({ pr: { ...state.pr, url: undefined } })?.some((line) => line.includes("github.com")),
+		).toBe(false);
 		expect(formatNotification({ pr: { ...state.pr, url: undefined } })).not.toContain("github.com");
 		expect(formatPullRequestDetails({ ...state.pr, additions: undefined, deletions: 4, headRefName: undefined })).toContain("+0/-4");
 		expect(formatPullRequestDetails({ ...state.pr, additions: 3, deletions: undefined })).toContain("+3/-0");

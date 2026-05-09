@@ -311,7 +311,9 @@ function renderWidgetLines(state) {
   const pr = state.pr;
   if (!pr) return void 0;
   const title = pr.title ? ` \xB7 ${truncate(pr.title, 72)}` : "";
-  const lines = [`#${pr.number} ${pr.readiness.label}${title}`, `  ${formatPullRequestDetails(pr)}`];
+  const lines = [`#${pr.number} ${pr.readiness.label}${title}`];
+  if (pr.url) lines.push(`  ${pr.url}`);
+  lines.push(`  ${formatPullRequestDetails(pr)}`);
   if (state.lastError) lines.push(`  Last refresh failed: ${truncate(state.lastError, 100)}`);
   lines.push("  /pr refresh \xB7 /pr open \xB7 /pr merge \xB7 /pr untrack");
   return lines;
