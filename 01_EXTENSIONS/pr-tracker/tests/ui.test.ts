@@ -32,6 +32,7 @@ describe("ui", () => {
 	it("renders compact PR widget lines", () => {
 		expect(renderWidgetLines(state)).toEqual([
 			"#63 Ready to merge · Add PR tracker",
+			"  https://github.com/acme/web/pull/63",
 			"  Checks ✓ 3/3 · Review approved · Changes 1 · +10/-2 · feature/pr-tracker → main",
 			"  /pr refresh · /pr open · /pr merge · /pr untrack",
 		]);
