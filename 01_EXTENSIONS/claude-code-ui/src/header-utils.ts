@@ -34,6 +34,14 @@ export function getProjectName(ctx: HeaderContext) {
 	return path.basename(cwd) || cwd;
 }
 
+export function getCwdTail(ctx: HeaderContext, segmentCount = 3) {
+	const cwd = getCwd(ctx);
+	if (!cwd) return cwd;
+	const parts = cwd.split(/[\\/]+/).filter(Boolean);
+	const count = Math.max(1, Math.floor(segmentCount));
+	return parts.slice(-count).join("/") || cwd;
+}
+
 export function getDisplayName() {
 	const raw = process.env.PI_DISPLAY_NAME ?? process.env.CLAUDE_CODE_USER ?? process.env.USER ?? process.env.LOGNAME ?? "there";
 	return raw

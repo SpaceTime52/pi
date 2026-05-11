@@ -299,30 +299,7 @@ var ClaudeCodeEditor = class extends CustomEditor {
 };
 
 // src/footer.ts
-import { truncateToWidth as truncateToWidth3, visibleWidth as visibleWidth4 } from "@mariozechner/pi-tui";
-
-// src/header.ts
-import { VERSION } from "@mariozechner/pi-coding-agent";
-import { visibleWidth as visibleWidth3 } from "@mariozechner/pi-tui";
-
-// src/header-mascot.ts
-function getPiMascot(theme) {
-  const blue = (text) => theme.fg("accent", text);
-  const white = (text) => theme.fg("text", text);
-  const dark = (text) => theme.fg("dim", text);
-  const eye = `${white("\u2588")}${dark("\u258C")}`;
-  const bar = blue("\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588");
-  const legs = blue("\u2588\u2588") + "    " + blue("\u2588\u2588");
-  return [
-    "",
-    `     ${eye}  ${eye}`,
-    `  ${bar}`,
-    `     ${legs}`,
-    `     ${legs}`,
-    `     ${legs}`,
-    ""
-  ];
-}
+import { truncateToWidth as truncateToWidth2, visibleWidth as visibleWidth2 } from "@mariozechner/pi-tui";
 
 // src/header-utils.ts
 import * as os from "node:os";
@@ -359,6 +336,13 @@ function getProjectName(ctx) {
   const cwd = getCwd(ctx);
   return path.basename(cwd) || cwd;
 }
+function getCwdTail(ctx, segmentCount = 3) {
+  const cwd = getCwd(ctx);
+  if (!cwd) return cwd;
+  const parts = cwd.split(/[\\/]+/).filter(Boolean);
+  const count = Math.max(1, Math.floor(segmentCount));
+  return parts.slice(-count).join("/") || cwd;
+}
 function getDisplayName() {
   const raw = process.env.PI_DISPLAY_NAME ?? process.env.CLAUDE_CODE_USER ?? process.env.USER ?? process.env.LOGNAME ?? "there";
   return raw.trim().replace(/[._-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) || "there";
@@ -389,115 +373,6 @@ function shortenMiddle(value, maxWidth) {
   const tail = Math.max(0, maxWidth - head - 1);
   const suffix = value.slice(Math.max(0, value.length - tail));
   return `${value.slice(0, head)}\u2026${suffix}`;
-}
-
-// src/header-content.ts
-function buildLeftColumn(ctx, theme) {
-  const cwd = getCwd(ctx);
-  const projectName = getProjectName(ctx);
-  const modelLabel = getModelLabel(ctx);
-  const entryCount = getEntryCount(ctx);
-  const sessionLabel = entryCount === 0 ? "No recent activity yet" : `${entryCount} ${entryCount === 1 ? "entry" : "entries"} loaded in this session`;
-  const workspaceLabel = isHomeDirectory(cwd) ? theme.fg("warning", "Launched from your home directory. A project folder works best.") : theme.fg("success", "Project directory detected and ready for work.");
-  return [
-    ...getPiMascot(theme),
-    theme.bold(`Welcome back ${getDisplayName()}!`),
-    formatDetail(theme, "Project", projectName),
-    formatDetail(theme, "Directory", shortenPath(cwd, 34)),
-    formatDetail(theme, "Model", shortenMiddle(modelLabel, 34)),
-    formatDetail(theme, "Session", sessionLabel),
-    workspaceLabel
-  ];
-}
-function buildRightColumn(ctx, theme) {
-  const cwd = getCwd(ctx);
-  const projectNote = isHomeDirectory(cwd) ? theme.fg("muted", "Tip: launch pi inside a repository for stronger file and git context.") : theme.fg("muted", "Workspace note: pi can now reason over the current repository immediately.");
-  return [
-    theme.bold(theme.fg("accent", "Tips for getting started")),
-    bullet(theme, "Ask pi to inspect the codebase before making edits."),
-    bullet(theme, "Use TaskCreate for multi-step work and track progress."),
-    bullet(theme, "Run /model to switch models and /reload to refresh extensions."),
-    bullet(theme, "Ask for a plan first when the change touches several files."),
-    "",
-    theme.bold(theme.fg("accent", "Workspace status")),
-    projectNote
-  ];
-}
-function bullet(theme, text) {
-  return `${theme.fg("accent", "\u2022")} ${text}`;
-}
-function formatDetail(theme, label, value) {
-  return `${theme.fg("muted", `${label.padEnd(9, " ")}`)} ${value}`;
-}
-
-// src/header-frame.ts
-import { truncateToWidth as truncateToWidth2, visibleWidth as visibleWidth2 } from "@mariozechner/pi-tui";
-function renderTopBorder(theme, width, title) {
-  if (width <= 1) return theme.fg("borderAccent", "\u256D");
-  if (width <= 4) return theme.fg("borderAccent", truncateToWidth2("\u256D\u2500\u2500\u256E", width, ""));
-  const prefix = "\u256D\u2500\u2500 ";
-  const suffix = "\u256E";
-  const titleWidth = Math.max(0, width - visibleWidth2(prefix) - visibleWidth2(suffix) - 1);
-  const clipped = truncateToWidth2(title, titleWidth, "");
-  const fillWidth = Math.max(0, width - visibleWidth2(prefix) - visibleWidth2(clipped) - visibleWidth2(suffix) - 1);
-  return `${theme.fg("borderAccent", prefix)}${theme.bold(theme.fg("accent", clipped))}${theme.fg("borderAccent", ` ${"\u2500".repeat(fillWidth)}${suffix}`)}`;
-}
-function renderBottomBorder(theme, width) {
-  if (width <= 1) return theme.fg("borderAccent", "\u256F");
-  return theme.fg("borderAccent", `\u2570${"\u2500".repeat(Math.max(0, width - 2))}\u256F`);
-}
-function renderFrameLine(theme, width, content) {
-  if (width <= 1) return theme.fg("borderAccent", "\u2502");
-  if (width <= 3) return theme.fg("borderAccent", truncateToWidth2("\u2502 \u2502", width, ""));
-  const innerWidth = Math.max(0, width - 4);
-  return `${theme.fg("borderAccent", "\u2502")} ${fitText(content, innerWidth, "")} ${theme.fg("borderAccent", "\u2502")}`;
-}
-function fitText(text, width, ellipsis = "\u2026") {
-  if (width <= 0) return "";
-  const clipped = truncateToWidth2(text, width, ellipsis);
-  return clipped + " ".repeat(Math.max(0, width - visibleWidth2(clipped)));
-}
-
-// src/header.ts
-var MIN_TWO_COLUMN_WIDTH = 96;
-function createPiWelcomeHeader(ctx) {
-  const snapshot = createHeaderSnapshot(ctx);
-  return (_tui, theme) => ({
-    invalidate() {
-    },
-    render(width) {
-      const safeWidth = Math.max(1, width);
-      const innerWidth = Math.max(1, safeWidth - 4);
-      const leftLines = buildLeftColumn(snapshot, theme);
-      const rightLines = buildRightColumn(snapshot, theme);
-      const lines = [renderTopBorder(theme, safeWidth, `Pi v${VERSION}`), renderFrameLine(theme, safeWidth, "")];
-      const wide = safeWidth >= MIN_TWO_COLUMN_WIDTH;
-      for (const row of wide ? renderWideRows(theme, innerWidth, leftLines, rightLines) : renderStackedRows(theme, leftLines, rightLines)) {
-        lines.push(renderFrameLine(theme, safeWidth, row));
-      }
-      lines.push(renderFrameLine(theme, safeWidth, ""));
-      lines.push(renderBottomBorder(theme, safeWidth));
-      return lines;
-    }
-  });
-}
-function renderWideRows(theme, innerWidth, leftLines, rightLines) {
-  const divider = ` ${theme.fg("borderMuted", "\u2502")} `;
-  const minRightWidth = 36;
-  const maxLeftWidth = Math.max(24, innerWidth - visibleWidth3(divider) - minRightWidth);
-  const desiredLeftWidth = Math.max(24, ...leftLines.map((line) => visibleWidth3(line)));
-  const leftWidth = Math.min(maxLeftWidth, desiredLeftWidth);
-  const rightWidth = Math.max(24, innerWidth - visibleWidth3(divider) - leftWidth);
-  const totalRows = Math.max(leftLines.length, rightLines.length);
-  const paddedLeft = padLines(leftLines, totalRows);
-  const paddedRight = padLines(rightLines, totalRows);
-  return paddedLeft.map((line, index) => `${fitText(line, leftWidth)}${divider}${fitText(paddedRight[index], rightWidth)}`);
-}
-function padLines(lines, totalRows) {
-  return [...lines, ...Array.from({ length: Math.max(0, totalRows - lines.length) }, () => "")];
-}
-function renderStackedRows(theme, leftLines, rightLines) {
-  return [...leftLines, "", theme.bold(theme.fg("accent", "Tips for getting started")), ...rightLines.slice(1)];
 }
 
 // src/footer.ts
@@ -546,8 +421,15 @@ function renderContextBadge(theme, percent) {
   const fill = Math.min(label.length - 1, Math.max(1, Math.ceil(label.length * value / 100)));
   return [paintBase(theme, "muted", " "), paintFill(theme, label.slice(0, fill)), paintBase(theme, "muted", label.slice(fill)), paintBase(theme, "muted", " ")].join("");
 }
+function composeFooterLine(left, right, width) {
+  const rightWidth = visibleWidth2(right);
+  const availableLeft = Math.max(1, width - rightWidth - 1);
+  const fittedLeft = truncateToWidth2(left, availableLeft, "\u2026");
+  const gap = Math.max(1, width - visibleWidth2(fittedLeft) - rightWidth);
+  return truncateToWidth2(fittedLeft + " ".repeat(gap) + right, width, "");
+}
 function createClaudeFooter(ctx) {
-  const projectName = getProjectName(ctx);
+  const cwdTail = getCwdTail(ctx);
   const modelId = getModelId(ctx);
   const thinkingLevel = getThinkingLevel(ctx);
   const usagePercent = getUsagePercent(ctx);
@@ -557,17 +439,153 @@ function createClaudeFooter(ctx) {
     },
     render(width) {
       const branch = footerData.getGitBranch();
-      const leftParts = [theme.fg("text", projectName), branch ? theme.fg("dim", branch) : ""];
+      const leftParts = [
+        theme.fg("text", getCwdTail(ctx) || cwdTail),
+        branch ? theme.fg("dim", branch) : ""
+      ];
       const left = leftParts.filter(Boolean).join(theme.fg("dim", " \xB7 "));
       const model = theme.fg("muted", getModelId(ctx, modelId));
       const effortLevel = getThinkingLevel(ctx, thinkingLevel);
       const modelParts = [model, effortLevel ? theme.fg("dim", effortLevel) : ""];
-      const rightParts = [modelParts.filter(Boolean).join(theme.fg("dim", " \xB7 ")), renderContextBadge(theme, getUsagePercent(ctx, usagePercent))];
-      const right = rightParts.join("  ");
-      const gap = Math.max(1, width - visibleWidth4(left) - visibleWidth4(right));
-      return [truncateToWidth3(left + " ".repeat(gap) + right, width, "")];
+      const rightParts = [
+        modelParts.filter(Boolean).join(theme.fg("dim", " \xB7 ")),
+        renderContextBadge(theme, getUsagePercent(ctx, usagePercent))
+      ];
+      return [composeFooterLine(left, rightParts.join("  "), width)];
     }
   });
+}
+
+// src/header.ts
+import { VERSION } from "@mariozechner/pi-coding-agent";
+import { visibleWidth as visibleWidth4 } from "@mariozechner/pi-tui";
+
+// src/header-mascot.ts
+function getPiMascot(theme) {
+  const blue = (text) => theme.fg("accent", text);
+  const white = (text) => theme.fg("text", text);
+  const dark = (text) => theme.fg("dim", text);
+  const eye = `${white("\u2588")}${dark("\u258C")}`;
+  const bar = blue("\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588");
+  const legs = blue("\u2588\u2588") + "    " + blue("\u2588\u2588");
+  return [
+    "",
+    `     ${eye}  ${eye}`,
+    `  ${bar}`,
+    `     ${legs}`,
+    `     ${legs}`,
+    `     ${legs}`,
+    ""
+  ];
+}
+
+// src/header-content.ts
+function buildLeftColumn(ctx, theme) {
+  const cwd = getCwd(ctx);
+  const projectName = getProjectName(ctx);
+  const modelLabel = getModelLabel(ctx);
+  const entryCount = getEntryCount(ctx);
+  const sessionLabel = entryCount === 0 ? "No recent activity yet" : `${entryCount} ${entryCount === 1 ? "entry" : "entries"} loaded in this session`;
+  const workspaceLabel = isHomeDirectory(cwd) ? theme.fg("warning", "Launched from your home directory. A project folder works best.") : theme.fg("success", "Project directory detected and ready for work.");
+  return [
+    ...getPiMascot(theme),
+    theme.bold(`Welcome back ${getDisplayName()}!`),
+    formatDetail(theme, "Project", projectName),
+    formatDetail(theme, "Directory", shortenPath(cwd, 34)),
+    formatDetail(theme, "Model", shortenMiddle(modelLabel, 34)),
+    formatDetail(theme, "Session", sessionLabel),
+    workspaceLabel
+  ];
+}
+function buildRightColumn(ctx, theme) {
+  const cwd = getCwd(ctx);
+  const projectNote = isHomeDirectory(cwd) ? theme.fg("muted", "Tip: launch pi inside a repository for stronger file and git context.") : theme.fg("muted", "Workspace note: pi can now reason over the current repository immediately.");
+  return [
+    theme.bold(theme.fg("accent", "Tips for getting started")),
+    bullet(theme, "Ask pi to inspect the codebase before making edits."),
+    bullet(theme, "Use TaskCreate for multi-step work and track progress."),
+    bullet(theme, "Run /model to switch models and /reload to refresh extensions."),
+    bullet(theme, "Ask for a plan first when the change touches several files."),
+    "",
+    theme.bold(theme.fg("accent", "Workspace status")),
+    projectNote
+  ];
+}
+function bullet(theme, text) {
+  return `${theme.fg("accent", "\u2022")} ${text}`;
+}
+function formatDetail(theme, label, value) {
+  return `${theme.fg("muted", `${label.padEnd(9, " ")}`)} ${value}`;
+}
+
+// src/header-frame.ts
+import { truncateToWidth as truncateToWidth3, visibleWidth as visibleWidth3 } from "@mariozechner/pi-tui";
+function renderTopBorder(theme, width, title) {
+  if (width <= 1) return theme.fg("borderAccent", "\u256D");
+  if (width <= 4) return theme.fg("borderAccent", truncateToWidth3("\u256D\u2500\u2500\u256E", width, ""));
+  const prefix = "\u256D\u2500\u2500 ";
+  const suffix = "\u256E";
+  const titleWidth = Math.max(0, width - visibleWidth3(prefix) - visibleWidth3(suffix) - 1);
+  const clipped = truncateToWidth3(title, titleWidth, "");
+  const fillWidth = Math.max(0, width - visibleWidth3(prefix) - visibleWidth3(clipped) - visibleWidth3(suffix) - 1);
+  return `${theme.fg("borderAccent", prefix)}${theme.bold(theme.fg("accent", clipped))}${theme.fg("borderAccent", ` ${"\u2500".repeat(fillWidth)}${suffix}`)}`;
+}
+function renderBottomBorder(theme, width) {
+  if (width <= 1) return theme.fg("borderAccent", "\u256F");
+  return theme.fg("borderAccent", `\u2570${"\u2500".repeat(Math.max(0, width - 2))}\u256F`);
+}
+function renderFrameLine(theme, width, content) {
+  if (width <= 1) return theme.fg("borderAccent", "\u2502");
+  if (width <= 3) return theme.fg("borderAccent", truncateToWidth3("\u2502 \u2502", width, ""));
+  const innerWidth = Math.max(0, width - 4);
+  return `${theme.fg("borderAccent", "\u2502")} ${fitText(content, innerWidth, "")} ${theme.fg("borderAccent", "\u2502")}`;
+}
+function fitText(text, width, ellipsis = "\u2026") {
+  if (width <= 0) return "";
+  const clipped = truncateToWidth3(text, width, ellipsis);
+  return clipped + " ".repeat(Math.max(0, width - visibleWidth3(clipped)));
+}
+
+// src/header.ts
+var MIN_TWO_COLUMN_WIDTH = 96;
+function createPiWelcomeHeader(ctx) {
+  const snapshot = createHeaderSnapshot(ctx);
+  return (_tui, theme) => ({
+    invalidate() {
+    },
+    render(width) {
+      const safeWidth = Math.max(1, width);
+      const innerWidth = Math.max(1, safeWidth - 4);
+      const leftLines = buildLeftColumn(snapshot, theme);
+      const rightLines = buildRightColumn(snapshot, theme);
+      const lines = [renderTopBorder(theme, safeWidth, `Pi v${VERSION}`), renderFrameLine(theme, safeWidth, "")];
+      const wide = safeWidth >= MIN_TWO_COLUMN_WIDTH;
+      for (const row of wide ? renderWideRows(theme, innerWidth, leftLines, rightLines) : renderStackedRows(theme, leftLines, rightLines)) {
+        lines.push(renderFrameLine(theme, safeWidth, row));
+      }
+      lines.push(renderFrameLine(theme, safeWidth, ""));
+      lines.push(renderBottomBorder(theme, safeWidth));
+      return lines;
+    }
+  });
+}
+function renderWideRows(theme, innerWidth, leftLines, rightLines) {
+  const divider = ` ${theme.fg("borderMuted", "\u2502")} `;
+  const minRightWidth = 36;
+  const maxLeftWidth = Math.max(24, innerWidth - visibleWidth4(divider) - minRightWidth);
+  const desiredLeftWidth = Math.max(24, ...leftLines.map((line) => visibleWidth4(line)));
+  const leftWidth = Math.min(maxLeftWidth, desiredLeftWidth);
+  const rightWidth = Math.max(24, innerWidth - visibleWidth4(divider) - leftWidth);
+  const totalRows = Math.max(leftLines.length, rightLines.length);
+  const paddedLeft = padLines(leftLines, totalRows);
+  const paddedRight = padLines(rightLines, totalRows);
+  return paddedLeft.map((line, index) => `${fitText(line, leftWidth)}${divider}${fitText(paddedRight[index], rightWidth)}`);
+}
+function padLines(lines, totalRows) {
+  return [...lines, ...Array.from({ length: Math.max(0, totalRows - lines.length) }, () => "")];
+}
+function renderStackedRows(theme, leftLines, rightLines) {
+  return [...leftLines, "", theme.bold(theme.fg("accent", "Tips for getting started")), ...rightLines.slice(1)];
 }
 
 // src/theme.ts

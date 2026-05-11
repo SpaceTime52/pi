@@ -24,7 +24,9 @@ export function renderWidgetLines(state: TrackerState): string[] | undefined {
 	const pr = state.pr;
 	if (!pr) return undefined;
 	const title = pr.title ? ` · ${truncate(pr.title, 72)}` : "";
-	const lines = [`#${pr.number} ${pr.readiness.label}${title}`, `  ${formatPullRequestDetails(pr)}`];
+	const lines = [`#${pr.number} ${pr.readiness.label}${title}`];
+	if (pr.url) lines.push(`  ${pr.url}`);
+	lines.push(`  ${formatPullRequestDetails(pr)}`);
 	if (state.lastError) lines.push(`  Last refresh failed: ${truncate(state.lastError, 100)}`);
 	lines.push("  /pr refresh · /pr open · /pr merge · /pr untrack");
 	return lines;

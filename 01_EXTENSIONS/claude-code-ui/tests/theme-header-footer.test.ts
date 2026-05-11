@@ -6,9 +6,9 @@ import { getProjectName } from "../src/header.ts";
 import { THEME_NAME, applyClaudeTheme } from "../src/theme.ts";
 import { render, theme } from "./helpers.ts";
 
-function createCtx(percent: number | null, branchEntries: object[], modelId = "sonnet") {
+function createCtx(percent: number | null, branchEntries: object[], modelId = "sonnet", cwd = "/tmp/demo") {
 	return {
-		cwd: "/tmp/demo",
+		cwd,
 		model: modelId ? { id: modelId } : undefined,
 		sessionManager: { getBranch: () => branchEntries },
 		getContextUsage: () => ({ tokens: 0, contextWindow: 1, percent }),
@@ -31,7 +31,7 @@ describe("theme, header and footer", () => {
 
 	it("renders branch, model, thinking level and a fill-style context badge", () => {
 		const entries = [{ type: "thinking_level_change", thinkingLevel: "medium" }, { type: "message", message: { role: "assistant", usage: { input: 5000, output: 12000, cost: { total: 1.234 } } } }];
-		const ctx = createCtx(42, entries);
+		const ctx = createCtx(42, entries, "sonnet", "/Users/me/Desktop/creatrip/01.WAS/pi");
 		const requestRender = vi.fn();
 		let onChange = () => {};
 		const disposeBranchListener = vi.fn();
@@ -39,10 +39,10 @@ describe("theme, header and footer", () => {
 		footer.invalidate();
 		onChange();
 		footer.dispose();
-		const text = render(footer, 220);
+		const text = render(footer, 1000);
 		expect(requestRender).toHaveBeenCalledTimes(1);
 		expect(disposeBranchListener).toHaveBeenCalledTimes(1);
-		expect(plain(text)).toContain("demo · main");
+		expect(plain(text)).toContain("creatrip/01.WAS/pi · main");
 		expect(plain(text)).toContain("sonnet");
 		expect(plain(text)).toContain("medium");
 		expect(plain(text)).not.toContain("effort");

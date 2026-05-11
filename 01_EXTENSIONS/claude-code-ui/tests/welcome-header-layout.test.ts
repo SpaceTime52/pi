@@ -1,3 +1,4 @@
+import * as os from "node:os";
 import { visibleWidth } from "@mariozechner/pi-tui";
 import { describe, expect, it } from "vitest";
 import { createPiWelcomeHeader } from "../src/header.ts";
@@ -21,7 +22,7 @@ describe("createPiWelcomeHeader layout", () => {
 
 	it("falls back to a stacked layout on narrow terminals", () => {
 		process.env.PI_DISPLAY_NAME = "pi user";
-		const header = createPiWelcomeHeader(makeContext({ cwd: "/Users/me" }))({}, theme);
+		const header = createPiWelcomeHeader(makeContext({ cwd: os.homedir() }))({}, theme);
 		const lines = header.render(72);
 		const plain = lines.join("\n");
 		expect(lines.every((line) => visibleWidth(line) <= 72)).toBe(true);
