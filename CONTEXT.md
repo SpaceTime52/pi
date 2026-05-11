@@ -15,5 +15,6 @@ These aliases let prompts and natural-language commands resolve to absolute path
 | Alias | Path |
 |---|---|
 | product | /Users/bohyeon/Desktop/creatrip/01.WAS/product |
+| lambda | /Users/bohyeon/Desktop/creatrip/01.WAS/lambda |
 | pi | /Users/bohyeon/Desktop/creatrip/01.WAS/pi |
 | pi-conductor | /Users/bohyeon/Desktop/creatrip/01.WAS/pi-conductor |

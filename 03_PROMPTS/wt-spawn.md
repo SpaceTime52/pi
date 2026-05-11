@@ -33,7 +33,7 @@ else
   exit 127
 fi
 
-trimmed="$(printf "%s" "$input" | awk '{$1=$1; print}')"
+trimmed="$(printf "%s" "$input" | awk '{$(1)=$(1); print}')"
 resolved_path=""
 
 if [ -z "$trimmed" ]; then
@@ -45,7 +45,8 @@ elif [ -f "$context" ]; then
     /^## Repo aliases/ { in_aliases=1; next }
     in_aliases && /^## / { exit }
     in_aliases && /^\|/ {
-      alias=$2; path=$3
+      split($(0), fields, "|")
+      alias=fields[2]; path=fields[3]
       gsub(/^[ \t]+|[ \t]+$/, "", alias)
       gsub(/^[ \t]+|[ \t]+$/, "", path)
       if (alias == "Alias" || alias == "---" || alias == "") next
@@ -66,8 +67,8 @@ fi
 output="$(bash "$pi_wt" spawn "$resolved_path")"
 printf "%s\n" "$output"
 
-slug="$(printf "%s\n" "$output" | tr " " "\n" | awk -F= '$1 == "slug" { print $2; exit }')"
-path="$(printf "%s\n" "$output" | tr " " "\n" | awk -F= '$1 == "path" { print $2; exit }')"
+slug="$(printf "%s\n" "$output" | tr " " "\n" | awk '/^slug=/ { sub(/^slug=/, ""); print; exit }')"
+path="$(printf "%s\n" "$output" | tr " " "\n" | awk '/^path=/ { sub(/^path=/, ""); print; exit }')"
 
 printf "resolved_path=%s\n" "$resolved_path"
 printf "spawn_slug=%s\n" "$slug"
