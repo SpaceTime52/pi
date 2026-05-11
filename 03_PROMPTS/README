@@ -9,6 +9,7 @@
     ai-feature   Grill → PRD → Pi Task DAG 준비
     fix-bug      재현·원인분석·수정·검증·PR 추적
     ralph        현재 Task DAG에서 AFK task 실행
+    resolve-conflict  현재 브랜치/PR의 merge conflict 해소
     wt-new       PR용 git worktree 생성
     wt-review    기존 PR review/fix용 worktree 생성
     zoom-out     낯선 코드 영역의 상위 구조 요약
