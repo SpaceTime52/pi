@@ -18,7 +18,8 @@ describe("pr command actions", () => {
 		await deps.handler("help", ctx);
 		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("PR tracker commands"), "info");
 		await deps.handler("show", ctx);
-		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("#63 Ready to merge"), "info");
+		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("#63"), "info");
+		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Ready to merge"), "info");
 		await deps.handler("refresh 99", ctx);
 		expect(deps.refreshTracked).toHaveBeenCalledWith(ctx, "99", "manual", { notify: true });
 		await deps.handler("refresh", ctx);

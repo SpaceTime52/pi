@@ -64,8 +64,9 @@ describe("pr-tracker extension", () => {
 			EXTENSION_ID,
 			expect.objectContaining({ kind: "state", state: expect.objectContaining({ trackedRef: rawPr.url }) }),
 		);
-		expect(ctx.ui.setWidget).toHaveBeenCalledWith(EXTENSION_ID, expect.arrayContaining([expect.stringContaining("#63 Ready to merge")]));
-		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Tracking #63 Ready to merge"), "info");
+		expect(ctx.ui.setWidget).toHaveBeenCalledWith(EXTENSION_ID, expect.arrayContaining([expect.stringContaining("#63")]));
+		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Tracking"), "info");
+		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("#63"), "info");
 	});
 
 	it("/pr untrack clears state", async () => {

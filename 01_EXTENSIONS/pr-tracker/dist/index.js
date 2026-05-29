@@ -293,6 +293,21 @@ function createErrorState(previous, message, now = () => (/* @__PURE__ */ new Da
 function truncate(text, maxLength) {
   return text.length <= maxLength ? text : `${text.slice(0, Math.max(0, maxLength - 1))}\u2026`;
 }
+function sanitizeHyperlinkUrl(url) {
+  let safeUrl = "";
+  for (const char of url) {
+    const code = char.charCodeAt(0);
+    if (code >= 32 && code !== 127) safeUrl += char;
+  }
+  return safeUrl;
+}
+function hyperlink(text, url) {
+  return `\x1B]8;;${sanitizeHyperlinkUrl(url)}\x07${text}\x1B]8;;\x07`;
+}
+function formatPullRequestNumber(pr) {
+  const label = `#${pr.number}`;
+  return pr.url ? hyperlink(label, pr.url) : label;
+}
 function formatChecks(checks) {
   if (checks.total === 0) return "Checks \u2014";
   if (checks.state === "passing") return `Checks \u2713 ${checks.passed}/${checks.total}`;
@@ -311,7 +326,7 @@ function renderWidgetLines(state) {
   const pr = state.pr;
   if (!pr) return void 0;
   const title = pr.title ? ` \xB7 ${truncate(pr.title, 72)}` : "";
-  const lines = [`#${pr.number} ${pr.readiness.label}${title}`];
+  const lines = [`${formatPullRequestNumber(pr)} ${pr.readiness.label}${title}`];
   if (pr.url) lines.push(`  ${pr.url}`);
   lines.push(`  ${formatPullRequestDetails(pr)}`);
   if (state.lastError) lines.push(`  Last refresh failed: ${truncate(state.lastError, 100)}`);
@@ -321,12 +336,12 @@ function renderWidgetLines(state) {
 function formatStatus(state) {
   const pr = state.pr;
   if (!pr) return void 0;
-  return `PR #${pr.number} ${pr.readiness.label}`;
+  return `PR ${formatPullRequestNumber(pr)} ${pr.readiness.label}`;
 }
 function formatNotification(state) {
   const pr = state.pr;
   if (!pr) return state.lastError ? `No tracked PR (${state.lastError})` : "No tracked PR";
-  return `#${pr.number} ${pr.readiness.label}
+  return `${formatPullRequestNumber(pr)} ${pr.readiness.label}
 ${formatPullRequestDetails(pr)}${pr.url ? `
 ${pr.url}` : ""}`;
 }
