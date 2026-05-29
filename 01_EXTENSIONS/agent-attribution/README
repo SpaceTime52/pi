@@ -1,0 +1,16 @@
+agent-attribution … 현재 답변을 준비 중인 주체를 footer와 terminal title에 표시
+
+목적
+  메인 assistant가 직접 답변 중인지, 특정 subagent에게 위임 중인지 Ghostty/Pi UI에서 바로 보이게 한다.
+
+주요 기능
+  agent_start/agent_end 동안 main assistant 상태 표시
+  subagent/Agent/TaskExecute tool 실행을 감지해 위임 대상 표시
+  turn 완료 후 해당 turn에 기여한 subagent를 via 정보로 표시
+  Ghostty terminal title과 Pi footer status를 함께 동기화
+  /agent-attribution 명령으로 현재 attribution 상태 확인
+
+표시 예시
+  agent: main assistant · preparing
+  agent: worker · from main assistant
+  ✓ agent: main assistant · done · via worker
