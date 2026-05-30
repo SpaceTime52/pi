@@ -17,9 +17,13 @@ export function hyperlink(text: string, url: string): string {
 	return `\u001B]8;;${sanitizeHyperlinkUrl(url)}\u0007${text}\u001B]8;;\u0007`;
 }
 
+export function styleLinkLabel(text: string): string {
+	return `\u001B[36;4m${text}\u001B[0m`;
+}
+
 export function formatPullRequestNumber(pr: Pick<PullRequestStatus, "number" | "url">): string {
 	const label = `#${pr.number}`;
-	return pr.url ? hyperlink(label, pr.url) : label;
+	return pr.url ? hyperlink(styleLinkLabel(label), pr.url) : label;
 }
 
 export function formatChecks(checks: CheckSummary): string {
