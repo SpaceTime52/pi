@@ -304,9 +304,12 @@ function sanitizeHyperlinkUrl(url) {
 function hyperlink(text, url) {
   return `\x1B]8;;${sanitizeHyperlinkUrl(url)}\x07${text}\x1B]8;;\x07`;
 }
+function styleLinkLabel(text) {
+  return `\x1B[36;4m${text}\x1B[0m`;
+}
 function formatPullRequestNumber(pr) {
   const label = `#${pr.number}`;
-  return pr.url ? hyperlink(label, pr.url) : label;
+  return pr.url ? hyperlink(styleLinkLabel(label), pr.url) : label;
 }
 function formatChecks(checks) {
   if (checks.total === 0) return "Checks \u2014";

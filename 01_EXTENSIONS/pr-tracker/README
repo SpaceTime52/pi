@@ -25,4 +25,4 @@
       Checks ✓ 3/3 · Review approved · Changes 1 · branch → main
       /pr refresh · /pr open · /pr merge · /pr untrack
 
-    PR URL이 있으면 `#63` 번호는 OSC 8 hyperlink로 렌더링되어 Ghostty 등 지원 터미널에서 클릭할 수 있다.
+    PR URL이 있으면 `#63` 번호는 cyan + underline OSC 8 hyperlink로 렌더링되어 Ghostty 등 지원 터미널에서 클릭할 수 있다.

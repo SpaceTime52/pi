@@ -7,6 +7,7 @@ import {
 	hyperlink,
 	renderWidgetLines,
 	sanitizeHyperlinkUrl,
+	styleLinkLabel,
 	syncTrackerUi,
 } from "../src/ui.ts";
 
@@ -37,13 +38,15 @@ function createContext(hasUI: boolean): TrackerContext {
 }
 
 describe("ui", () => {
-	const linkedNumber = "\u001B]8;;https://github.com/acme/web/pull/63\u0007#63\u001B]8;;\u0007";
+	const styledNumber = "\u001B[36;4m#63\u001B[0m";
+	const linkedNumber = `\u001B]8;;https://github.com/acme/web/pull/63\u0007${styledNumber}\u001B]8;;\u0007`;
 
 	it("formats PR number hyperlinks", () => {
 		expect(sanitizeHyperlinkUrl("https://github.com/acme/web/pull/63\u0007\u001B\u007F")).toBe(
 			"https://github.com/acme/web/pull/63",
 		);
-		expect(hyperlink("#63", "https://github.com/acme/web/pull/63")).toBe(linkedNumber);
+		expect(styleLinkLabel("#63")).toBe(styledNumber);
+		expect(hyperlink(styledNumber, "https://github.com/acme/web/pull/63")).toBe(linkedNumber);
 		expect(formatPullRequestNumber(state.pr)).toBe(linkedNumber);
 		expect(formatPullRequestNumber({ number: 64, url: undefined })).toBe("#64");
 	});
