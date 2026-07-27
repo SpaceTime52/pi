@@ -236,6 +236,136 @@ cmd_prune() {
     log "✓ pruned $removed worktree(s)"
 }
 
+# Directory names gc deletes. Override with PI_WT_GC_TARGETS="node_modules .next".
+gc_targets() {
+    # shellcheck disable=SC2206
+    local t=(${PI_WT_GC_TARGETS:-node_modules})
+    printf '%s\n' "${t[@]}"
+}
+
+# cwd of every visible process; a worktree containing one is still in use.
+gc_busy_cwds() {
+    command -v lsof >/dev/null || return 0
+    lsof -d cwd -F n 2>/dev/null | sed -n 's/^n//p' | sort -u
+}
+
+gc_is_busy() {
+    local wt=$1 cwd
+    while IFS= read -r cwd; do
+        [[ "$cwd" == "$wt" || "$cwd" == "$wt"/* ]] && return 0
+    done <<< "$GC_BUSY_CWDS"
+    return 1
+}
+
+# True when the worktree saw git or file activity within $2 days.
+gc_is_recent() {
+    local wt=$1 days=$2 git_dir
+    git_dir="$(git -C "$wt" rev-parse --git-dir 2>/dev/null)" || git_dir=""
+    if [[ -n "$git_dir" && -f "$git_dir/index" ]]; then
+        [[ -n "$(find "$git_dir/index" -mtime "-$days" -print -quit 2>/dev/null)" ]] && return 0
+    fi
+    [[ -n "$(find "$wt" \( -name node_modules -o -name .git -o -name .next -o -name .turbo \) -prune \
+        -o -mtime "-$days" -print -quit 2>/dev/null)" ]]
+}
+
+# Echo "<kilobytes> <dir-count>" for target dirs in $1, deleting them when $2 is 1.
+gc_sweep() {
+    local wt=$1 apply=$2 kb=0 count=0 target dir sz
+    while IFS= read -r target; do
+        while IFS= read -r dir; do
+            [[ -d "$dir" && ! -L "$dir" ]] || continue
+            [[ "$dir" == "$wt"/* ]] || continue
+            [[ "$(basename "$dir")" == "$target" ]] || continue
+            # Only remove what a package manager can rebuild.
+            [[ -f "$(dirname "$dir")/package.json" ]] || continue
+            sz="$(du -sk "$dir" 2>/dev/null | awk 'NR==1{print $1}')"
+            kb=$(( kb + ${sz:-0} ))
+            count=$(( count + 1 ))
+            if [[ "$apply" -eq 1 ]]; then
+                rm -rf -- "$dir"
+            fi
+        done < <(find "$wt" -type d -name "$target" -prune -print 2>/dev/null)
+    done < <(gc_targets)
+    printf '%s %s' "$kb" "$count"
+}
+
+gc_human() {
+    awk -v kb="$1" 'BEGIN {
+        if (kb >= 1048576) printf "%.1f GB", kb / 1048576
+        else if (kb >= 1024) printf "%.0f MB", kb / 1024
+        else printf "%d KB", kb
+    }'
+}
+
+cmd_gc() {
+    local days=7 repo_filter="" apply=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --days)  days="${2:-}"; shift 2 ;;
+            --repo)  repo_filter="${2:-}"; shift 2 ;;
+            --apply) apply=1; shift ;;
+            *) die "usage: pi-wt gc [--days N] [--repo NAME] [--apply]" ;;
+        esac
+    done
+    [[ "$days" =~ ^[1-9][0-9]*$ ]] || die "--days must be a positive integer"
+
+    local root
+    root="$(cd "$WORKSPACES_ROOT" 2>/dev/null && pwd)" || die "no workspaces root: $WORKSPACES_ROOT"
+
+    # A crashed run must not block every later scheduled run, so locks are pid-checked.
+    GC_LOCK="${TMPDIR:-/tmp}/pi-wt-gc.lock"
+    if ! mkdir "$GC_LOCK" 2>/dev/null; then
+        local owner=""
+        [[ -f "$GC_LOCK/pid" ]] && owner="$(cat "$GC_LOCK/pid" 2>/dev/null)"
+        if [[ -n "$owner" ]] && kill -0 "$owner" 2>/dev/null; then
+            die "another pi-wt gc is running (pid $owner)"
+        fi
+        rm -rf "$GC_LOCK"
+        mkdir "$GC_LOCK" 2>/dev/null || die "cannot acquire gc lock: $GC_LOCK"
+    fi
+    printf '%s' "$$" >"$GC_LOCK/pid"
+    trap 'rm -rf "$GC_LOCK" 2>/dev/null || true' EXIT
+
+    GC_BUSY_CWDS="$(gc_busy_cwds)"
+
+    local total_kb=0 total_dirs=0 cleaned=0
+    local repo_dir wt name result kb count
+    for repo_dir in "$root"/*/; do
+        [[ -d "$repo_dir" ]] || continue
+        [[ -z "$repo_filter" || "$(basename "$repo_dir")" == "$repo_filter" ]] || continue
+        for wt in "$repo_dir"*/; do
+            wt="${wt%/}"
+            [[ -d "$wt" && -e "$wt/.git" ]] || continue
+            name="$(basename "$repo_dir")/$(basename "$wt")"
+            if gc_is_busy "$wt"; then
+                printf 'skip  %-46s in use\n' "$name"
+                continue
+            fi
+            if gc_is_recent "$wt" "$days"; then
+                printf 'skip  %-46s active within %sd\n' "$name" "$days"
+                continue
+            fi
+            result="$(gc_sweep "$wt" "$apply")"
+            kb="${result% *}"; count="${result#* }"
+            [[ "$count" -gt 0 ]] || continue
+            printf '%-5s %-46s %s dir(s)  %s\n' \
+                "$([[ "$apply" -eq 1 ]] && printf clean || printf would)" \
+                "$name" "$count" "$(gc_human "$kb")"
+            total_kb=$(( total_kb + kb ))
+            total_dirs=$(( total_dirs + count ))
+            cleaned=$(( cleaned + 1 ))
+        done
+    done
+
+    if [[ "$apply" -eq 1 ]]; then
+        log "✓ $cleaned worktree(s), $total_dirs dir(s), $(gc_human "$total_kb") freed"
+        log "  restore: cd <worktree> && pnpm install"
+    else
+        log "(dry-run) $cleaned worktree(s), $total_dirs dir(s), $(gc_human "$total_kb") reclaimable"
+        log "  apply: pi-wt gc --days $days --apply"
+    fi
+}
+
 cmd_spawn() {
     local repo_arg=${1:-}
     if [[ -n "$repo_arg" ]]; then
@@ -303,6 +433,8 @@ pi-wt — PR-단위 git worktree 매니저
   pi-wt cd <name>            # 워크트리 경로 출력
   pi-wt rm <name> [--force]  # 워크트리 제거
   pi-wt prune                # 머지/클로즈된 PR의 워크트리 자동 정리
+  pi-wt gc [--days N] [--repo NAME] [--apply]
+                             # 유휴 워크트리의 node_modules 삭제 (기본 dry-run, --days 7)
 
 shell 함수 (cd + pi 원샷) — 추천 설치:
   ~/.zshrc 에 다음 한 줄 추가:
@@ -311,6 +443,7 @@ shell 함수 (cd + pi 원샷) — 추천 설치:
 
 환경변수:
   PI_WT_ROOT                 # 워크트리 루트 (기본: \$HOME/pi/workspaces)
+  PI_WT_GC_TARGETS           # gc 삭제 대상 디렉터리명 (기본: node_modules)
 EOF
 }
 
@@ -322,6 +455,7 @@ case "${1:-}" in
     cd)     shift; cmd_cd "$@" ;;
     rm)     shift; cmd_rm "$@" ;;
     prune)  shift; cmd_prune "$@" ;;
+    gc)     shift; cmd_gc "$@" ;;
     open)
         die "'pi-wt open'은 제거됨 (Ghostty spawn 신뢰성 문제). 대신 'pi-wt-here <name>' 사용 — .pi/shell/pi-wt.zsh source 필요" ;;
     -h|--help|help|"") usage ;;
