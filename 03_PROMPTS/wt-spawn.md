@@ -1,8 +1,8 @@
 ---
-description: 새 워크트리 + Ghostty 새 윈도우 + pi 한 방에 띄우기
+description: 새 워크트리 + Ghostty 새 탭 + pi 한 방에 띄우기
 argument-hint: "<repo> 예: product (또는 절대 경로)"
 ---
-사용자가 `pi-wt spawn`으로 새 워크트리, Ghostty 새 윈도우, pi 세션을 한 번에 띄우려고 해.
+사용자가 `pi-wt spawn`으로 새 워크트리, Ghostty 새 탭, pi 세션을 한 번에 띄우려고 해.
 
 입력:
 `$@`
@@ -79,7 +79,7 @@ PI_WT_SPAWN
 2. stdout에서 `slug=`와 `path=`를 확인해 사용자에게 짧게 보고해:
    - 생성된 slug
    - 생성된 path
-   - 새 Ghostty 윈도우에서 pi가 이미 실행 중이라는 사실
+   - 기존 Ghostty 창의 새 탭에서 pi가 이미 실행 중이라는 사실 (창이 없으면 새 창)
 3. 현재 pi 세션에서는 새 worktree로 `cd`하지 마. 추가 터미널이나 후속 액션을 자동으로 열지 마.
 
 실패하면:

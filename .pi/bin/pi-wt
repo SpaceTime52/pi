@@ -27,6 +27,65 @@ shell_quote() {
     printf "'%s'" "$s"
 }
 
+write_spawn_helper() {
+    local wt_path="$1"
+    local helper="$wt_path/.pi/pi-wt-session.zsh"
+    mkdir -p "$wt_path/.pi"
+    cat > "$helper" <<'HELPER_EOF'
+#!/bin/zsh
+WT_PATH="$1"
+[[ -f ~/.zshrc ]] && source ~/.zshrc 2>/dev/null
+cd "$WT_PATH" || { echo "[cd 실패] $WT_PATH"; exec zsh -i; }
+
+if [[ -f .pi/worktree.json ]]; then
+  _repo=$(/usr/bin/python3 -c 'import json; d=json.load(open(".pi/worktree.json")); import os; print(os.path.basename(d["mainRepo"]))' 2>/dev/null)
+  _branch=$(/usr/bin/python3 -c 'import json; d=json.load(open(".pi/worktree.json")); print(d["branch"])' 2>/dev/null)
+  _wt=$(basename "$PWD")
+  if [[ -n "$_repo" ]]; then
+    printf '\n\033[1;36m┌─── working on ───\033[0m\n'
+    printf '\033[1;36m│\033[0m repo:     \033[1m%s\033[0m\n' "$_repo"
+    printf '\033[1;36m│\033[0m branch:   \033[33m%s\033[0m\n' "$_branch"
+    printf '\033[1;36m│\033[0m worktree: %s\n' "$_wt"
+    printf '\033[1;36m└───\033[0m\n\n'
+  fi
+fi
+
+pi
+echo "\n[pi 종료. 이 셸은 동일 워크트리에서 계속 사용 가능]"
+exec zsh -i
+HELPER_EOF
+    chmod +x "$helper"
+    printf '%s' "$helper"
+}
+
+ghostty_spawn_pi_session() {
+    local wt_path="$1"
+    local helper cmd
+    helper="$(write_spawn_helper "$wt_path")"
+    cmd="/bin/zsh $(shell_quote "$helper") $(shell_quote "$wt_path")"
+
+    osascript - "$wt_path" "$cmd" <<'APPLESCRIPT'
+on run argv
+  set wtPath to item 1 of argv
+  set launchCommand to item 2 of argv
+  tell application "Ghostty"
+    activate
+    set cfg to new surface configuration from {initial working directory:wtPath, command:launchCommand}
+    if (count windows) is 0 then
+      set createdWindow to new window with configuration cfg
+      set targetTab to selected tab of createdWindow
+      return (id of createdWindow as text) & "|" & (id of targetTab as text)
+    else
+      set targetWindow to front window
+      set targetTab to new tab in targetWindow with configuration cfg
+      activate window targetWindow
+      return (id of targetWindow as text) & "|" & (id of targetTab as text)
+    end if
+  end tell
+end run
+APPLESCRIPT
+}
+
 # Pick a fresh "<city>-vN" slug that does not collide under $WORKSPACES_ROOT/<repo>/.
 #   $1: repo basename
 # Honors test hooks PI_WT_CITY_POOL (space-separated) and PI_WT_CITY_START (integer).
@@ -46,6 +105,10 @@ next_city_name() {
     if [[ -d "$repo_dir" ]]; then
         existing_list=$(ls -1 "$repo_dir" 2>/dev/null || true)
     fi
+    local existing_refs=""
+    existing_refs=$(git for-each-ref --format='%(refname)' refs/heads refs/remotes 2>/dev/null \
+        | sed -e 's@^refs/heads/@@' -e 's@^refs/remotes/[^/]*/@@' \
+        | sort -u || true)
     local start
     if [[ -n "${PI_WT_CITY_START:-}" ]]; then
         start=$(( PI_WT_CITY_START % pool_size ))
@@ -59,7 +122,7 @@ next_city_name() {
         city=${cities[(( (start + offset) % pool_size ))]}
         for (( v=1; v<1000; v++ )); do
             name="${city}-v${v}"
-            if ! grep -Fxq "$name" <<< "$existing_list"; then
+            if ! grep -Fxq "$name" <<< "$existing_list" && ! grep -Fxq "$name" <<< "$existing_refs"; then
                 printf '%s' "$name"
                 return 0
             fi
@@ -127,7 +190,7 @@ cmd_new() {
     log "✓ created: $wt_path"
     log ""
     log "next:"
-    log "  $(basename "$0") open $wt_name      # 새 터미널에 pi 띄우기"
+    log "  pi-wt-here $wt_name                 # 현재 셸에서 cd + pi (.pi/shell/pi-wt.zsh 필요)"
     log "  cd '$wt_path' && pi                 # 직접 이동"
 }
 
@@ -150,7 +213,7 @@ cmd_review() {
     bootstrap_worktree "$wt_path" "$pr_branch" "$main_repo" "$pr"
     log "✓ created: $wt_path (PR #$pr → $pr_branch)"
     log ""
-    log "next: $(basename "$0") open $wt_name"
+    log "next: pi-wt-here $wt_name"
 }
 
 cmd_list() {
@@ -373,7 +436,7 @@ cmd_spawn() {
         cd "$repo_arg" || die "cannot cd into: $repo_arg"
     fi
     command -v git >/dev/null || die "git not found"
-    command -v open >/dev/null || die "open(1) not found (macOS only)"
+    command -v osascript >/dev/null || die "osascript not found (macOS only)"
     [[ -d "/Applications/Ghostty.app" ]] || die "Ghostty.app not installed"
 
     local main_repo repo
@@ -389,33 +452,8 @@ cmd_spawn() {
     wt_path=$(worktree_path "$slug")
     [[ -d "$wt_path" ]] || die "worktree path missing after create: $wt_path"
 
-    local quoted_path
-    quoted_path=$(shell_quote "$wt_path")
-
-    local banner
-    banner=$(cat <<'BANNER_EOF'
- if [[ -f .pi/worktree.json ]]; then
-   _repo=$(/usr/bin/python3 -c 'import json; d=json.load(open(".pi/worktree.json")); import os; print(os.path.basename(d["mainRepo"]))' 2>/dev/null)
-   _branch=$(/usr/bin/python3 -c 'import json; d=json.load(open(".pi/worktree.json")); print(d["branch"])' 2>/dev/null)
-   _wt=$(basename "$PWD")
-   if [[ -n "$_repo" ]]; then
-     printf '\n\033[1;36m┌─── working on ───\033[0m\n'
-     printf '\033[1;36m│\033[0m repo:     \033[1m%s\033[0m\n' "$_repo"
-     printf '\033[1;36m│\033[0m branch:   \033[33m%s\033[0m\n' "$_branch"
-     printf '\033[1;36m│\033[0m worktree: %s\n' "$_wt"
-     printf '\033[1;36m└───\033[0m\n\n'
-   fi
- fi
-BANNER_EOF
-)
-
-    local inline_cmd
-    inline_cmd="[[ -f ~/.zshrc ]] && source ~/.zshrc 2>/dev/null; cd ${quoted_path} || { echo \"[cd 실패]\"; exec zsh -i; }; ${banner}; pi; echo \"\\n[pi 종료. 이 셸은 동일 워크트리에서 계속 사용 가능]\"; exec zsh -i"
-
-    open -na Ghostty.app --args -e /bin/zsh -c "$inline_cmd" \
+    ghostty_spawn_pi_session "$wt_path" >/dev/null \
         || die "failed to spawn Ghostty"
-    osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1 || \
-        log "warn: Ghostty activate failed (Accessibility 권한 필요할 수 있음)"
 
     printf 'slug=%s\n' "$slug"
     printf 'path=%s\n' "$wt_path"
@@ -427,7 +465,7 @@ pi-wt — PR-단위 git worktree 매니저
 
 사용법:
   pi-wt new <branch>         # 새 워크트리 + (필요시) 새 브랜치
-  pi-wt spawn [repo-path]    # 도시 슬러그 할당 + 새 Ghostty 윈도우에서 pi 시작
+  pi-wt spawn [repo-path]    # 도시 슬러그 할당 + 기존 Ghostty 창에 새 탭으로 pi 시작
   pi-wt review <PR-number>   # 기존 PR을 워크트리로 체크아웃
   pi-wt list [repo]          # 워크트리 목록
   pi-wt cd <name>            # 워크트리 경로 출력

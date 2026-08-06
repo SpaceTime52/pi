@@ -8,6 +8,7 @@ setup() {
   PI_WT_ROOT_DIR="$TEST_ROOT/worktrees"
   MOCK_BIN="$TEST_ROOT/bin"
   MOCK_LOG="$TEST_ROOT/mock.log"
+  MOCK_APPLESCRIPT="$TEST_ROOT/ghostty.applescript"
   PI_WT="$BATS_TEST_DIRNAME/../pi-wt"
 
   mkdir -p "$MOCK_BIN" "$PI_WT_ROOT_DIR"
@@ -23,16 +24,16 @@ EOF
 
   cat >"$MOCK_BIN/osascript" <<'EOF'
 #!/usr/bin/env bash
-printf 'osascript' >>"$MOCK_LOG"
+printf 'osascript\n' >>"$MOCK_LOG"
 for arg in "$@"; do
-  printf ' %s' "$arg" >>"$MOCK_LOG"
+  printf 'arg=%s\n' "$arg" >>"$MOCK_LOG"
 done
-printf '\n' >>"$MOCK_LOG"
+cat >"$MOCK_APPLESCRIPT"
 EOF
 
   chmod +x "$MOCK_BIN/open" "$MOCK_BIN/osascript"
   export PATH="$MOCK_BIN:$PATH"
-  export MOCK_LOG
+  export MOCK_LOG MOCK_APPLESCRIPT
 
   create_git_repo "$REPO"
 }
@@ -70,17 +71,35 @@ assert_line_present() {
   return 1
 }
 
-@test "spawn with explicit repo path allocates seoul-v1, creates worktree, and opens Ghostty" {
+@test "spawn with explicit repo path allocates seoul-v1, creates worktree, and opens a Ghostty tab" {
   run run_spawn "$REPO"
 
   [ "$status" -eq 0 ]
+  local wt_path="$PI_WT_ROOT_DIR/repo/seoul-v1"
   assert_line_present "slug=seoul-v1"
-  assert_line_present "path=$PI_WT_ROOT_DIR/repo/seoul-v1"
-  [ -e "$PI_WT_ROOT_DIR/repo/seoul-v1/.git" ]
-  [ -f "$PI_WT_ROOT_DIR/repo/seoul-v1/.pi/worktree.json" ]
+  assert_line_present "path=$wt_path"
+  [ -e "$wt_path/.git" ]
+  [ -f "$wt_path/.pi/worktree.json" ]
+  [ -x "$wt_path/.pi/pi-wt-session.zsh" ]
 
-  grep -Fq "open -na Ghostty.app" "$MOCK_LOG"
-  grep -Fq "osascript -e tell application \"Ghostty\" to activate" "$MOCK_LOG"
+  ! grep -Fq "open " "$MOCK_LOG"
+  grep -Fxq "arg=-" "$MOCK_LOG"
+  grep -Fxq "arg=$wt_path" "$MOCK_LOG"
+  grep -Fq "arg=/bin/zsh '$wt_path/.pi/pi-wt-session.zsh' '$wt_path'" "$MOCK_LOG"
+  grep -Fq 'set targetTab to new tab in targetWindow with configuration cfg' "$MOCK_APPLESCRIPT"
+}
+
+@test "spawn passes quoted worktree paths to AppleScript as arguments" {
+  local quoted_repo="$TEST_ROOT/repo with 'quote"
+  create_git_repo "$quoted_repo"
+
+  run run_spawn "$quoted_repo"
+
+  [ "$status" -eq 0 ]
+  local wt_path="$PI_WT_ROOT_DIR/$(basename "$quoted_repo")/seoul-v1"
+  assert_line_present "path=$wt_path"
+  grep -Fxq "arg=$wt_path" "$MOCK_LOG"
+  ! grep -Fq "$wt_path" "$MOCK_APPLESCRIPT"
 }
 
 @test "running spawn twice with same city start allocates seoul-v1 then seoul-v2" {
@@ -93,6 +112,17 @@ assert_line_present() {
   [ "$status" -eq 0 ]
   assert_line_present "slug=seoul-v2"
   assert_line_present "path=$PI_WT_ROOT_DIR/repo/seoul-v2"
+}
+
+@test "spawn skips city slugs used by local and remote branches" {
+  git -C "$REPO" branch seoul-v1
+  git -C "$REPO" update-ref refs/remotes/upstream/seoul-v2 HEAD
+
+  run run_spawn "$REPO"
+
+  [ "$status" -eq 0 ]
+  assert_line_present "slug=seoul-v3"
+  assert_line_present "path=$PI_WT_ROOT_DIR/repo/seoul-v3"
 }
 
 @test "spawn rotates to tokyo-v1 when seoul-v1 through seoul-v999 already exist" {
