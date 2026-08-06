@@ -1,12 +1,12 @@
 
          ╔════════════════════════════════════════╗
-         ║             jeonghyeon/pi              ║
+         ║             SpaceTime52/pi             ║
          ║    personal pi-coding-agent config     ║
          ╚════════════════════════════════════════╝
 
   INSTALL
-    npm install -g @mariozechner/pi-coding-agent
-    pi install https://github.com/jeonghyeon-net/pi
+    npm install -g @earendil-works/pi-coding-agent
+    pi install https://github.com/SpaceTime52/pi
 
   UPDATE
     pi update
