@@ -1,5 +1,8 @@
 .pi/*.bak.*
+.pi/pi-wt-session.zsh
 .pi/tasks/
+.pi/worktree.json
+/package-lock.json
 node_modules/
 dist/
 !01_EXTENSIONS/*/dist/

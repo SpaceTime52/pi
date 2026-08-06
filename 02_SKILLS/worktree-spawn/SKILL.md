@@ -77,7 +77,7 @@ After success, say something like:
 열었어요.
 - slug: seoul-v1
 - worktree: /Users/bohyeon/pi/workspaces/product/seoul-v1
-- Ghostty 새 윈도우에서 pi가 실행 중입니다.
+- 기존 Ghostty 창의 새 탭에서 pi가 실행 중입니다. (창이 없으면 새 창)
 ```
 
 Keep it short. Do not add unrelated next steps unless the user asks.
