@@ -1,6 +1,7 @@
 .pi/*.bak.*
 .pi/tasks/
 node_modules/
+package-lock.json
 dist/
 !01_EXTENSIONS/*/dist/
 !01_EXTENSIONS/*/dist/**
