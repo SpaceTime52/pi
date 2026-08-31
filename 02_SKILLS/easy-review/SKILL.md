@@ -1,6 +1,6 @@
 ---
 name: easy-review
-description: "Create selective, read-only, evidence-anchored review views from Git working trees, staged or unstaged changes, commits and ranges, GitHub PRs, agent-authored changes, or unified diff files. Use when the user asks for Easy Review, 이지 리뷰, or to review, inspect, summarize, abridge, or make a PR or diff easier to understand in chat or self-contained HTML. Organize changes into a reader-first story, deliberately show, summarize, or omit files and low-signal regions, preserve the complete original diff outside the reading view, expose coverage and uncertainty, and never post reviews, modify code, or call an LLM API. Do not use for implementing fixes, addressing review comments, or diagnosing runtime failures."
+description: "Create selective, read-only, evidence-anchored review views from Git working trees, staged or unstaged changes, commits and ranges, GitHub PRs, agent-authored changes, or unified diff files. Use when the user asks for Easy Review, 이지 리뷰, or to review, inspect, summarize, abridge, or make a PR or diff easier to understand in chat or self-contained HTML. Organize changes into a reader-first story, deliberately show, summarize, or omit files and low-signal regions, preserve the complete original diff outside the reading view, expose coverage and uncertainty, and never post reviews or modify code. The generation pipeline calls no LLM API; an optional local serve command hosts the HTML with a repo-aware AI chat assistant (OpenRouter-compatible, JSONL chat logs). Do not use for implementing fixes, addressing review comments, or diagnosing runtime failures."
 ---
 
 # Easy Review
@@ -10,7 +10,7 @@ description: "Create selective, read-only, evidence-anchored review views from G
 ## 지켜야 할 경계
 
 - 저장소와 원격 서비스에는 읽기 전용으로 접근한다. checkout, 소스 수정, stage, commit, push, 리뷰 게시, 스레드 해결을 하지 않는다.
-- 외부 LLM API를 호출하거나 제공자 API 키를 읽지 않는다. 현재 대화 중인 에이전트만 의미 판단을 맡는다.
+- 리뷰 생성 파이프라인(capture·inspect·preview·compile)은 외부 LLM API를 호출하지 않는다. 현재 대화 중인 에이전트만 의미 판단을 맡는다. 유일한 예외는 `serve` 챗봇으로, 사용자가 직접 입력한 질문에 한해 `OPENROUTER_API_KEY`(또는 호환 키)로 OpenAI 호환 엔드포인트를 중계하며, 이때도 저장소는 읽기 전용이다.
 - 표시할 코드를 다시 작성하지 않는다. 원본 diff의 `D000001` 형태 내부 근거 ID로 정확한 줄을 가리킨다. 원본은 모두 보존하되 HTML에 모든 파일을 표시할 의무는 없다.
 - CI 통과, merge, 배포, 실제 런타임 동작을 서로 다른 근거로 취급한다.
 - 일부 파일이나 변경 묶음을 읽지 못했다면 결과를 반드시 `partial`로 남긴다.
@@ -53,7 +53,10 @@ python3 "$SKILL_DIR/scripts/easy_review.py" inspect --bundle <bundle-dir> --chun
 
 `<bundle-dir>/review-plan.json`을 파일 편집 도구로 수정한다. Git 파일 순서를 그대로 사용하지 않는다.
 
-- `summary`는 이 변경으로 최종적으로 무엇이 달라지는지 한 문단으로 쓴다.
+- 모든 독자용 문구는 난독증이 있는 독자도 한 번에 읽도록 쓴다. 한 문장에 사실 하나, 90자 이내, 괄호 삽입구와 긴 나열 금지. 길어지면 문장을 쪼걠다.
+- `summary`는 이 변경으로 최종적으로 무엇이 달라지는지 짧은 문장 2~5개로 쓴다.
+- `easy_context`는 코드를 모르는 독자 기준으로 반드시 채운다. `what`은 기술 용어 없는 한 문장, `why`는 배경 한 문장, `points`는 쉽은 말 요점 1~6개, `flow`는 이 변경이 만드는 흐름을 단계 박스(`label`+짧은 `note`)로 3~8개, `terms`는 피할 수 없는 용어만 쉽게 풀이한다. HTML 최상단에 다이어그램과 함께 렌더링된다.
+- `easy_context.diagram`은 변경 성격에 맞는 `kind`를 고른다. 시스템·모듈 사이 호출 순서가 핵심이면 `sequence`(actors+steps), 조건 분기가 있는 처리 흐름이면 `flow`(nodes+edges, 분기 node는 `shape: "decision"`), 테이블·스키마·엔티티 관계 변경이면 `er`(entities+relations)을 쓴다. 단순 직선 단계만 있다면 `diagram` 없이 `flow` 배열만 써도 된다. 구체 스키마는 [references/artifact-contract.md](references/artifact-contract.md)를 따른다.
 - `overview`는 독자가 상세 코드를 읽기 전에 알아야 할 결과를 1~5개 평문으로 쓴다.
 - `sections` 배열 순서가 문서의 실제 읽는 순서다. 기능 흐름과 인과관계를 기준으로 관련 파일을 묶는다.
 - 보통 사용자에게 보이는 진입점과 핵심 판단을 먼저, 연동 경계를 다음, DB·마이그레이션·설정과 테스트·생성물을 뒤에 둔다. 실제 변경의 이해 순서가 다르면 그에 맞게 바꾼다.
@@ -89,6 +92,15 @@ python3 "$SKILL_DIR/scripts/easy_review.py" compile --bundle <bundle-dir> --form
 
 ## 결과를 전달한다
 
-채팅 결과는 `<bundle-dir>/review.md`의 내용을 현재 GUI에 맞게 전달한다. HTML은 `<bundle-dir>/review.html`의 절대 경로 링크를 주고, macOS에서는 `open <bundle-dir>/review.html`로 바로 연다. 두 형식 모두 결과 요약 → 읽는 순서 → 먼저 볼 점 → 의미 묶음 → 대상에 대해 확인한 내용이 있을 때만 검증 근거 → 기술 정보 순서를 유지한다.
+채팅 결과는 `<bundle-dir>/review.md`의 내용을 현재 GUI에 맞게 전달한다.
+
+HTML을 만들었다면 챗봇이 동작하도록 로컬 서버로 연다.
+
+```bash
+python3 "$SKILL_DIR/scripts/easy_review.py" serve --bundle <bundle-dir> > <bundle-dir>/serve.log 2>&1 &
+sleep 1 && head -1 <bundle-dir>/serve.log
+```
+
+출력된 `http://127.0.0.1:<port>/review.html` 주소를 사용자에게 전달하고 macOS에서는 `open`으로 바로 연다. 챗봇은 `OPENROUTER_API_KEY`(또는 `EASY_REVIEW_CHAT_API_KEY`)가 있어야 답변하며, 모델은 `EASY_REVIEW_CHAT_MODEL` 또는 `--model`로 바꿀 수 있다. 키가 없거나 서버를 열 수 없는 환경이면 `open <bundle-dir>/review.html`로 정적 파일만 열어도 된다(챗봇은 안내문만 표시). 대화 기록은 `<bundle-dir>/chat/*.jsonl`에 남는다. 두 형식 모두 결과 요약 → 읽는 순서 → 먼저 볼 점 → 의미 묶음 → 대상에 대해 확인한 내용이 있을 때만 검증 근거 → 기술 정보 순서를 유지한다.
 
 최종 답변에는 대상, 전체/일부 검토 범위, 실제로 먼저 볼 점, 수행한 검증, 생성한 HTML 링크만 간결하게 적는다. 문제를 찾지 못했다는 사실을 승인이나 안전 보장으로 표현하지 않는다.
