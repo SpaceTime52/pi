@@ -429,8 +429,9 @@ class EasyReviewTests(unittest.TestCase):
             html_output = (bundle / "review.html").read_text(encoding="utf-8")
 
             self.assertLess(html_output.index('id="section-core-flow"'), html_output.index('id="section-tests"'))
-            self.assertIn('<details id="section-core-flow" data-review-section="core-flow" class="review-section" open="">', html_output)
+            self.assertIn('<details id="section-core-flow" data-review-section="core-flow" class="review-section">', html_output)
             self.assertIn('<details id="section-tests" data-review-section="tests" class="review-section">', html_output)
+            self.assertNotIn('open=""', html_output)
             self.assertLess(html_output.index("app.py"), html_output.index("tests/test_app.py", html_output.index('id="section-tests"')))
             self.assertNotIn("mechanical", html_output)
             self.assertNotIn("generated", html_output)
@@ -519,6 +520,224 @@ class EasyReviewTests(unittest.TestCase):
                     behavior_script="",
                 ),
             )
+
+    def _minimal_valid_plan(self, bundle: Path) -> dict[str, object]:
+        source = json.loads((bundle / "source.json").read_text(encoding="utf-8"))
+        for chunk in source["chunks"]:
+            run("inspect", "--bundle", str(bundle), "--chunk", chunk["id"])
+        file_entry = source["files"][0]
+        anchor = next(line["id"] for line in source["lines"] if line["kind"] == "addition")
+        plan = json.loads((bundle / "review-plan.json").read_text(encoding="utf-8"))
+        plan.update(
+            {
+                "title": "입력 처리 변경",
+                "summary": "점수 계산이 엄격 모드로 바뀝니다.",
+                "overview": ["점수 계산과 기록 동작이 바뀝니다."],
+                "sections": [
+                    {
+                        "id": "core",
+                        "title": "점수가 계산되는 흐름",
+                        "summary": "실행 경로를 읽는다.",
+                        "default_open": True,
+                        "evidence": [anchor],
+                        "files": [reviewed_file(file_entry["id"])],
+                    }
+                ],
+                "unreviewed_file_ids": [],
+            }
+        )
+        return plan
+
+    def test_easy_context_renders_plain_intro_and_chat_dock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            diff_path = root / "change.diff"
+            diff_path.write_text(simple_diff(), encoding="utf-8")
+            bundle = root / "bundle"
+            run("capture", "--diff-file", str(diff_path), "--output", str(bundle))
+            plan = self._minimal_valid_plan(bundle)
+            plan["easy_context"] = {
+                "what": "점수 계산이 더 까다로워집니다.",
+                "why": "잘못된 입력이 점수로 인정되는 문제가 있었습니다.",
+                "points": ["점수는 엄격 모드로 계산합니다."],
+                "flow": [
+                    {"label": "입력이 들어온다", "note": "사용자 요청"},
+                    {"label": "점수를 계산한다"},
+                    {"label": "기록을 남긴다", "note": "audit 호출"},
+                ],
+                "terms": [{"term": "strict", "meaning": "잘못된 입력을 거부하는 모드"}],
+                "diagram": {
+                    "kind": "sequence",
+                    "actors": [{"id": "u", "label": "사용자"}, {"id": "s", "label": "서버"}],
+                    "steps": [{"from": "u", "to": "s", "label": "점수 요청"}],
+                },
+            }
+            (bundle / "review-plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            run("compile", "--bundle", str(bundle), "--format", "both")
+            html_output = (bundle / "review.html").read_text(encoding="utf-8")
+
+            self.assertIn('class="easy-context report-section"', html_output)
+            self.assertIn("아주 쉽게 보기", html_output)
+            self.assertLess(html_output.index("아주 쉽게 보기"), html_output.index("한눈에 보기"))
+            self.assertIn('class="easy-diagram"', html_output)
+            self.assertIn("data-diagram=", html_output)
+            self.assertNotIn('class="easy-step"', html_output)
+            self.assertIn('data-chat-dock=""', html_output)
+            self.assertIn("serve --bundle", html_output)
+            self.assertIn('data-ask-path="app.py"', html_output)
+            markdown_output = (bundle / "review.md").read_text(encoding="utf-8")
+            self.assertIn("## 아주 쉽게 보기", markdown_output)
+            self.assertIn("사용자 → 서버: 점수 요청", markdown_output)
+
+    def test_invalid_easy_context_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            diff_path = root / "change.diff"
+            diff_path.write_text(simple_diff(), encoding="utf-8")
+            bundle = root / "bundle"
+            run("capture", "--diff-file", str(diff_path), "--output", str(bundle))
+            plan = self._minimal_valid_plan(bundle)
+            plan["easy_context"] = {
+                "what": "설명",
+                "points": ["a", "b", "c", "d", "e", "f", "g"],
+                "flow": [{"note": "label 없음"}],
+                "terms": [{"term": "x"}],
+                "diagram": {"kind": "sequence", "actors": [{"id": "a", "label": "A"}], "steps": []},
+            }
+            (bundle / "review-plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            completed = run("preview", "--bundle", str(bundle), expected=1)
+            self.assertIn("easy_context.points", completed.stdout)
+            self.assertIn("easy_context.flow[0]", completed.stdout)
+            self.assertIn("easy_context.terms[0]", completed.stdout)
+            self.assertIn("easy_context.diagram.actors", completed.stdout)
+
+    def test_chat_server_repo_access_is_confined_and_read_only(self) -> None:
+        chat_server_path = SCRIPT.parent / "chat_server.py"
+        spec = importlib.util.spec_from_file_location("chat_server", chat_server_path)
+        assert spec and spec.loader
+        chat_server = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(chat_server)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            repo = Path(temporary_directory).resolve() / "repo"
+            (repo / ".git").mkdir(parents=True)
+            (repo / ".git" / "config").write_text("secret\n", encoding="utf-8")
+            (repo / "module.py").write_text("first\nsecond\nthird\n", encoding="utf-8")
+            (Path(temporary_directory) / "outside.txt").write_text("outside\n", encoding="utf-8")
+
+            with self.assertRaises(chat_server.ChatServerError):
+                chat_server.safe_repo_path(repo, "../outside.txt")
+            with self.assertRaises(chat_server.ChatServerError):
+                chat_server.safe_repo_path(repo, ".git/config")
+            self.assertEqual(chat_server.safe_repo_path(repo, "module.py"), repo / "module.py")
+
+            listing = chat_server.tool_list_dir(repo, {})
+            self.assertIn("module.py", listing)
+            self.assertNotIn(".git", listing)
+
+            body = chat_server.tool_read_file(repo, {"path": "module.py", "start_line": 2, "max_lines": 1})
+            self.assertIn("2| second", body)
+            self.assertIn("start_line=3", body)
+
+            diff_path = Path(temporary_directory) / "change.diff"
+            diff_path.write_text(simple_diff(), encoding="utf-8")
+            bundle = Path(temporary_directory) / "bundle"
+            run("capture", "--diff-file", str(diff_path), "--output", str(bundle))
+            config = chat_server.ChatConfig(bundle, repo)
+            listing = chat_server.tool_read_diff(config, {})
+            self.assertIn("app.py (modified, +2/-1)", listing)
+            diff_body = chat_server.tool_read_diff(config, {"path": "app.py"})
+            self.assertIn("+    audit(score)", diff_body)
+            with self.assertRaises(chat_server.ChatServerError):
+                chat_server.tool_read_diff(config, {"path": "missing.py"})
+
+            png_data = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="
+            pdf_data = "data:application/pdf;base64,JVBERi0xLjQK"
+            clean = chat_server.validate_attachments(
+                [
+                    {"kind": "image", "name": "shot.png", "data": png_data},
+                    {"kind": "text", "name": "log.txt", "text": "line1"},
+                    {"kind": "pdf", "name": "spec.pdf", "data": pdf_data},
+                ]
+            )
+            self.assertEqual([item["kind"] for item in clean], ["image", "text", "pdf"])
+            for bad in (
+                [{"kind": "image", "name": "x", "data": "data:text/html;base64,AA=="}],
+                [{"kind": "exe", "name": "x"}],
+                [{"kind": "text", "name": "x", "text": "y"}] * 5,
+            ):
+                with self.assertRaises(ValueError):
+                    chat_server.validate_attachments(bad)
+
+            message = chat_server.to_model_message(
+                {"role": "user", "content": "이거 봐줘", "attachments": clean}
+            )
+            self.assertEqual(message["content"][0]["type"], "text")
+            self.assertIn("[첨부 파일: log.txt]", message["content"][0]["text"])
+            self.assertEqual(message["content"][1], {"type": "image_url", "image_url": {"url": png_data}})
+            self.assertEqual(
+                message["content"][2],
+                {"type": "file", "file": {"filename": "spec.pdf", "file_data": pdf_data}},
+            )
+            self.assertTrue(chat_server.history_has_pdf([{"role": "user", "content": "x", "attachments": clean}]))
+            self.assertFalse(chat_server.history_has_pdf([{"role": "user", "content": "x"}]))
+            plain = chat_server.to_model_message({"role": "user", "content": "그냥 질문"})
+            self.assertEqual(plain, {"role": "user", "content": "그냥 질문"})
+
+            stored = chat_server.store_attachments(config, "att-test", clean)
+            self.assertEqual(len(stored), 3)
+            self.assertTrue(stored[2]["path"].endswith(".pdf"))
+            stored_again = chat_server.store_attachments(config, "att-test", clean)
+            self.assertNotEqual(stored[0]["path"], stored_again[0]["path"])
+
+            import http.client
+            import threading
+            from http.server import ThreadingHTTPServer
+
+            bound_handler = type("TestHandler", (chat_server.ChatRequestHandler,), {"config": config})
+            server = ThreadingHTTPServer(("127.0.0.1", 0), bound_handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                port = server.server_address[1]
+
+                def request(method: str, path: str, headers: dict[str, str], body: bytes = b"") -> int:
+                    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                    connection.request(method, path, body=body, headers=headers)
+                    status = connection.getresponse().status
+                    connection.close()
+                    return status
+
+                self.assertEqual(request("GET", "/api/status", {"Host": "127.0.0.1"}), 200)
+                self.assertEqual(request("GET", "/api/status", {"Host": "evil.example.com"}), 403)
+                self.assertEqual(
+                    request(
+                        "POST",
+                        "/api/chat",
+                        {"Host": "127.0.0.1", "Origin": "https://evil.example.com", "Content-Type": "application/json"},
+                        b"{}",
+                    ),
+                    403,
+                )
+                self.assertEqual(
+                    request(
+                        "POST",
+                        "/api/chat",
+                        {
+                            "Host": "127.0.0.1",
+                            "Content-Type": "application/json",
+                            "Content-Length": str(chat_server.MAX_REQUEST_BYTES + 1),
+                        },
+                    ),
+                    413,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+            for item in stored:
+                self.assertTrue(Path(item["path"]).is_file())
 
 
 if __name__ == "__main__":

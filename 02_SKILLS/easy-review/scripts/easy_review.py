@@ -35,6 +35,9 @@ ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 ATTENTION_VALUES = {"fix", "caution", "confirm"}
 FILE_VIEW_VALUES = {"detail", "summary"}
 VERIFICATION_VALUES = {"passed", "failed", "not_run", "unknown"}
+DIAGRAM_KINDS = {"flow", "sequence", "er"}
+FLOW_SHAPES = {"start", "end", "step", "decision"}
+ER_KEYS = {"pk", "fk"}
 INTERNAL_VERIFICATION_NAME_RE = re.compile(r"(?:easy[\s-]?review|이지\s*리뷰)", re.IGNORECASE)
 SOURCE_LINE_KINDS = {"addition", "deletion", "context", "no_newline"}
 STRUCTURAL_LINE_KINDS = {"file_header", "old_file", "new_file", "hunk_header"}
@@ -578,6 +581,7 @@ def plan_template(source: dict[str, Any]) -> dict[str, Any]:
         "source_sha256": source["source_sha256"],
         "title": title,
         "summary": "",
+        "easy_context": {"what": "", "why": "", "points": [], "flow": [], "terms": []},
         "overview": [],
         "attention": [],
         "sections": [],
@@ -755,6 +759,14 @@ def validate_plan(
     def has_text(value: Any) -> bool:
         return isinstance(value, str) and bool(value.strip())
 
+    def check_readability(value: Any, label: str) -> None:
+        if not isinstance(value, str):
+            return
+        for sentence in re.split(r"(?<=[.!?])\s+", value.strip()):
+            if len(sentence) > 90:
+                warnings.append(f"{label} has a sentence over 90 characters; split it into shorter sentences")
+                return
+
     if plan.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"schema_version must be {SCHEMA_VERSION}")
     if plan.get("source_sha256") != source.get("source_sha256"):
@@ -763,6 +775,7 @@ def validate_plan(
         errors.append("title is required")
     if not has_text(plan.get("summary")):
         errors.append("summary is required")
+    check_readability(plan.get("summary"), "summary")
 
     def validate_evidence(value: Any, location: str, *, required: bool = True) -> list[int]:
         if not isinstance(value, list):
@@ -782,6 +795,43 @@ def validate_plan(
                     errors.append(f"{location}.evidence[{evidence_index}] belongs to uninspected chunk {chunk_id}")
         return indices
 
+    easy_context = plan.get("easy_context")
+    if easy_context is None:
+        warnings.append("easy_context is missing; the plain-language intro will be omitted")
+    elif not isinstance(easy_context, dict):
+        errors.append("easy_context must be an object")
+    else:
+        if not has_text(easy_context.get("what")):
+            warnings.append("easy_context.what is empty; the plain-language intro will be omitted")
+        if easy_context.get("why") not in (None, "") and not has_text(easy_context["why"]):
+            errors.append("easy_context.why must be text when present")
+        points = easy_context.get("points", [])
+        if not isinstance(points, list) or len(points) > 6:
+            errors.append("easy_context.points must be an array of at most 6 items")
+        else:
+            for index, item in enumerate(points):
+                if not has_text(item):
+                    errors.append(f"easy_context.points[{index}] must be text")
+        flow = easy_context.get("flow", [])
+        if not isinstance(flow, list) or len(flow) > 12:
+            errors.append("easy_context.flow must be an array of at most 12 steps")
+        else:
+            for index, step in enumerate(flow):
+                if not isinstance(step, dict) or not has_text(step.get("label")):
+                    errors.append(f"easy_context.flow[{index}] requires a text label")
+                elif step.get("note") is not None and not has_text(step["note"]):
+                    errors.append(f"easy_context.flow[{index}].note must be text when present")
+        diagram = easy_context.get("diagram")
+        if diagram is not None:
+            validate_easy_diagram(diagram, errors)
+        terms = easy_context.get("terms", [])
+        if not isinstance(terms, list) or len(terms) > 12:
+            errors.append("easy_context.terms must be an array of at most 12 items")
+        else:
+            for index, term in enumerate(terms):
+                if not isinstance(term, dict) or not has_text(term.get("term")) or not has_text(term.get("meaning")):
+                    errors.append(f"easy_context.terms[{index}] requires term and meaning")
+
     overview = plan.get("overview")
     if not isinstance(overview, list):
         errors.append("overview must be an array")
@@ -791,6 +841,8 @@ def validate_plan(
     for index, item in enumerate(overview):
         if not has_text(item):
             errors.append(f"overview[{index}] must be text")
+        else:
+            check_readability(item, f"overview[{index}]")
 
     sections = plan.get("sections")
     if not isinstance(sections, list):
@@ -816,6 +868,7 @@ def validate_plan(
             seen_section_ids.add(section_id)
         if not has_text(section.get("title")) or not has_text(section.get("summary")):
             errors.append(f"{location} requires title and summary")
+        check_readability(section.get("summary"), f"{location}.summary")
         if not isinstance(section.get("default_open"), bool):
             errors.append(f"{location}.default_open must be a boolean")
 
@@ -968,6 +1021,7 @@ def validate_plan(
             errors.append(f"{location}.type must be fix, caution, or confirm")
         if not has_text(item.get("title")) or not has_text(item.get("body")):
             errors.append(f"{location} requires title and body")
+        check_readability(item.get("body"), f"{location}.body")
         evidence_indices = validate_evidence(item.get("evidence"), location)
         for evidence_index in evidence_indices:
             evidence_file_id = lines[evidence_index].get("file_id")
@@ -1057,12 +1111,145 @@ def evidence_text(
     return ", ".join(f"`{anchor_label(source, files_by_id, anchor)}`" for anchor in evidence)
 
 
+def validate_easy_diagram(diagram: Any, errors: list[str]) -> None:
+    location = "easy_context.diagram"
+
+    def has_text(value: Any) -> bool:
+        return isinstance(value, str) and bool(value.strip())
+
+    if not isinstance(diagram, dict):
+        errors.append(f"{location} must be an object")
+        return
+    kind = diagram.get("kind")
+    if kind not in DIAGRAM_KINDS:
+        errors.append(f"{location}.kind must be one of flow, sequence, er")
+        return
+    if kind == "flow":
+        nodes = diagram.get("nodes")
+        if not isinstance(nodes, list) or not 2 <= len(nodes) <= 16:
+            errors.append(f"{location}.nodes must contain 2 to 16 nodes")
+            return
+        node_ids: set[str] = set()
+        for index, node in enumerate(nodes):
+            if not isinstance(node, dict) or not has_text(node.get("id")) or not has_text(node.get("label")):
+                errors.append(f"{location}.nodes[{index}] requires id and label")
+                continue
+            if node["id"] in node_ids:
+                errors.append(f"{location}.nodes[{index}].id is duplicated: {node['id']}")
+            node_ids.add(node["id"])
+            if node.get("shape") is not None and node["shape"] not in FLOW_SHAPES:
+                errors.append(f"{location}.nodes[{index}].shape must be start, end, step, or decision")
+        edges = diagram.get("edges")
+        if not isinstance(edges, list) or not 1 <= len(edges) <= 24:
+            errors.append(f"{location}.edges must contain 1 to 24 edges")
+            return
+        for index, edge in enumerate(edges):
+            if not isinstance(edge, dict) or edge.get("from") not in node_ids or edge.get("to") not in node_ids:
+                errors.append(f"{location}.edges[{index}] must connect known node ids")
+    elif kind == "sequence":
+        actors = diagram.get("actors")
+        if not isinstance(actors, list) or not 2 <= len(actors) <= 6:
+            errors.append(f"{location}.actors must contain 2 to 6 actors")
+            return
+        actor_ids: set[str] = set()
+        for index, actor in enumerate(actors):
+            if not isinstance(actor, dict) or not has_text(actor.get("id")) or not has_text(actor.get("label")):
+                errors.append(f"{location}.actors[{index}] requires id and label")
+                continue
+            if actor["id"] in actor_ids:
+                errors.append(f"{location}.actors[{index}].id is duplicated: {actor['id']}")
+            actor_ids.add(actor["id"])
+        steps = diagram.get("steps")
+        if not isinstance(steps, list) or not 1 <= len(steps) <= 16:
+            errors.append(f"{location}.steps must contain 1 to 16 steps")
+            return
+        for index, step in enumerate(steps):
+            if (
+                not isinstance(step, dict)
+                or step.get("from") not in actor_ids
+                or step.get("to") not in actor_ids
+                or not has_text(step.get("label"))
+            ):
+                errors.append(f"{location}.steps[{index}] requires known from/to actors and a label")
+    elif kind == "er":
+        entities = diagram.get("entities")
+        if not isinstance(entities, list) or not 1 <= len(entities) <= 8:
+            errors.append(f"{location}.entities must contain 1 to 8 entities")
+            return
+        entity_names: set[str] = set()
+        for index, entity in enumerate(entities):
+            if not isinstance(entity, dict) or not has_text(entity.get("name")):
+                errors.append(f"{location}.entities[{index}] requires name")
+                continue
+            entity_names.add(entity["name"])
+            fields = entity.get("fields", [])
+            if not isinstance(fields, list) or len(fields) > 12:
+                errors.append(f"{location}.entities[{index}].fields must be an array of at most 12 items")
+                continue
+            for field_index, field in enumerate(fields):
+                if not isinstance(field, dict) or not has_text(field.get("name")):
+                    errors.append(f"{location}.entities[{index}].fields[{field_index}] requires name")
+                elif field.get("key") is not None and field["key"] not in ER_KEYS:
+                    errors.append(f"{location}.entities[{index}].fields[{field_index}].key must be pk or fk")
+        relations = diagram.get("relations", [])
+        if not isinstance(relations, list) or len(relations) > 12:
+            errors.append(f"{location}.relations must be an array of at most 12 items")
+            return
+        for index, relation in enumerate(relations):
+            if (
+                not isinstance(relation, dict)
+                or relation.get("from") not in entity_names
+                or relation.get("to") not in entity_names
+            ):
+                errors.append(f"{location}.relations[{index}] must connect known entity names")
+
+
+def active_easy_context(plan: dict[str, Any]) -> dict[str, Any] | None:
+    easy_context = plan.get("easy_context")
+    if isinstance(easy_context, dict) and isinstance(easy_context.get("what"), str) and easy_context["what"].strip():
+        return easy_context
+    return None
+
+
 def render_markdown(review: dict[str, Any]) -> str:
     plan = review["plan"]
     coverage = review["coverage"]
     source = review["source"]
     files_by_id = {file_entry["id"]: file_entry for file_entry in review["files"]}
     output = [f"# {plan['title']}", "", plan["summary"], ""]
+    easy_context = active_easy_context(plan)
+    if easy_context:
+        output.extend(["## 아주 쉽게 보기", "", f"**무엇이 달라지나** — {easy_context['what']}"])
+        if isinstance(easy_context.get("why"), str) and easy_context["why"].strip():
+            output.append(f"**왜 하나** — {easy_context['why']}")
+        for item in easy_context.get("points", []):
+            output.append(f"- {item}")
+        diagram = easy_context.get("diagram")
+        if isinstance(diagram, dict) and diagram.get("kind") == "sequence":
+            actor_labels = {actor["id"]: actor["label"] for actor in diagram.get("actors", [])}
+            output.append("")
+            for step in diagram.get("steps", []):
+                output.append(
+                    f"- {actor_labels.get(step['from'], step['from'])} → {actor_labels.get(step['to'], step['to'])}: {step['label']}"
+                )
+        elif isinstance(diagram, dict) and diagram.get("kind") == "flow":
+            node_labels = {node["id"]: node["label"] for node in diagram.get("nodes", [])}
+            output.append("")
+            for edge in diagram.get("edges", []):
+                arrow = f" ({edge['label']})" if edge.get("label") else ""
+                output.append(f"- {node_labels.get(edge['from'])} → {node_labels.get(edge['to'])}{arrow}")
+        elif isinstance(diagram, dict) and diagram.get("kind") == "er":
+            output.append("")
+            for entity in diagram.get("entities", []):
+                fields = ", ".join(field["name"] for field in entity.get("fields", []))
+                output.append(f"- `{entity['name']}`: {fields}")
+        else:
+            flow = easy_context.get("flow", [])
+            if flow:
+                output.extend(["", "흐름: " + " → ".join(step["label"] for step in flow)])
+        for term in easy_context.get("terms", []):
+            output.append(f"- `{term['term']}`: {term['meaning']}")
+        output.append("")
     output.extend(["## 한눈에 보기", ""])
     for item in plan["overview"]:
         output.append(f"- {item}")
@@ -1280,7 +1467,121 @@ def append_file_identity(parent: Element, path: str) -> Element:
     return heading
 
 
-def render_html(review: dict[str, Any], assets_dir: Path) -> str:
+def append_easy_context(main: Element, plan: dict[str, Any]) -> None:
+    easy_context = active_easy_context(plan)
+    if easy_context is None:
+        return
+    section = child(main, "section", attributes={"class": "easy-context report-section"})
+    child(section, "p", "PLAIN CONTEXT", {"class": "section-label"})
+    child(section, "h2", "아주 쉽게 보기")
+    lead = child(section, "div", attributes={"class": "easy-lead"})
+    what = child(lead, "div", attributes={"class": "easy-card"})
+    child(what, "p", "무엇이 달라지나", {"class": "easy-kicker"})
+    child(what, "p", easy_context["what"])
+    why_text = easy_context.get("why")
+    if isinstance(why_text, str) and why_text.strip():
+        why = child(lead, "div", attributes={"class": "easy-card"})
+        child(why, "p", "왜 하나", {"class": "easy-kicker"})
+        child(why, "p", why_text)
+    points = [item for item in easy_context.get("points", []) if isinstance(item, str) and item.strip()]
+    if points:
+        points_list = child(section, "ul", attributes={"class": "easy-points"})
+        for item in points:
+            child(points_list, "li", item)
+    diagram = easy_context.get("diagram")
+    if isinstance(diagram, dict) and diagram.get("kind") in DIAGRAM_KINDS:
+        titles = {"flow": "흐름 한눈에 보기", "sequence": "호출 순서 한눈에 보기", "er": "데이터 구조 한눈에 보기"}
+        child(section, "p", titles[diagram["kind"]], {"class": "easy-kicker easy-flow-title"})
+        child(
+            section,
+            "div",
+            attributes={"class": "easy-diagram", "data-diagram": json.dumps(diagram, ensure_ascii=False)},
+        )
+    flow = [step for step in easy_context.get("flow", []) if isinstance(step, dict) and step.get("label")]
+    if flow and not isinstance(diagram, dict):
+        child(section, "p", "흐름 한눈에 보기", {"class": "easy-kicker easy-flow-title"})
+        flow_list = child(section, "ol", attributes={"class": "easy-flow"})
+        for step in flow:
+            step_item = child(flow_list, "li", attributes={"class": "easy-step"})
+            child(step_item, "strong", step["label"])
+            note = step.get("note")
+            if isinstance(note, str) and note.strip():
+                child(step_item, "span", note)
+    terms = [
+        term
+        for term in easy_context.get("terms", [])
+        if isinstance(term, dict) and term.get("term") and term.get("meaning")
+    ]
+    if terms:
+        terms_list = child(section, "dl", attributes={"class": "easy-terms"})
+        for term in terms:
+            term_row = child(terms_list, "div")
+            child(term_row, "dt", term["term"])
+            child(term_row, "dd", term["meaning"])
+
+
+def append_chat_dock(main: Element, serve_hint: str) -> None:
+    dock = child(main, "aside", attributes={"class": "chat-dock", "data-chat-dock": ""})
+    toggle = child(
+        dock,
+        "button",
+        attributes={
+            "type": "button",
+            "class": "chat-toggle",
+            "data-action": "toggle-chat",
+            "aria-expanded": "false",
+            "aria-label": "AI 리뷰 도우미 열기",
+        },
+    )
+    toggle_icon = child(toggle, "svg", attributes={"viewBox": "0 0 24 24", "class": "chat-toggle-icon", "aria-hidden": "true"})
+    child(
+        toggle_icon,
+        "path",
+        attributes={
+            "d": "M12 3C6.8 3 2.5 6.5 2.5 10.8c0 2.4 1.3 4.6 3.4 6-.2 1.1-.8 2.4-1.7 3.5 2-.3 3.6-1 4.7-1.8 1 .3 2 .4 3.1.4 5.2 0 9.5-3.5 9.5-7.9S17.2 3 12 3z",
+            "fill": "currentColor",
+        },
+    )
+    child(toggle, "span", "✕", {"class": "chat-toggle-x", "aria-hidden": "true"})
+    panel = child(dock, "section", attributes={"class": "chat-panel", "hidden": "", "aria-label": "AI 리뷰 도우미"})
+    panel_header = child(panel, "header", attributes={"class": "chat-header"})
+    child(panel_header, "div", "AI", {"class": "chat-avatar", "aria-hidden": "true"})
+    panel_title = child(panel_header, "div", attributes={"class": "chat-title"})
+    child(panel_title, "strong", "리뷰 도우미")
+    subtitle = child(panel_title, "div", attributes={"class": "chat-subtitle"})
+    child(subtitle, "span", "오프라인", {"class": "chat-status", "data-chat-status": ""})
+    child(subtitle, "span", "", {"class": "chat-branch", "data-chat-branch": ""})
+    actions = child(panel_header, "div", attributes={"class": "chat-actions"})
+    child(
+        actions,
+        "select",
+        attributes={
+            "class": "chat-model-select",
+            "data-chat-model-select": "",
+            "aria-label": "모델 선택",
+            "hidden": "",
+        },
+    )
+    child(
+        actions,
+        "button",
+        "↺",
+        {"type": "button", "class": "chat-icon-button", "data-action": "new-chat", "aria-label": "새 대화", "title": "새 대화"},
+    )
+    child(
+        actions,
+        "button",
+        "✕",
+        {"type": "button", "class": "chat-icon-button", "data-action": "close-chat", "aria-label": "채팅창 닫기", "title": "닫기"},
+    )
+    offline = child(panel, "div", attributes={"class": "chat-offline", "data-chat-offline": ""})
+    child(offline, "p", "챗봇은 로컬 서버로 열었을 때만 동작합니다. 터미널에서 아래 명령을 실행하고 출력된 주소로 다시 열어 주세요.")
+    child(offline, "code", serve_hint)
+    child(offline, "p", "서버는 이 컬플릿터 저장소를 읽기 전용으로만 보며, 대화는 번들의 chat/ 폴더에 JSONL로 저장됩니다.")
+    child(panel, "div", attributes={"class": "chat-body", "data-chat-body": ""})
+
+
+def render_html(review: dict[str, Any], assets_dir: Path, serve_hint: str) -> str:
     plan = review["plan"]
     coverage = review["coverage"]
     source = review["source"]
@@ -1302,6 +1603,8 @@ def render_html(review: dict[str, Any], assets_dir: Path) -> str:
         stat = child(stats, "div", attributes={"class": "report-stat"})
         child(stat, "dt", label)
         child(stat, "dd", value)
+
+    append_easy_context(main, plan)
 
     overview = child(main, "section", attributes={"class": "overview report-section"})
     child(overview, "p", "OVERVIEW", {"class": "section-label"})
@@ -1349,8 +1652,6 @@ def render_html(review: dict[str, Any], assets_dir: Path) -> str:
             "data-review-section": section["id"],
             "class": "review-section",
         }
-        if section["default_open"]:
-            section_attributes["open"] = ""
         section_node = child(review_content, "details", attributes=section_attributes)
         section_summary = child(section_node, "summary")
         child(section_summary, "span", f"{section_index:02d}", {"class": "section-number"})
@@ -1386,6 +1687,12 @@ def render_html(review: dict[str, Any], assets_dir: Path) -> str:
                 file_description,
                 "span",
                 f'+{file_entry["additions"]} −{file_entry["deletions"]}',
+            )
+            child(
+                file_header,
+                "button",
+                "AI에게 묻기",
+                {"type": "button", "class": "ask-ai", "data-ask-path": file_entry["path"], "hidden": ""},
             )
             file_node.append(render_file_diff(source, file_entry, file_plan))
         if summary_files:
@@ -1507,6 +1814,8 @@ def render_html(review: dict[str, Any], assets_dir: Path) -> str:
         {"class": "minimap-meta"},
     )
 
+    append_chat_dock(main, serve_hint)
+
     style = (assets_dir / "review.css").read_text(encoding="utf-8")
     syntax_script = (assets_dir / "vendor" / "prism.js").read_text(encoding="utf-8")
     behavior_script = (assets_dir / "review.js").read_text(encoding="utf-8")
@@ -1555,10 +1864,29 @@ def command_compile(args: argparse.Namespace) -> int:
     if args.format_value in {"html", "both"}:
         html_path = bundle / "review.html"
         assets_dir = Path(__file__).resolve().parent.parent / "assets"
-        write_text_atomic(html_path, render_html(review, assets_dir))
+        serve_hint = f'python3 "{Path(__file__).resolve()}" serve --bundle "{bundle}"'
+        write_text_atomic(html_path, render_html(review, assets_dir, serve_hint))
         generated.append(html_path)
     for path in generated:
         print(path)
+    return 0
+
+
+def command_serve(args: argparse.Namespace) -> int:
+    bundle = Path(args.bundle).expanduser().resolve()
+    if not (bundle / "review.html").is_file():
+        raise EasyReviewError("review.html not found; run compile --format html first")
+    source = read_json(bundle / "source.json")
+    repo_value = args.repo or source.get("capture", {}).get("repo_root")
+    if not repo_value:
+        raise EasyReviewError("pass --repo so the assistant knows which repository to read")
+    repo = Path(repo_value).expanduser().resolve()
+    if not repo.is_dir():
+        raise EasyReviewError(f"repository directory not found: {repo}; pass --repo")
+    repo = git_root(repo)
+    import chat_server
+
+    chat_server.serve(bundle, repo, args.port, args.model)
     return 0
 
 
@@ -1567,9 +1895,18 @@ def command_describe(args: argparse.Namespace) -> int:
         "name": "easy-review",
         "schema_version": SCHEMA_VERSION,
         "read_only": True,
-        "llm_api_calls": False,
+        "pipeline_llm_api_calls": False,
+        "chat": {
+            "command": "serve",
+            "listens_on": "127.0.0.1",
+            "api_key_env": ["EASY_REVIEW_CHAT_API_KEY", "OPENROUTER_API_KEY"],
+            "model_env": "EASY_REVIEW_CHAT_MODEL",
+            "base_url_env": "EASY_REVIEW_CHAT_BASE_URL",
+            "repo_access": "read-only tools (list_dir, read_file, search_code)",
+            "log": "<bundle>/chat/<session>.jsonl",
+        },
         "capture_modes": ["worktree", "unstaged", "staged", "revision", "range", "github_pr", "diff_file"],
-        "commands": ["capture", "inspect", "preview", "compile", "describe"],
+        "commands": ["capture", "inspect", "preview", "compile", "serve", "describe"],
         "formats": ["chat", "html", "both"],
         "limits": {"max_diff_bytes": MAX_DIFF_BYTES, "default_chunk_bytes": DEFAULT_CHUNK_BYTES, "max_chunks": MAX_CHUNKS},
     }
@@ -1608,6 +1945,13 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--bundle", required=True)
     compile_parser.add_argument("--format", dest="format_value", choices=("chat", "html", "both"), required=True)
     compile_parser.set_defaults(handler=command_compile)
+
+    serve_parser = subparsers.add_parser("serve", help="serve review.html locally with the AI chat assistant")
+    serve_parser.add_argument("--bundle", required=True)
+    serve_parser.add_argument("--repo", help="repository the assistant may read; defaults to the captured repo")
+    serve_parser.add_argument("--port", type=int, default=0, help="port to bind on 127.0.0.1; 0 picks a free port")
+    serve_parser.add_argument("--model", help="chat model id; defaults to EASY_REVIEW_CHAT_MODEL")
+    serve_parser.set_defaults(handler=command_serve)
 
     describe = subparsers.add_parser("describe", help="print the local command contract")
     describe.add_argument("--json", action="store_true", help="retained for explicit machine-readable invocation")

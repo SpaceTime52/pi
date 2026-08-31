@@ -17,6 +17,21 @@
   "source_sha256": "source.json에서 복사",
   "title": "변경 목적이 드러나는 제목",
   "summary": "최종적으로 달라지는 결과",
+  "easy_context": {
+    "what": "코드를 모르는 독자도 이해하는 한 문장 설명",
+    "why": "이 변경이 필요해진 이유",
+    "points": ["쉽은 말로 쓴 핵심 요점 (최대 6개)"],
+    "flow": [
+      {"label": "사용자가 알림을 켬다", "note": "설정 화면에서 시작"},
+      {"label": "대상을 고른다", "note": "구독 중인 회원만"}
+    ],
+    "terms": [{"term": "용어", "meaning": "쉽은 풀이"}],
+    "diagram": {
+      "kind": "sequence",
+      "actors": [{"id": "dom", "label": "도메인"}, {"id": "lib", "label": "라이브러리"}],
+      "steps": [{"from": "dom", "to": "lib", "label": "발급 요청", "note": "선택 보충 설명"}]
+    }
+  },
   "overview": [
     "상세 코드를 읽기 전에 알아야 할 결과"
   ],
@@ -78,6 +93,8 @@
 
 - `schema_version`은 `3`이어야 한다.
 - `source_sha256`은 현재 번들과 일치해야 한다.
+- `easy_context`는 선택 필드지만 비워 두면 경고가 남는다. `what`이 있을 때만 렌더링되며, `points`는 최대 6개, `flow`는 `label`이 있는 단계 최대 12개, `terms`는 `term`/`meaning` 쌍 최대 12개다.
+- `easy_context.diagram.kind`는 `flow`·`sequence`·`er` 중 하나다. `flow`는 `nodes`(2~16개, 고유 `id`+`label`, 선택 `note`·`shape`(start/end/step/decision))와 `edges`(1~24개, 아는 id 연결, 선택 `label`), `sequence`는 `actors`(2~6개)와 `steps`(1~16개, `from`/`to`/`label`, 선택 `note`, 자기 호출 허용), `er`은 `entities`(1~8개, `name`+`fields`(최대 12, `name`+선택 `type`·`key`(pk/fk)))와 `relations`(최대 12, 선택 `label`)가 필요하다. `diagram`이 있으면 단순 `flow` 배열 대신 다이어그램이 렌더링된다.
 - `overview`는 1~5개의 비어 있지 않은 문자열이어야 한다.
 - 변경이 있는 문서에는 section이 하나 이상 있어야 한다.
 - section `id`는 소문자 영문·숫자·hyphen만 쓰며 중복할 수 없다.
@@ -96,8 +113,11 @@
 
 ## 렌더링 규칙
 
+- `easy_context`는 문서 최상단(헤더 바로 아래)에 `아주 쉽게 보기` 섹션으로 렌더링된다. `flow`는 박스와 화살표로 이어진 단계 다이어그램이 된다.
+- HTML 오른쪽 아래에는 AI 리뷰 도우미 토글과 패널이 포함된다. `file://`로 열면 오프라인 안내와 `serve` 명령만 보이고, `serve`로 서빙했을 때만 대화가 활성화된다.
 - 화면은 카드 모음보다 편집형 기술 문서에 가깝게 구성한다. 위계는 타이포그래피·간격·가는 구분선으로 만들고, 둥근 모서리와 배지는 실제 상태를 구분해야 할 때만 제한적으로 사용한다.
 - 긴 경로와 근거 링크는 파일명을 먼저 보여주고 전체 경로는 보조 정보나 접근 가능한 설명으로 남긴다. 작은 화면에서도 제목, 파일 설명, 코드가 서로 폭을 빼앗지 않게 재배치한다.
+- 모든 section은 접힌 상태로 시작한다. `default_open`은 미니맵 위계 표시에만 쓰이고, 독자는 `전체 펼치기`나 개별 클릭·근거 링크로 연다.
 - `detail`은 diff를 표시한다. focus reason은 해당 코드 바로 위에 나타난다.
 - `summary`는 파일 경로와 역할만 표시하고 코드 diff는 만들지 않는다. section의 `detail` 파일 뒤에 기본으로 닫힌 `보조 변경` 묶음으로 모은다.
 - `omitted_files`는 HTML 본문과 미니맵에 표시하지 않는다. 생략 개수와 전체 원본 링크만 기술 정보에 남긴다.
@@ -107,6 +127,20 @@
 - 넓은 화면에서는 우측 미니맵을 고정하고, 좁은 화면에서는 현재 section과 문서 위치가 보이는 하단 플로팅 바로 바꾼다. 두 형태 모두 현재·지난·남은 section을 구분한다.
 - HTML 문서는 Python 표준 라이브러리의 element tree로 구성한다. 계획과 diff에서 온 값은 text 또는 attribute로만 넣어 자동 이스케이프하고, 문자열 HTML 조각이나 범용 `replace()`로 동적 데이터를 삽입하지 않는다.
 - CSS, Prism, 동작 스크립트는 읽기 전용 정적 자산으로만 삽입한다. 스크립트 자산에 `</script>`가 있으면 컴파일을 중단한다.
+
+## 챗봇 서버 (`serve`)
+
+`serve --bundle <dir>`는 127.0.0.1에만 바인딩되는 로컬 서버를 열어 `review.html`을 서빙하고, 사용자가 직접 입력한 질문에 한해 OpenAI 호환 엔드포인트(기본 OpenRouter)로 대화를 중계한다.
+
+- 인증: `EASY_REVIEW_CHAT_API_KEY` 또는 `OPENROUTER_API_KEY` 환경 변수. 키는 브라우저로 내려가지 않고 서버에서만 쓴다.
+- 모델과 엔드포인트: `EASY_REVIEW_CHAT_MODEL`, `EASY_REVIEW_CHAT_BASE_URL`, 또는 `--model`.
+- 모델 도구는 읽기 전용 네 가지뿐이다: `read_diff`(번들의 PR diff 자체 — 로컬에 PR 브랜치가 없어도 변경 코드를 읽음), `list_dir`, `read_file`, `search_code`(git grep). 모든 경로는 저장소 루트 안으로 제한되고 `.git`은 읽지 못한다.
+- 시스템 프롬프트에 리뷰 컨텍스트(요약·요점·용어·다이어그램·주의사항·섹션·focus 해설·변경 파일 목록)가 들어가며, 컨텍스트로 답할 수 있으면 도구 없이 즉시 답하도록 지시한다.
+- 시스템 프롬프트에는 `review.json` 요약, 현재 브랜치·최근 커밋·작업 트리 상태, 추적 파일 트리가 들어간다.
+- 대화는 `<bundle>/chat/<session>.jsonl`에 append 된다(사용자 메시지, 도구 호출, 최종 답변). 서버 정보는 `chat/server.json`에 기록된다.
+- 채팅 UI는 vendored deep-chat 웹 컴포넌트(MIT, `assets/vendor/deep-chat.js`)다. serve 서버가 `/vendor/deep-chat.js`로 제공하며 HTML에는 인라인하지 않는다. `file://`로 열면 로드하지 않고 오프라인 안내만 보인다.
+- 챗창은 첨부를 받는다: 이미지 붙여넣기, 드래그드롭, 첨부 버튼. 메시지당 최대 4개다. 이미지(png/jpeg/webp/gif, 5MB)는 multimodal `image_url` 파트로, PDF(20MB)는 `file` 파트 + OpenRouter `file-parser` 플러그인으로 전달된다(기본 엔진 `pdf-text`는 무료, 스캔본은 `EASY_REVIEW_PDF_ENGINE=mistral-ocr`). 텍스트 파일은 100,000자까지 메시지 본문의 코드 블록으로 들어가며 넘치면 앞부분만 잘려 첨부된다. 원본은 `chat/attachments/`에 저장되고 JSONL에는 경로만 남는다. PDF는 모든 모델에서 동작하지만, 이미지 질문은 vision 지원 모델(gemini·claude 등)을 선택해야 한다.
+- 서버는 저장소와 번들을 읽기만 하며 코드를 수정하지 않는다.
 
 ## Chunk 동작
 
